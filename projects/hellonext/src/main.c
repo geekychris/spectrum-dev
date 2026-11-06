@@ -31,16 +31,16 @@ static void draw_layer2(void)
         ZXN_WRITE_REG(0x53, first + page);
         for (y = 0; y < 32; y++) {                      /* 32 lines of 256 per 8K page */
             unsigned char line = page * 32 + y;
+            unsigned char red = line < 48 ? 0 : ((line - 48) / 18) << 5;  /* RRR: down */
             row = (unsigned char *)(0x6000 + (unsigned int)y * 256);
             for (x = 0; x < 256; x++) {
-                if (line < 48)
+                unsigned char c;
+                if (line < 48) {
                     row[x] = L2_TRANSPARENT;            /* ULA text shows through */
-                else {
-                    unsigned char c = (unsigned char)(((line - 48) / 18) << 5   /* RRR: down */
-                                                    | (x >> 5) << 2                /* GGG: across */
-                                                    | ((x + line) >> 6 & 3));      /* BB */
-                    row[x] = c == L2_TRANSPARENT ? c - 1 : c;
+                    continue;
                 }
+                c = red | (x >> 5) << 2 | ((x + line) >> 6 & 3);   /* GGG across, BB */
+                row[x] = c == L2_TRANSPARENT ? c - 1 : c;
             }
         }
     }

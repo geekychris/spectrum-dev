@@ -101,7 +101,17 @@ class Emulator:
 
         self._opts = {"zoom": zoom, "audio": audio, "joystick": joystick, "extra": list(extra_args)}
         self._out = open(self.log_path, "ab")
-        self._start()
+        for attempt in range(3):
+            try:
+                self._start()
+                break
+            except EmulatorError:
+                # usually the probed port was taken again (or still in TIME_WAIT
+                # from the previous emulator): ZEsarUX then runs without ZRCP
+                if attempt == 2:
+                    self.close()
+                    raise
+                self.port = free_port()
 
     def _start(self):
         exe = emulator_binary()
@@ -124,10 +134,14 @@ class Emulator:
         self.proc = subprocess.Popen(args, stdout=self._out, stderr=subprocess.STDOUT,
                                      stdin=subprocess.DEVNULL, start_new_session=True)
         try:
-            self.z = Zrcp(self.port)
-        except ZrcpError:
-            self.close()
-            raise EmulatorError(f"ZEsarUX did not open ZRCP on :{self.port}; see {self.log_path}") from None
+            self.z = Zrcp(self.port, connect_timeout=8)
+        except ZrcpError as ex:
+            self._out.flush()
+            tail = self.log_path.read_bytes()[-1500:].decode("latin-1", "replace")
+            code = self.proc.poll()
+            self._stop_process()
+            raise EmulatorError(f"ZEsarUX did not open ZRCP on :{self.port} ({ex}; "
+                                f"exit code {code}). Log tail:\n{tail}") from None
         if self.paused:
             self._enter_step()
             # same starting state every time, whatever ran before we got the CPU
