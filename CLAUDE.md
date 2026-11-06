@@ -11,7 +11,10 @@ we can script deterministically.
 ./zx build <project>        # -> projects/<p>/build/<p>.tap (TARGET zx) or .nex (zxn) + .map
 ./zx test <project>         # projects/<p>/test.py if present, else waits for ZX:DONE / ZX:FAIL
 ./zx log <project> --frames 600 [--press SPACE@400]
-./zx shot <project> -o out.png --until "ready" [--press Q@400] [--no-border] [--scale 2]
+./zx shot <project> -o out.png --until "ready" [--press Q@400] [--no-border] [--scale 2] [--layer ula|layer2|sprites]
+./zx video <project> -o out.gif|.mp4 --until "ready" --frames 150
+./zx log <project> --press Q@200 --hold W@250 --release ALL@300 --type "hi@320" --record r.json
+./zx replay r.json          # re-run the input log, PASS/FAIL per screen-hash checkpoint
 ./zx run <project>          # window for the human (free-running; registered session)
 ./zx serve <project>        # headless paused session (prints ports)
 ./zx ctl <cmd> key=value    # remote-control the newest session (./zx ctl help)
@@ -31,12 +34,17 @@ Inner loop: `build` -> `emu_boot(project)` -> `emu_run_until("<your log line>")`
 (paused: frames advance only on run/press/continue); `emu_boot(p, window=True)` =
 user-visible, free-running; `emu_attach()` = join `./zx run X`. Also `emu_run(frames)`,
 `emu_hold`/`emu_release`, `emu_type`, `emu_sequence`, `emu_joystick`, `emu_pause`/`emu_resume`,
-`emu_load`, `emu_machine`, `emu_reset`, `emu_save_state`/`emu_load_state`, `emu_screenshot(path)`.
+`emu_load`, `emu_machine`, `emu_save_state`/`emu_load_state`, `emu_screenshot(path, layer)`.
+Restart: `emu_reset(hard)`, `emu_reload`, `emu_power_cycle`, `emu_reboot` (wedged session).
+Screens: `emu_look(layer="screen"|"ula"|"layer2"|"sprites")`, `emu_record_video(path.gif|.mp4)`,
+`emu_screen_hash`. Replay: `emu_checkpoint`, `emu_save_replay(path)`, `emu_replay(path)`,
+`emu_input_log`, `emu_position`, `emu_run_to(frame, tstates)`.
 
 Debugging: `emu_break("func")` or `emu_break(condition="A=5 AND PC=32768")`, then
 `emu_continue(max_frames)`; `emu_watch("global", 2, "w")`, `emu_stepi`, `emu_step_over`,
 `emu_regs`, `emu_set_reg`, `emu_disasm`, `emu_symbols`, `emu_read_mem("sym")`,
-`emu_write_mem`, `emu_find_mem`, `emu_backtrace`. `emu_cmd("help")` lists every session
+`emu_write_mem`, `emu_find_mem`, `emu_backtrace`, `emu_read_mem(addr, bank=N)` / `page=N`
+(128K banks, Next 8K pages), `emu_memory_map`. `emu_status` has `last_stop` (where + why). `emu_cmd("help")` lists every session
 command; `emu_cmd("zrcp", {"line": "help"})` reaches ZEsarUX's own protocol.
 Details: docs/emulator-harness.md.
 
@@ -81,6 +89,17 @@ Details: docs/emulator-harness.md.
   real bytes.
 - Window sessions: the host keyboard feeds the same matrix as injected keys, and
   ZEsarUX clears it on focus changes (wait ~1 s after opening a window).
+- A snapshot load doesn't re-render the display: compare screens one frame after
+  `load_state`. The Next can only be snapshotted as .zsf (ZEsarUX blocks on an error
+  dialog for .sna/.z80 there; the wrapper refuses). ZEsarUX has no .szx writer.
+- ZEsarUX's hard reset does not clear RAM (the ROM does, once it runs); use
+  `power_cycle` for a really fresh machine.
+- ZEsarUX doesn't emulate NextReg 0xB0/0xB1 (Next extended keys); the patch does.
+- Memory zones: 128K RAM bank N is zone 0 offset N*16384; the Next's RAM page N is
+  zone 0 offset 0x40000 + N*8192 (ROMs sit below). Palettes come back as 9-bit RGB333.
+- Sinclair 2 is keys 1-5 = left, right, down, up, fire (not 5-1).
+- The Docker VM (Rancher Desktop) can lose images when it restarts; `./zx doctor`
+  notices and `scripts/build-toolchain-image.sh` rebuilds (seconds with the cache).
 
 ## Layout
 

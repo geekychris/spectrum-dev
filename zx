@@ -9,7 +9,9 @@
 #   ./zx serve <project|file> [--window] [--mode running]   headless session process
 #   ./zx test <project>          projects/<p>/test.py if present, else wait for ZX:DONE
 #   ./zx log <project> [--frames N] [--press KEYS@FRAME]   guest log (zx_log) dump
-#   ./zx shot <project> -o out.png [--until TEXT] [--press KEYS@FRAME]
+#   ./zx shot <project> -o out.png [--until TEXT] [--press KEYS@FRAME] [--layer ula|layer2|sprites]
+#   ./zx video <project> -o out.gif|.mp4 [--until TEXT] [--frames N]
+#   ./zx log <project> --press Q@200 --record r.json ; ./zx replay r.json   deterministic replay
 #   ./zx ctl [--port N] <cmd> [key=value ...]               remote-control a session (ctl help)
 #   ./zx sessions                running sessions
 #   ./zx symbols <project> [regex]
@@ -44,7 +46,8 @@ case "$cmd" in
            exec "$ROOT/bin/zx-make" -C "$ROOT/projects/$1" clean ;;
   devbench|ctl|sessions)
            need_zxdev; exec "$ZXDEV" "$cmd" "$@" ;;
-  run|serve|log|shot|symbols)
+  replay)  need_zxdev; need_emu; exec "$ZXDEV" replay "$@" ;;
+  run|serve|log|shot|symbols|video)
            need_zxdev; need_emu
            if [ $# -ge 1 ] && [ -f "$ROOT/projects/$1/Makefile" ]; then
              # rebuild projects so you always run what you just edited
@@ -90,6 +93,12 @@ case "$cmd" in
            else
              tail -30 "$ROOT/build/selftest-template.log"; warn "template check failed"; fails=$((fails+1))
            fi
+           step "harness features (input, debugger, screens, restart, replay, logging)"
+           if "$PY" "$ROOT/tools/zxdev/tests/test_features.py" >"$ROOT/build/selftest-features.log" 2>&1; then
+             ok "feature suite ($(grep -c '  PASS' "$ROOT/build/selftest-features.log") checks)"
+           else
+             grep -E "FAIL|Error|error" "$ROOT/build/selftest-features.log" | tail -20; warn "feature suite failed (build/selftest-features.log)"; fails=$((fails+1))
+           fi
            step "sessions / remote control / MCP"
            if "$PY" "$ROOT/tools/zxdev/tests/test_remote.py" >"$ROOT/build/selftest-remote.log" 2>&1; then
              ok "remote control suite ($(grep -c '  PASS' "$ROOT/build/selftest-remote.log") checks)"
@@ -98,6 +107,6 @@ case "$cmd" in
            fi
            [ "$fails" -eq 0 ] && ok "all pass" || die "$fails check(s) failed" ;;
   zxdev)   need_zxdev; exec "$ZXDEV" "$@" ;;
-  help|-h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help|-h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
   *)       die "unknown command '$cmd' (./zx help)" ;;
 esac

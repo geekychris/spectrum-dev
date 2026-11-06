@@ -83,14 +83,14 @@ class Session:
                        "run_to(frame, tstates=0): to an exact position (frames since load)"),
             "input_log": (lambda: {"events": e.input_log()}, "input changes since load, with positions"),
             "checkpoint": (lambda label="": e.checkpoint(label), "checkpoint(label): record the screen hash here"),
-            "save_replay": (lambda path: {"path": path, **{k: v for k, v in e.save_replay(path).items() if k != "events"},
+            "save_replay": (lambda path: {"path": path, **{k: v for k, v in e.save_replay(self._rel(path)).items() if k != "events"},
                                           "events": len(e.input_log())},
                             "save_replay(path): input log + checkpoints since load -> JSON"),
-            "replay": (lambda path, verify=True: e.replay(path, verify),
+            "replay": (lambda path, verify=True: e.replay(self._rel(path), verify),
                        "replay(path, verify=true): reload, re-apply inputs, compare screen hashes"),
             "screen_hash": (lambda layer="screen": {"md5": e.screen_hash(layer)}, "screen_hash(layer=screen)"),
             "record_video": (lambda path, frames=100, every=1, scale=1, layer="screen":
-                             e.record_video(path, frames, every, scale, layer),
+                             e.record_video(self._rel(path), frames, every, scale, layer),
                              "record_video(path .gif|.mp4|dir, frames=100, every=1, scale=1)"),
             "memory_map": (lambda: e.memory_map(), "128K banks / Next MMU pages currently mapped"),
             "machine": (lambda name=None: (e.set_machine(name), e.status())[1] if name else {"machine": e.machine},
@@ -150,11 +150,16 @@ class Session:
             "quit": (self._quit, "stop the session and the emulator"),
         }
 
+    def _rel(self, p) -> str:
+        """Relative paths are relative to the repo root (sessions have no useful cwd)."""
+        return str(p if Path(p).is_absolute() else repo_root() / p)
+
     def _state_path(self, p) -> str:
         p = Path(p)
         return str(p if p.is_absolute() or p.parent != Path(".") else repo_root() / "build" / "states" / p)
 
     def _screenshot(self, path=None, border=True, scale=1, layer="screen"):
+        path = self._rel(path) if path else None
         img = self.emu.screenshot(path, border, scale, layer)
         buf = io.BytesIO()
         img.save(buf, "PNG")

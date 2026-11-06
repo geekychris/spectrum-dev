@@ -32,6 +32,34 @@ docs) — **done**. Porting games is phase 2.
 - [x] Docs: README, CLAUDE.md, docs/emulator-harness.md, docs/devbench.md,
       emulator/patches/README.md, sdk/README.md; screenshots in docs/images.
 
+## Phase 1b: required harness features (2026-11-06)
+
+Repo: https://github.com/geekychris/spectrum-dev (private), pushed at each milestone.
+Each item is exposed in the Python API (`zxdev.emu.Emulator`), the session
+protocol / `./zx ctl` / DevBench REST, the CLI where it makes sense, and MCP,
+and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
+`test_remote.py` (sessions, MCP, DevBench; window checks with ZX_TEST_WINDOW=1).
+
+- [x] Keys: single keys, CAPS/SYM combos, timed press/hold/release at given
+      frames (`sequence` with `at`, CLI `--press/--hold/--release/--type K@F`,
+      `--script`), typed text, Kempston / Sinclair 1 / Sinclair 2 / Cursor
+      joysticks, Next extra keys (matrix combo + NextReg 0xB0/0xB1, patched in).
+      Headless and window mode.
+- [x] Debugging: PC/symbol/condition breakpoints, read/write watchpoints,
+      stepi, step over, continue with a frame limit, all registers (alternates,
+      IX/IY, I/R, IM, IFF), memory incl. 128K banks and Next 8K pages,
+      memory_map, disassembly, stack backtrace, `last_stop` (where + why).
+- [x] Screenshots: native composited PNG incl. border; ULA / Layer 2 / sprite
+      layers rendered from memory at native size; GIF / MP4 / PNG-sequence
+      recording.
+- [x] Restart: soft reset, hard reset, power cycle, machine switch
+      (48K/128K/Next), reload, reboot a wedged session (kills a stuck command).
+- [x] Replay: input log with frame + T-state, checkpoints with screen hashes,
+      save_replay / replay (`./zx replay`), mismatch detection; snapshots
+      .zsf/.z80/.sna (Next: .zsf); screen_hash.
+- [x] Logging: zx_log, run_until (stops in the logging routine), frame
+      counting, run_to exact frame/T-state.
+
 ### Known limitations
 
 - No GDB stub; the debugger is ZEsarUX's (via the session API). DeZog
@@ -39,16 +67,16 @@ docs) — **done**. Porting games is phase 2.
 - Window sessions are not deterministic, and their window freezes while an
   agent fast-forwards or steps them. Machine switches in a window restart the
   emulator.
-- No audio capture/inspection yet (beeper/AY/Next DAC); no sprite/tilemap/
-  copper inspection commands of our own (ZEsarUX has `tbblue-get-sprite`,
-  `tbblue-get-register`, `tbblue-get-palette`, reachable via `zrcp`).
+- No audio capture/inspection yet (beeper/AY/Next DAC). Layer renders cover
+  ULA, Layer 2 and sprites; not the Next tilemap, LoRes or Timex modes, and
+  unified (non-composite) relative sprites use their own transform.
+- No .szx snapshots (ZEsarUX can't write them); the Next only as .zsf.
+- Replays log injected input only, not what a user types into a window.
 - No SD card/NextZXOS setup: .nex programs that use esxDOS/NextZXOS file
   APIs need `--mmc-file` with an SD image.
-- 128K banking: `read_mem` reads the current 64K view; other banks need
-  ZEsarUX memory zones (`zrcp line="set-memory-zone N"`).
 - Only tested on macOS arm64. The Linux path (scripts, configure flags) is
   written but not run.
-- The one-line installer points at a GitHub repo that does not exist yet.
+- The repo is private, so the one-line installer only works for people with access.
 
 ## Phase 2 (next): game ports
 

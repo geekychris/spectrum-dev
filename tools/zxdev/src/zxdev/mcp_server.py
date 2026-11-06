@@ -179,9 +179,29 @@ def emu_load(path: str, machine: str = "") -> str:
 
 
 @server.tool()
-def emu_reset() -> str:
-    """Hard-reset the machine (the program is gone; emu_load to rerun it)."""
-    return _j(_call("reset"))
+def emu_reset(hard: bool = True) -> str:
+    """Reset the machine: hard (RAM cleared, like power on) or soft (CPU reset only).
+    The program is gone after a hard reset; emu_reload reruns it."""
+    return _j(_call("reset", hard=hard))
+
+
+@server.tool()
+def emu_reload() -> str:
+    """Reset and load the same program again."""
+    return _j(_call("reload"))
+
+
+@server.tool()
+def emu_power_cycle() -> str:
+    """Restart the emulator process cold (same machine, no program loaded)."""
+    return _j(_call("power_cycle"))
+
+
+@server.tool()
+def emu_reboot() -> str:
+    """Recover a wedged session: kill the emulator (even mid-command), start a
+    fresh one and reload the program."""
+    return _j(_call("reboot"))
 
 
 @server.tool()
@@ -219,6 +239,19 @@ def emu_resume(turbo: bool = False) -> str:
 
 
 @server.tool()
+def emu_position() -> str:
+    """Current position: absolute frame, frames since load, T-state within the frame."""
+    return _j(_call("position"))
+
+
+@server.tool()
+def emu_run_to(frame: int, tstates: int = 0) -> str:
+    """Run to an exact position (frames since load, T-state): the first instruction
+    boundary at or after it. Breakpoints still stop it."""
+    return _j(_call("run_to", frame=frame, tstates=tstates))
+
+
+@server.tool()
 def emu_log(all: bool = False) -> str:
     """Guest debug log (zx_log output) since the previous emu_log call; all=True for everything."""
     return _call("log", all=all)["text"] or "(no new output)"
@@ -228,23 +261,68 @@ def emu_log(all: bool = False) -> str:
 
 
 @server.tool()
-def emu_look(border: bool = True, scale: int = 2) -> Image:
-    """Screenshot of the current frame. 48K: 352x304 incl. border (x scale);
-    Next: rendered at 704x608 by ZEsarUX (scale applies on top)."""
-    return _img(_call("screenshot", border=border, scale=scale))
+def emu_look(border: bool = True, scale: int = 2, layer: str = "screen") -> Image:
+    """Screenshot. layer "screen" = composited output (48K: 352x304 incl. border;
+    Next: 704x608, ZEsarUX renders it at 2x). Single layers from memory at native
+    size: "ula" (256x192), "layer2" (Next), "sprites" (Next, 320x256 sprite plane)."""
+    return _img(_call("screenshot", border=border, scale=scale, layer=layer))
 
 
 @server.tool()
-def emu_screenshot(path: str, border: bool = True, scale: int = 1) -> str:
-    """Save a PNG screenshot to a file (native resolution unless scale)."""
-    r = _call("screenshot", path=path, border=border, scale=scale)
+def emu_screenshot(path: str, border: bool = True, scale: int = 1, layer: str = "screen") -> str:
+    """Save a PNG screenshot to a file (native resolution unless scale; layer as emu_look)."""
+    r = _call("screenshot", path=path, border=border, scale=scale, layer=layer)
     return f"saved {path} ({r['width']}x{r['height']}, {r['colors']} colours)"
+
+
+@server.tool()
+def emu_record_video(path: str, frames: int = 100, every: int = 1, scale: int = 1,
+                     layer: str = "screen") -> str:
+    """Record frames to .gif, .mp4 (ffmpeg) or a directory of PNGs. Paused sessions
+    advance `frames` frames deterministically while recording."""
+    return _j(_call("record_video", path=path, frames=frames, every=every, scale=scale, layer=layer))
+
+
+@server.tool()
+def emu_screen_hash(layer: str = "screen") -> str:
+    """md5 of the current frame's pixels (or one layer): compare runs cheaply."""
+    return _call("screen_hash", layer=layer)["md5"]
+
+
+# ================================================================== replay
+
+
+@server.tool()
+def emu_input_log() -> str:
+    """Every input change since the program was loaded, with frame + T-state."""
+    return _j(_call("input_log"))
+
+
+@server.tool()
+def emu_checkpoint(label: str = "") -> str:
+    """Record the screen hash at this point; a replay verifies it at the same point."""
+    return _j(_call("checkpoint", label=label))
+
+
+@server.tool()
+def emu_save_replay(path: str) -> str:
+    """Save the input log since load + checkpoints + final screen hash as a replay (JSON)."""
+    return _j(_call("save_replay", path=path))
+
+
+@server.tool()
+def emu_replay(path: str, verify: bool = True) -> str:
+    """Reload the replay's program and re-apply its inputs at the same frames and
+    T-states; report whether every checkpoint's screen hash matches."""
+    return _j(_call("replay", path=path, verify=verify))
 
 
 @server.tool()
 def emu_press(keys: str, hold_frames: int = 3, release_frames: int = 3) -> str:
     """Press keys together, e.g. 'SPACE', 'Q', 'CAPS+1', 'SYM+P', joystick 'UP+FIRE'.
-    Keys: A-Z 0-9 ENTER SPACE CAPS SYM. Joystick: UP DOWN LEFT RIGHT FIRE."""
+    Keys: A-Z 0-9 ENTER SPACE CAPS SYM. Joystick: UP DOWN LEFT RIGHT FIRE (on the type set
+    by emu_joystick). Next extra keys: EDIT DELETE BREAK GRAPH EXTEND CAPSLOCK TRUEVIDEO
+    INVVIDEO CURSOR_UP/DOWN/LEFT/RIGHT SEMICOLON QUOTE COMMA PERIOD (matrix combo + NextReg 0xB0/B1)."""
     return _j(_call("press", keys=keys, hold_frames=hold_frames, release_frames=release_frames))
 
 
@@ -275,7 +353,8 @@ def emu_joystick(kind: str = "") -> str:
 @server.tool()
 def emu_sequence(steps: list[dict]) -> str:
     """Scripted input: [{"press":"Q","hold":3}, {"run":20}, {"until":"text","max":500},
-    {"hold":"RIGHT"}, {"release":"RIGHT"}, {"type":"HELLO"}]."""
+    {"hold":"RIGHT"}, {"release":"RIGHT"}, {"type":"HELLO"}]. Add "at": N (frames since
+    load, optional "t": T-state) to any step for timed press/release scripts."""
     return _j(_call("sequence", steps=steps))
 
 
@@ -295,15 +374,25 @@ def emu_set_reg(reg: str, value: str) -> str:
 
 
 @server.tool()
-def emu_read_mem(addr: str, length: int = 64) -> str:
-    """Hex dump of memory at an address or symbol ('player_x', '$5800', 'buf+16')."""
-    return _call("read_mem", addr=addr, length=length)["dump"]
+def emu_read_mem(addr: str, length: int = 64, bank: int = -1, page: int = -1) -> str:
+    """Hex dump of memory at an address or symbol ('player_x', '$5800', 'buf+16').
+    bank=N reads 16K RAM bank N (128K/+2/+3/Next) and page=N an 8K Next page,
+    paged in or not; addr is then the offset inside it."""
+    return _call("read_mem", addr=addr, length=length, bank=None if bank < 0 else bank,
+                 page=None if page < 0 else page)["dump"]
 
 
 @server.tool()
-def emu_write_mem(addr: str, hex: str) -> str:
-    """Write bytes (hex string) at an address or symbol."""
-    return _j(_call("write_mem", addr=addr, hex=hex))
+def emu_write_mem(addr: str, hex: str, bank: int = -1, page: int = -1) -> str:
+    """Write bytes (hex string) at an address/symbol, or into a bank/page (see emu_read_mem)."""
+    return _j(_call("write_mem", addr=addr, hex=hex, bank=None if bank < 0 else bank,
+                    page=None if page < 0 else page))
+
+
+@server.tool()
+def emu_memory_map() -> str:
+    """What is paged in: 128K ROM/RAM banks and screen bank, or the Next's MMU pages."""
+    return _j(_call("memory_map"))
 
 
 @server.tool()

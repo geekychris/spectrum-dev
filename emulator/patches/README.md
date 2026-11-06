@@ -16,7 +16,7 @@ hook calls; the logic lives in `emulator/ext/zxh.c`.
 | Patch | What |
 |---|---|
 | `0001-configure-homebrew-sdl2.patch` | `configure` on macOS only knew the SDL2 *framework*; use `sdl2-config` (Homebrew/MacPorts) when present. |
-| `0002-zxh-harness-hooks.patch` | ~30 added lines: calls into `zxh.c` (below), `#include "zxh.c"` at the end of `zrcp/remote.c`, and dispatch of `zxh-*` commands. |
+| `0002-zxh-harness-hooks.patch` | ~35 added lines: calls into `zxh.c` (below), `#include "zxh.c"` at the end of `zrcp/remote.c`, and dispatch of `zxh-*` commands. |
 | `0003-sdl2-macos-title-main-thread.patch` | `smartload` over ZRCP sets the window title from the network thread; AppKit aborts. Defer the title update to the SDL event loop (main thread). |
 
 ## Hooks (0002)
@@ -27,6 +27,7 @@ hook calls; the logic lives in `emulator/ext/zxh.c`.
 | `core_spectrum.c` end of frame | `zxh_end_frame()` | Frame counter. In *nowait* mode also marks the host timer as already fired, so the core never sleeps. |
 | `timer.c` `timer_check_interrupt` | `zxh_timer_tick()` | In nowait mode, ZEsarUX's 20 ms housekeeping tick comes from emulated frames instead of the host clock (deterministic). Also releases a core that was waiting for the host timer when nowait started (this was a deadlock when grabbing a free-running CPU). |
 | `screen.c` `screen_if_refresh` | `zxh_force_render()` | In nowait mode every frame is rendered (no frameskip), so screenshots never see a skipped frame. |
+| `machines/tbblue.c` NextReg read | `zxh_next_extkeys(reg)` | ZEsarUX doesn't emulate the Next's extended-key registers 0xB0/0xB1; they return what `zxh-nextkeys` set (the harness sets them with the matrix combo when a Next extra key is pressed). |
 | `core_spectrum.c` 50 Hz input, `screen.c` window refresh | `zxh_host_io_allowed()` | True only on the main thread. ZRCP runs the core on its network thread (`run`, `cpu-step`, our `zxh-run`); pumping SDL events or presenting the window from there aborts on macOS. The rendered frame (rainbow buffer) is still produced; the window catches up when the CPU is released. |
 
 Nothing changes unless a `zxh-*` command is used, except that host
@@ -37,12 +38,13 @@ would crash on macOS, and are meaningless headless).
 
 | Command | Reply |
 |---|---|
-| `zxh-status` | `frames=N log=END nowait=0/1 step=0/1 pc=XXXX` |
-| `zxh-run frames=N [until=HEX] [since=OFF]` | cpu-step mode only. Runs up to N whole frames as fast as possible. Stops early when the log (after absolute offset OFF; default: the log end at call time) contains the bytes HEX, *on the instruction that wrote the last byte*, or when a breakpoint/watchpoint fires. `frames=RAN total=N reason=frames/log/break pc=XXXX log=END [match=OFF] [break=MSG]` |
+| `zxh-status` | `frames=N tstates=T log=END nowait=0/1 step=0/1 pc=XXXX` |
+| `zxh-run frames=N [until=HEX] [since=OFF] [at=F:T]` | cpu-step mode only. Runs up to N whole frames as fast as possible. Stops early when the log (after absolute offset OFF; default: the log end at call time) contains the bytes HEX, *on the instruction that wrote the last byte*; when a breakpoint/watchpoint fires; or at the first instruction boundary at/after frame F, T-state T (what replays use to re-apply input at the exact recorded point). `frames=RAN total=N tstates=T reason=frames/log/break/at pc=XXXX log=END [match=OFF] [break=MSG]` |
 | `zxh-log [since] [max]` | `base=B end=E next=X since=S`, newline, the bytes `[S, X)` as hex (max default 32768) |
 | `zxh-log-clear` | forget buffered text (offsets keep counting) |
 | `zxh-turbo 0/1` | free-run without host pacing |
 | `zxh-joystick [type]` | get/set the emulated joystick (`Kempston`, `Sinclair 1`, `Sinclair 2`, `Cursor`, `Fuller`, `None`…) |
+| `zxh-nextkeys [B0 B1]` | get/set the Next extended-key registers (hex bytes) |
 | `zxh-help` | list |
 
 Speed, headless on an M-series Mac: about 2200 frames/s on a 48K (44x real
@@ -56,8 +58,10 @@ function of the state and inputs: the Z80 interrupt comes from the T-state
 count, the 20 ms housekeeping from frames, and input only changes between
 commands. Two fresh emulators loading the same program reach the same log
 line on the same frame with the same registers (`projects/hello48/test.py`
-checks this). Free-running (window) sessions are paced by the host clock and
-are not deterministic.
+checks this), and a recorded input log replays to identical screen hashes
+(`tools/zxdev/tests/test_features.py`). Free-running (window) sessions are
+paced by the host clock and are not deterministic, but input injected into
+them is logged with its exact frame/T-state, so a replay of it is.
 
 ## Updating ZEsarUX
 

@@ -113,6 +113,17 @@ $EDITOR projects/mygame/src/main.c
 Paused (headless) sessions are deterministic: two emulators loading the same
 program reach the same log line on the same frame with the same registers.
 
+What the harness covers (each item has checks in `./zx selftest`):
+
+| | |
+|---|---|
+| input | keys and CAPS/SYM combos, timed press/hold/release at given frames, typed text, Kempston / Sinclair 1+2 / Cursor joysticks, the Next's extra keys (matrix + NextReg 0xB0/0xB1); headless and in the window |
+| debugging | breakpoints by address, symbol or condition, read/write watchpoints, step, step over, continue with a frame limit, all registers, 128K banks and Next MMU pages, disassembly, stack backtrace, where/why it stopped |
+| screens | native PNG of the composited display incl. border; ULA, Layer 2 and sprite layers rendered separately; GIF/MP4 recording |
+| restart | soft/hard reset, reload, power cycle, machine switch, reboot a wedged session |
+| replay | input log with exact frame/T-state, replay with screen-hash checkpoints, .zsf/.z80/.sna snapshots |
+| logging | `zx_log` from the guest, run until a log line (stops on the instruction), frame counting |
+
 ## Everyday commands
 
 | | |
@@ -121,7 +132,9 @@ program reach the same log line on the same frame with the same registers.
 | `./zx run <p>` | window, free-running; `./zx ctl` and Claude can attach |
 | `./zx test <p>` | `projects/<p>/test.py`, else pass on `ZX:DONE` / fail on `ZX:FAIL` in the log |
 | `./zx log <p> [--frames N] [--press KEYS@FRAME]` | print the guest log |
-| `./zx shot <p> -o x.png [--until TEXT] [--press ...] [--no-border] [--scale 2]` | screenshot |
+| `./zx shot <p> -o x.png [--until TEXT] [--press ...] [--no-border] [--scale 2] [--layer L]` | screenshot (composite or one layer) |
+| `./zx video <p> -o x.gif\|x.mp4 [--until TEXT] [--frames N]` | record frames |
+| `./zx log <p> --press K@F ... --record r.json` / `./zx replay r.json` | record an input log, replay it with screen-hash checks |
 | `./zx serve <p> [--window]` / `./zx sessions` / `./zx ctl <cmd> k=v` | sessions and remote control (`./zx ctl help`) |
 | `./zx symbols <p> [regex]` | symbols from the map |
 | `./zx new <name> [--next]` | new project from the template |
@@ -144,7 +157,7 @@ build("mygame") → emu_boot("mygame") → emu_run_until("mygame: ready")
 ```
 
 `emu_boot(p, window=True)` opens a window the user can watch and play;
-`emu_attach()` joins one started with `./zx run`. All 42 tools are listed by
+`emu_attach()` joins one started with `./zx run`. All 54 tools are listed by
 `emu_cmd("help")` and in [CLAUDE.md](CLAUDE.md).
 
 ## Writing programs
@@ -173,7 +186,7 @@ Layer 2 through an MMU slot), `projects/asm48` (sjasmplus `.sna`).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, `zx_log`, `zx_print_at`, template |
-| `projects/` | `hello48`, `hellonext`, `asm48`, each with a `test.py` |
+| `projects/` | `hello48`, `hellonext` (Layer 2 + sprites), `inputtest`, `asm48`, each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 
@@ -194,9 +207,12 @@ GPL-3.0-or-later. See [LICENSE](LICENSE). Third-party components keep their
 licenses and are fetched at setup, not redistributed here:
 
 - **[ZEsarUX](https://github.com/chernandezba/zesarux)** by César Hernández
-  Bañó, GPL-3.0. It ships the Spectrum ROMs: Amstrad allows the Sinclair
-  ROMs to be redistributed for emulation. The Next boot ROM/firmware files
-  come with ZEsarUX too; `.nex` programs load directly, without an SD image.
+  Bañó, GPL-3.0. ROMs and firmware are not in this repo: they come with
+  ZEsarUX's source tree, fetched into `third_party/zesarux/src` by setup
+  (`48.rom`, `128.rom`, `p3*.rom` etc.; Amstrad allows the Sinclair/Amstrad
+  Spectrum ROMs to be redistributed for emulation). For the Next, ZEsarUX
+  ships its TBBlue boot ROM (`tbblue_loader.rom`) and a small SD image
+  (`tbblue.mmc`); `.nex` programs load directly without the SD image.
 - **[z88dk](https://github.com/z88dk/z88dk)** (Clarified Artistic License) and
   **[sjasmplus](https://github.com/z00m128/sjasmplus)** (BSD-3), in the
   toolchain image.

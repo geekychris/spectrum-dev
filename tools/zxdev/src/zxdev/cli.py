@@ -23,35 +23,53 @@ from .emu import Emulator
 from .session import resolve_program
 
 
-def _presses(specs):
-    """['SPACE@100', 'Q+A@200'] -> sorted [(frame, keys)]"""
+def _timed(a) -> list[tuple[int, str, object]]:
+    """--press/--hold/--release/--type KEYS@FRAME and --script file -> sorted
+    [(frame since load, action, arg)]."""
     out = []
-    for s in specs or []:
-        keys, _, frame = s.rpartition("@")
-        if not keys:
-            raise SystemExit(f"--press wants KEYS@FRAME, got {s!r}")
-        out.append((int(frame), keys))
-    return sorted(out)
+    for kind in ("press", "hold", "release", "type"):
+        for spec in getattr(a, kind, None) or []:
+            arg, _, frame = spec.rpartition("@")
+            if not arg or not frame.isdigit():
+                raise SystemExit(f"--{kind} wants VALUE@FRAME, got {spec!r}")
+            out.append((int(frame), kind, arg))
+    if getattr(a, "script", None):
+        for st in json.loads(Path(a.script).read_text()):
+            out.append((int(st.get("at", 0)), "step", st))
+    return sorted(out, key=lambda x: x[0])
 
 
-def _drive(emu: Emulator, frames: int, presses, until: str | None = None) -> bool:
-    """Run `frames` frames from now (or until the log shows `until`), pressing
-    keys at their frames (counted from now). Returns whether `until` was seen."""
-    start = emu.frame()
-    for at, keys in presses:
-        n = start + at - emu.frame()
-        if n > 0:
-            if until:
-                if emu.run_until(until, n):
-                    return True
-            else:
-                emu.run(n)
-        emu.press(keys)
-    rest = max(0, start + frames - emu.frame())
+def _drive(emu: Emulator, frames: int, actions, until: str | None = None) -> bool:
+    """Run to `frames` frames since load (or until the log shows `until`),
+    doing the timed actions at their frames. Returns whether `until` was seen."""
+    for at, kind, arg in actions:
+        if until:
+            n = at - emu.position()["since_load"]
+            if n > 0 and emu.run_until(until, n):
+                return True
+        emu.run_to(at)
+        if kind == "press":
+            emu.press(arg)
+        elif kind == "hold":
+            emu.hold(arg)
+        elif kind == "release":
+            emu.release(None if arg in ("", "ALL", "all") else arg)
+        elif kind == "type":
+            emu.type(arg.replace("\\n", "\n"))
+        else:
+            emu.sequence([{k: v for k, v in arg.items() if k != "at"}])
+    rest = frames - emu.position()["since_load"]
     if until:
-        return emu.run_until(until, rest)
-    emu.run(rest)
+        return emu.run_until(until, max(rest, 0))
+    if rest > 0:
+        emu.run_to(frames)
     return True
+
+
+def _finish(emu: Emulator, a):
+    if getattr(a, "record", None):
+        rec = emu.save_replay(a.record)
+        print(f"replay saved: {a.record} ({len(rec['events'])} input events)", file=sys.stderr)
 
 
 def _machine_for(prog: str, machine: str | None) -> str:
@@ -82,8 +100,9 @@ def cmd_log(a) -> int:
     prog = resolve_program(a.program)
     with Emulator(machine=_machine_for(prog, a.machine)) as emu:
         emu.load(prog)
-        _drive(emu, a.frames, _presses(a.press))
+        _drive(emu, a.frames, _timed(a))
         sys.stdout.write(emu.log(0))
+        _finish(emu, a)
     return 0
 
 
@@ -91,13 +110,38 @@ def cmd_shot(a) -> int:
     prog = resolve_program(a.program)
     with Emulator(machine=_machine_for(prog, a.machine)) as emu:
         emu.load(prog)
-        found = _drive(emu, a.frames, _presses(a.press), a.until)
+        found = _drive(emu, a.frames, _timed(a), a.until)
         if a.until and not found:
             print(f"warning: {a.until!r} not seen within {a.frames} frames", file=sys.stderr)
         emu.run(a.settle)
-        img = emu.screenshot(a.output, border=not a.no_border, scale=a.scale)
+        img = emu.screenshot(a.output, border=not a.no_border, scale=a.scale, layer=a.layer)
+        _finish(emu, a)
     print(f"{a.output} ({img.width}x{img.height})")
     return 0 if found else 1
+
+
+def cmd_video(a) -> int:
+    prog = resolve_program(a.program)
+    with Emulator(machine=_machine_for(prog, a.machine)) as emu:
+        emu.load(prog)
+        if a.until and not emu.run_until(a.until, 5000):
+            print(f"warning: {a.until!r} not seen", file=sys.stderr)
+        r = emu.record_video(a.output, a.frames, a.every, a.scale, a.layer)
+    print(f"{r['path']} ({r['frames']} frames, {r['fps']:g} fps, {r['size'][0]}x{r['size'][1]})")
+    return 0
+
+
+def cmd_replay(a) -> int:
+    rec = json.loads(Path(a.file).read_text())
+    with Emulator(machine=rec.get("machine") or "48k") as emu:
+        r = emu.replay(rec, verify=True)
+        if a.output:
+            emu.screenshot(a.output)
+    for c in r["checkpoints"]:
+        print(f"  {'PASS' if c['ok'] else 'FAIL'} {c['label']} at frame {c['f']} t={c['t']}"
+              + ("" if c["ok"] else f"  (expected {c['expected'][:8]}, got {c['got'][:8]})"))
+    print(f"{'PASS' if r['ok'] else 'FAIL'}: replay of {Path(rec['program']).name}, {r['events']} input events")
+    return 0 if r["ok"] else 1
 
 
 def cmd_ctl(a) -> int:
@@ -179,13 +223,34 @@ def main(argv=None) -> int:
         p.add_argument("--machine")
         p.add_argument("--frames", type=int, default=3000 if name == "test" else 500)
         if name != "test":
-            p.add_argument("--press", action="append", metavar="KEYS@FRAME")
+            p.add_argument("--press", action="append", metavar="KEYS@FRAME",
+                           help="press+release at a frame since load (e.g. SPACE@200, CAPS+1@300)")
+            p.add_argument("--hold", action="append", metavar="KEYS@FRAME")
+            p.add_argument("--release", action="append", metavar="KEYS@FRAME", help="ALL@FRAME releases everything")
+            p.add_argument("--type", action="append", metavar="TEXT@FRAME")
+            p.add_argument("--script", help="JSON list of sequence steps with \"at\" frames")
+            p.add_argument("--record", metavar="REPLAY.json", help="save the input log as a replay")
         if name == "shot":
             p.add_argument("-o", "--output", default="shot.png")
             p.add_argument("--until")
             p.add_argument("--settle", type=int, default=2, help="frames to run after --until matches")
             p.add_argument("--no-border", action="store_true")
             p.add_argument("--scale", type=int, default=1)
+            p.add_argument("--layer", default="screen", choices=["screen", "ula", "layer2", "sprites"])
+
+    p = sub.add_parser("video")
+    p.add_argument("program")
+    p.add_argument("-o", "--output", default="video.gif", help=".gif, .mp4 (ffmpeg) or a directory")
+    p.add_argument("--machine")
+    p.add_argument("--until", help="start recording when the log shows this")
+    p.add_argument("--frames", type=int, default=150)
+    p.add_argument("--every", type=int, default=1)
+    p.add_argument("--scale", type=int, default=1)
+    p.add_argument("--layer", default="screen", choices=["screen", "ula", "layer2", "sprites"])
+
+    p = sub.add_parser("replay")
+    p.add_argument("file")
+    p.add_argument("-o", "--output", help="screenshot at the end")
 
     p = sub.add_parser("ctl")
     p.add_argument("--port", type=int)
@@ -219,6 +284,7 @@ def main(argv=None) -> int:
         devbench(a.port, a.host, a.open)
         return 0
     return {"test": cmd_test, "log": cmd_log, "shot": cmd_shot, "ctl": cmd_ctl,
+            "video": cmd_video, "replay": cmd_replay,
             "sessions": cmd_sessions, "symbols": cmd_symbols}[a.cmd](a)
 
 
