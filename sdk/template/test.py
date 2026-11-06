@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "tools" / "zxdev" / "src"))
 from zxdev.emu import Emulator  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-PROG = next((HERE / "build").glob("__NAME__.*[px]"))   # .tap or .nex
+PROG = next(p for p in (HERE / "build" / "__NAME__.nex", HERE / "build" / "__NAME__.tap") if p.exists())
 failures = []
 
 

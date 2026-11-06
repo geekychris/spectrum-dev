@@ -99,23 +99,28 @@ class Emulator:
         self.log_path = Path(log_path) if log_path else self._tmp / "zesarux.log"
         self.z: Zrcp | None = None
 
+        self._opts = {"zoom": zoom, "audio": audio, "joystick": joystick, "extra": list(extra_args)}
+        self._out = open(self.log_path, "ab")
+        self._start()
+
+    def _start(self):
         exe = emulator_binary()
         if not exe.exists():
             raise EmulatorError(f"emulator not built: {exe} (run ./zx setup or scripts/build-emulator.sh)")
+        o = self._opts
         args = [str(exe), "--noconfigfile",
                 "--machine", MACHINES[self.machine],
                 "--realvideo", "--hardware-debug-ports",
                 "--enable-remoteprotocol", "--remoteprotocol-port", str(self.port),
                 "--nowelcomemessage", "--nosplash", "--quickexit",
-                "--joystickemulated", joystick]
-        if window:
-            args += ["--vo", "sdl", "--ao", "sdl" if audio is not False else "null"]
-            if zoom:
-                args += ["--zoom", str(zoom)]
+                "--joystickemulated", o["joystick"]]
+        if self.window:
+            args += ["--vo", "sdl", "--ao", "sdl" if o["audio"] is not False else "null"]
+            if o["zoom"]:
+                args += ["--zoom", str(o["zoom"])]
         else:
             args += ["--vo", "null", "--ao", "null", "--disablerealjoystick"]
-        args += list(extra_args)
-        self._out = open(self.log_path, "wb")
+        args += o["extra"]
         self.proc = subprocess.Popen(args, stdout=self._out, stderr=subprocess.STDOUT,
                                      stdin=subprocess.DEVNULL, start_new_session=True)
         try:
@@ -129,19 +134,7 @@ class Emulator:
             self.z.cmd("hard-reset-cpu")
         self.mark = self.log_end()
 
-    # ------------------------------------------------------------- lifecycle
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self.close()
-
-    @property
-    def alive(self) -> bool:
-        return self.proc.poll() is None
-
-    def close(self):
+    def _stop_process(self):
         if self.z is not None:
             try:
                 self.z.sock.sendall(b"exit-emulator\n")
@@ -157,6 +150,21 @@ class Emulator:
                 self.proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
+
+    # ------------------------------------------------------------- lifecycle
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    @property
+    def alive(self) -> bool:
+        return self.proc.poll() is None
+
+    def close(self):
+        self._stop_process()
         self._out.close()
         shutil.rmtree(self._tmp, ignore_errors=True)
 
@@ -229,7 +237,23 @@ class Emulator:
         return self.status()
 
     def set_machine(self, name: str):
+        """Switch machine (resets). A window emulator is restarted instead: on
+        macOS, ZEsarUX re-creates the window from the ZRCP thread and AppKit
+        aborts. The restart gets a new ZRCP port and an empty log; breakpoints
+        are dropped."""
         m = machine_id(name)
+        if self.window:
+            was_paused = self.paused
+            self._stop_process()
+            self.machine, self.paused = m, True
+            self.port = free_port()
+            self._logtext, self._logbase = bytearray(), 0
+            self._bps.clear()
+            self._watches.clear()
+            self._start()
+            if not was_paused:
+                self.paused = False   # the caller's held() exits cpu-step
+            return
         with self.held():
             self._cmd(f"set-machine {MACHINES[m]}")    # drops cpu-step mode, opens a menu
             self._enter_step()

@@ -63,7 +63,7 @@ class Session:
         self.info = info
         self.lock = threading.RLock()
         self.quit = threading.Event()
-        self.events: list[dict] = []
+        self.registry: Path | None = None
 
     # each command: (function, help)
     def commands(self):
@@ -163,7 +163,16 @@ class Session:
         if cmd not in table:
             raise ValueError(f"unknown command {cmd!r} (try help)")
         with self.lock:
-            return table[cmd][0](**(args or {}))
+            try:
+                return table[cmd][0](**(args or {}))
+            finally:
+                # keep the registry current (a window session restarts ZEsarUX to switch machines)
+                now = {"zrcp_port": self.emu.port, "machine": self.emu.machine,
+                       "emulator_pid": self.emu.proc.pid, "program": self.emu.program}
+                if any(self.info.get(k) != v for k, v in now.items()):
+                    self.info.update(now)
+                    if self.registry:
+                        self.registry.write_text(json.dumps(self.info))
 
 
 class _Handler(socketserver.StreamRequestHandler):
@@ -200,6 +209,8 @@ def serve(program: str | None = None, machine: str | None = None, window: bool =
     if machine is None:
         machine = "next" if program and program.lower().endswith((".nex", ".snx")) else "48k"
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    for old in sorted(SESSIONS_DIR.glob("zesarux-*.log"), key=lambda p: p.stat().st_mtime)[:-20]:
+        old.unlink(missing_ok=True)   # keep the 20 newest emulator logs
     emu = Emulator(machine=machine, window=window, paused=True, zoom=zoom,
                    log_path=SESSIONS_DIR / f"zesarux-{os.getpid()}.log")
     if program:
@@ -215,6 +226,7 @@ def serve(program: str | None = None, machine: str | None = None, window: bool =
     srv.session = sess
     reg = SESSIONS_DIR / f"{os.getpid()}.json"
     reg.write_text(json.dumps(info))
+    sess.registry = reg
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     print("ZXDEV-SESSION " + json.dumps(info), flush=True)
     if not quiet:
@@ -228,8 +240,12 @@ def serve(program: str | None = None, machine: str | None = None, window: bool =
     try:
         # exit when told to, or when the emulator goes away (window closed)
         while not sess.quit.wait(0.5):
-            if not emu.alive:
-                break
+            # (under the lock: a window session restarts ZEsarUX inside a command)
+            if sess.lock.acquire(blocking=False):
+                gone = not emu.alive
+                sess.lock.release()
+                if gone:
+                    break
     finally:
         reg.unlink(missing_ok=True)
         srv.shutdown()

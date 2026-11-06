@@ -32,6 +32,13 @@ extern int zxh_timer_tick(int host_tick);
 /* screen.c: nonzero = render this frame (no frameskip). */
 extern int zxh_force_render(void);
 
+/* core_spectrum.c, screen.c: nonzero on the main thread. Host keyboard,
+   joystick and window refresh are skipped while ZRCP (zxh-run, cpu-step...)
+   drives the core from its network thread: SDL/AppKit allow them only on the
+   main thread (macOS aborts otherwise). The rendered frame (rainbow buffer,
+   used by screenshots) is unaffected. */
+extern int zxh_host_io_allowed(void);
+
 /* remote.c: dispatch for commands starting with "zxh-". */
 extern void zxh_remote_command(int misocket, char *command, char *params);
 

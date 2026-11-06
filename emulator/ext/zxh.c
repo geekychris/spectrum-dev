@@ -120,6 +120,25 @@ int zxh_timer_tick(int host_tick)
 
 int zxh_force_render(void) { return zxh_nowait; }
 
+#ifdef USE_PTHREADS
+static pthread_t zxh_main_thread;
+static int zxh_main_thread_set = 0;
+
+/* runs on the main thread before main() */
+__attribute__((constructor)) static void zxh_init_main_thread(void)
+{
+    zxh_main_thread = pthread_self();
+    zxh_main_thread_set = 1;
+}
+
+int zxh_host_io_allowed(void)
+{
+    return !zxh_main_thread_set || pthread_equal(pthread_self(), zxh_main_thread);
+}
+#else
+int zxh_host_io_allowed(void) { return 1; }
+#endif
+
 /* ---- ZRCP commands ---- */
 
 static int zxh_hexval(char c)

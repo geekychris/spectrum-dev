@@ -8,9 +8,10 @@
 #include <stdio.h>
 #include <input.h>
 #include <intrinsic.h>
-#include <arch/zx.h>
 #ifdef __ZXNEXT
-#include <arch/zxn.h>
+#include <arch/zxn.h>          /* includes everything in arch/zx.h, plus Next registers */
+#else
+#include <arch/zx.h>
 #endif
 #include "zxlog.h"
 #include "zxtext.h"

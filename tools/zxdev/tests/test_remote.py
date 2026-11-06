@@ -5,6 +5,7 @@ Needs projects/hello48 and projects/hellonext built.
 """
 import asyncio
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -224,6 +225,28 @@ def test_devbench():
         srv.wait(10)
 
 
+def test_window():
+    """Opt-in (ZX_TEST_WINDOW=1): opens a real SDL window for ~10 s."""
+    section("window session (ZX_TEST_WINDOW=1)")
+    c = SessionClient.spawn(str(TAP), window=True)
+    try:
+        st = c.call("status")
+        check("window session free-runs", st["window"] and not st["paused"])
+        check("run_until fast-forwards a window session", c.call("run_until", text="hello48: frame 250")["found"])
+        time.sleep(1)    # a new window takes focus; ZEsarUX clears the keyboard on focus changes
+        c.call("log")
+        c.call("press", keys="W", hold_frames=5)
+        time.sleep(0.3)
+        check("keys reach a running window session", "hello48: key w" in c.call("log")["text"])
+        r = c.call("load", path=str(NEX))
+        check("machine switch restarts the window emulator", r["machine"] == "next")
+        check("Next runs in the window", c.call("run_until", text="hellonext: ready", max_frames=2000)["found"])
+        check("registry follows the restart", next(s for s in list_sessions()
+                                                    if s["pid"] == c.info["pid"])["machine"] == "next")
+    finally:
+        c.close(stop=True)
+
+
 def main():
     for f in (TAP, NEX):
         if not f.exists():
@@ -233,6 +256,8 @@ def main():
     test_cli_ctl()
     test_mcp()
     test_devbench()
+    if os.environ.get("ZX_TEST_WINDOW") == "1":
+        test_window()
     print(f"\n{'FAIL' if failures else 'PASS'}: {len(failures)} failure(s)" if failures else "\nPASS")
     return 1 if failures else 0
 

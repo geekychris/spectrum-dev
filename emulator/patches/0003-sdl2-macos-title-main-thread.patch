@@ -1,0 +1,44 @@
+diff --git a/src/video/scrsdl2.c b/src/video/scrsdl2.c
+index de6b175..9b64051 100644
+--- a/src/video/scrsdl2.c
++++ b/src/video/scrsdl2.c
+@@ -22,6 +22,7 @@
+ 
+ #include <string.h>
+ #include <stdio.h>
++#include <pthread.h>
+ #if defined(__APPLE__)
+         #include <SDL.h>
+ #else
+@@ -73,8 +74,19 @@ SDL_Texture *scrsdl_texture;
+ SDL_Renderer *renderer;
+ 
+ 
++//zxh: on macOS, AppKit only allows window changes from the main thread, but
++//ZRCP commands (smartload...) run on the network thread and update the title.
++//Defer it to the event loop, which runs on the main thread.
++static volatile int scrsdl_title_pending=0;
++
+ void scrsdl_update_window_title(void)
+ {
++#ifdef __APPLE__
++    if (!pthread_main_np()) {
++        scrsdl_title_pending=1;
++        return;
++    }
++#endif
+     SDL_SetWindowTitle(window,get_window_title());
+ }
+ 
+@@ -1488,6 +1500,11 @@ void scrsdl_actualiza_tablas_teclado(void)
+     //SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
+ 
+ 
++    if (scrsdl_title_pending) { //zxh: see scrsdl_update_window_title
++        scrsdl_title_pending=0;
++        SDL_SetWindowTitle(window,get_window_title());
++    }
++
+     while( SDL_PollEvent( &event ) ){
+ 
+ //printf ("evento: %d\n",event.type);

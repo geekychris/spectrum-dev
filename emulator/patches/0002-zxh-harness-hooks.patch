@@ -1,5 +1,5 @@
 diff --git a/src/cores/core_spectrum.c b/src/cores/core_spectrum.c
-index 9e0d179..1c50c89 100644
+index 9e0d179..107b151 100644
 --- a/src/cores/core_spectrum.c
 +++ b/src/cores/core_spectrum.c
 @@ -46,6 +46,7 @@
@@ -18,6 +18,23 @@ index 9e0d179..1c50c89 100644
 +
  
      if (debug_registers) scr_debug_registers();
+ 
+@@ -1157,6 +1160,8 @@ void cpu_core_loop_spectrum(void)
+ 
+         //y de momento actualizamos tablas de teclado segun tecla leida
+         //printf ("Actualizamos tablas teclado %d pc=%XH\n", contador_segundo,reg_pc);
++        //zxh: host keyboard/joystick only on the main thread (not while ZRCP runs the core)
++        if (zxh_host_io_allowed()) {
+         TIMESENSOR_ENTRY_PRE(TIMESENSOR_ID_scr_actualiza_tablas_teclado);
+         scr_actualiza_tablas_teclado();
+         TIMESENSOR_ENTRY_POST(TIMESENSOR_ID_scr_actualiza_tablas_teclado);
+@@ -1166,6 +1171,7 @@ void cpu_core_loop_spectrum(void)
+         TIMESENSOR_ENTRY_PRE(TIMESENSOR_ID_realjoystick_main);
+         realjoystick_main();
+         TIMESENSOR_ENTRY_POST(TIMESENSOR_ID_realjoystick_main);
++        }
+ 
+ 
  
 diff --git a/src/timer.c b/src/timer.c
 index dff21fd..6197e22 100644
@@ -61,7 +78,7 @@ index a8f5c69..1aa8169 100644
          fflush(stdout);
      break;
 diff --git a/src/video/screen.c b/src/video/screen.c
-index 8d26e74..5397e3c 100644
+index 8d26e74..c41cbb9 100644
 --- a/src/video/screen.c
 +++ b/src/video/screen.c
 @@ -67,6 +67,7 @@
@@ -81,6 +98,24 @@ index 8d26e74..5397e3c 100644
      //Si esta en top speed, solo 1 frame
      if (timer_condicion_top_speed() ) {
          if (MACHINE_IS_Z88) {
+@@ -10216,7 +10219,7 @@ void cpu_loop_refresca_pantalla(void)
+ 
+             top_speed_real_frames=1;
+             debug_printf (VERBOSE_DEBUG,"Refreshing screen on top speed");
+-            scr_refresca_pantalla();
++            if (zxh_host_io_allowed()) scr_refresca_pantalla(); //zxh: window only from the main thread
+             frameskip_counter=frameskip;
+             stats_frames_total_drawn++;
+ 
+@@ -10234,7 +10237,7 @@ void cpu_loop_refresca_pantalla(void)
+     //if ( (framescreen_saltar==0 || autoframeskip.v==0) && frameskip_counter==0) {
+     if (screen_if_refresh() ) {
+         //printf ("refrescando\n");
+-        scr_refresca_pantalla();
++        if (zxh_host_io_allowed()) scr_refresca_pantalla(); //zxh: window only from the main thread
+         frameskip_counter=frameskip;
+         stats_frames_total_drawn++;
+     }
 diff --git a/src/zrcp/remote.c b/src/zrcp/remote.c
 index 73f94ea..b6005d4 100644
 --- a/src/zrcp/remote.c
