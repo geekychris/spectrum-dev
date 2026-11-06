@@ -16,10 +16,12 @@ const RouteInfo route_info[NUM_ROUTES] = {
     { "FLOODED TOWN",  "HOME",          "4.0",  1, 1,  50,  12, 3 },
 };
 
-int seg_of(int32_t z)
+#ifndef __SDCC
+int seg_of(int32_t z)                   /* port: on the Z80, sim_asm.asm */
 {
     return (int)(z >> (FBITS + SEG_BITS));
 }
+#endif
 
 static int clamp_seg(const World *w, int i)
 {

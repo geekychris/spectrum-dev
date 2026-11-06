@@ -139,7 +139,14 @@ enum { CAM_CHASE, CAM_COCKPIT };
 enum { GS_TITLE, GS_INTRO, GS_PLAY, GS_ARRIVED, GS_UPDATE, GS_GAMEOVER, GS_WIN };
 enum { CS_DRIVING, CS_AQUAPLANE, CS_SPLASH, CS_ROLL };
 
-/* Input bits */
+/* Input bits (port: the SDK's zxgame.h has its own IN_* bits for input_read();
+ * where both headers are included these, the game's, win) */
+#undef IN_LEFT
+#undef IN_RIGHT
+#undef IN_UP
+#undef IN_DOWN
+#undef IN_FIRE
+#undef IN_START
 #define IN_LEFT    0x0001
 #define IN_RIGHT   0x0002
 #define IN_UP      0x0004      /* accelerate */

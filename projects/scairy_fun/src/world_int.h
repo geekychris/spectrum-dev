@@ -31,6 +31,13 @@ void hazards_update(World *w);
 void traffic_spawn(World *w);
 void objects_update(World *w);
 void collide(World *w);
+/* sim_asm.asm (port: the hot loops; see there for the C they replace) */
+const Obj *lead_scan(const Obj *objs, const Obj *o, int32_t *best);
+extern uint8_t obj_top;                      /* slots >= obj_top are all OBJ_NONE */
+int obj_find(const Obj *objs, int start, uint16_t mask);   /* next i >= start of a type in mask */
+#define OBJ_BIT(t)  (1u << (t))
+#define OBJ_ANY     0xFFFEu                  /* every type but OBJ_NONE */
+int lane_scan(const Obj *objs, int lane, int32_t z, int32_t lo, int32_t hi, int skip);
 /* world_ai.c */
 void car_update(World *w, unsigned in);
 

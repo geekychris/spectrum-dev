@@ -96,10 +96,12 @@ static void ai_lanes(World *w)
     if (r->nl < 2 || a->lane < 0) return;
     if (perfect(w)) {
         /* move over for an ambulance */
-        for (i = 0; i < MAX_OBJS; i++) {
+        /* port: obj_find visits only the objects the loops act on */
+        for (i = obj_find(w->obj, 0, OBJ_BIT(OBJ_AMBULANCE)); i < MAX_OBJS;
+             i = obj_find(w->obj, i + 1, OBJ_BIT(OBJ_AMBULANCE))) {
             const Obj *o = &w->obj[i];
             int32_t dz = o->z - c->z;
-            if (o->type == OBJ_AMBULANCE && !(o->flags & OF_PASSING) && o->lane == a->lane &&
+            if (!(o->flags & OF_PASSING) && o->lane == a->lane &&
                 dz < 0 && dz > -10 * SEGF) {
                 int to = a->lane > 0 ? a->lane - 1 : a->lane + 1;
                 if (!lane_clear(w, to, c->z, -2, 3, i)) to = a->lane < r->nl - 1 ? a->lane + 1 : -9;
@@ -112,10 +114,13 @@ static void ai_lanes(World *w)
         }
     }
     /* overtake a slow car ahead, then keep right */
-    for (i = 0; i < MAX_OBJS; i++) {
-        const Obj *o = &w->obj[i];
-        int32_t dz = o->z - c->z;
-        if (o->type == OBJ_NONE || o->lane != a->lane || dz <= 0 || dz > 6 * SEGF) continue;
+    {
+    const Obj *o = w->obj;
+    for (i = 0; i < MAX_OBJS; i++, o++) {
+        int32_t dz;
+        if (o->type == OBJ_NONE || o->lane != a->lane) continue;
+        dz = o->z - c->z;
+        if (dz <= 0 || dz > 6 * SEGF) continue;
         if (o->type != OBJ_CAR && o->type != OBJ_TRUCK && o->type != OBJ_TRACTOR) continue;
         if (o->v < a->target_v - FROM_KMH(10) && a->lane > 0 &&
             lane_clear(w, a->lane - 1, c->z, -4, 5, -1)) {
@@ -123,6 +128,7 @@ static void ai_lanes(World *w)
             a->lane_hold = 100;
             return;
         }
+    }
     }
     if (a->lane < r->nl - 1 && lane_clear(w, a->lane + 1, c->z, -3, 7, -1)) {
         for (i = 0; i < 16 && cs + i < w->nseg; i++)
@@ -139,6 +145,7 @@ void ai_think(World *w)
     const RouteInfo *r = &route_info[w->route];
     int cs = seg_of(c->z), k, i, perf = perfect(w);
     int16_t limit;
+    const Obj *o;
 
     /* the low sun */
     if (!perf && w->glare >= 12) {
@@ -172,11 +179,13 @@ void ai_think(World *w)
         a->plan[k] = d;
     }
     /* give a cyclist room: move over within the lane to pass */
-    for (i = 0; i < MAX_OBJS; i++) {
-        const Obj *o = &w->obj[i];
-        int32_t dz = o->z - c->z;
+    for (i = obj_find(w->obj, 0, OBJ_BIT(OBJ_CYCLIST)); i < MAX_OBJS;
+         i = obj_find(w->obj, i + 1, OBJ_BIT(OBJ_CYCLIST))) {
+        int32_t dz;
         int s0;
-        if (o->type != OBJ_CYCLIST || dz < -2 * SEGF || dz > 8 * SEGF || a->blinded) continue;
+        o = &w->obj[i];
+        dz = o->z - c->z;
+        if (dz < -2 * SEGF || dz > 8 * SEGF || a->blinded) continue;
         s0 = seg_of(o->z) - cs;
         for (k = s0 - 6; k <= s0 + 2; k++)
             if (k >= 0 && k < 16 && iabs16(a->plan[k] - o->d) < (34 * (1 << FBITS)))
@@ -184,9 +193,11 @@ void ai_think(World *w)
     }
     if (perf) {
         /* pull over for an ambulance, swerve round debris */
-        for (i = 0; i < MAX_OBJS; i++) {
-            const Obj *o = &w->obj[i];
-            int32_t dz = o->z - c->z;
+        for (i = obj_find(w->obj, 0, OBJ_BIT(OBJ_AMBULANCE) | OBJ_BIT(OBJ_DEBRIS)); i < MAX_OBJS;
+             i = obj_find(w->obj, i + 1, OBJ_BIT(OBJ_AMBULANCE) | OBJ_BIT(OBJ_DEBRIS))) {
+            int32_t dz;
+            o = &w->obj[i];
+            dz = o->z - c->z;
             if (o->type == OBJ_AMBULANCE && !(o->flags & OF_PASSING) && dz < 0 && dz > -8 * SEGF &&
                 r->nl == 1) {
                 for (k = 0; k < 16; k++) a->plan[k] += 50 * (1 << FBITS);
@@ -204,10 +215,12 @@ void ai_think(World *w)
     /* what it sees */
     a->nseen = 0;
     if (!a->blinded) {
-        for (i = 0; i < MAX_OBJS && a->nseen < MAX_SEEN; i++) {
-            const Obj *o = &w->obj[i];
-            int32_t dz = o->z - c->z;
-            if (o->type == OBJ_NONE || dz < -6 * SEGF || dz > 30 * SEGF) continue;
+        for (i = obj_find(w->obj, 0, OBJ_ANY); i < MAX_OBJS && a->nseen < MAX_SEEN;
+             i = obj_find(w->obj, i + 1, OBJ_ANY)) {
+            int32_t dz;
+            o = &w->obj[i];
+            dz = o->z - c->z;
+            if (dz < -6 * SEGF || dz > 30 * SEGF) continue;
             if (o->type == OBJ_DEBRIS && !perf) continue;      /* too small to matter, it thinks */
             a->seen[a->nseen].z = o->z;
             a->seen[a->nseen].d = o->d;
@@ -266,8 +279,9 @@ void ai_think(World *w)
         {
             int16_t dd = iabs16(s->d - pd), band = (CAR_WID + obj_wid(s->type) + 6) * (1 << FBITS);
             int hit = dd < band;
-            for (k = 0; k < MAX_OBJS && !hit; k++) {
-                const Obj *o = &w->obj[k];
+            for (k = obj_find(w->obj, 0, OBJ_BIT(s->type)); k < MAX_OBJS && !hit;
+                 k = obj_find(w->obj, k + 1, OBJ_BIT(s->type))) {
+                o = &w->obj[k];
                 if (o->type == s->type && o->z == s->z && o->d == s->d && o->vd) {
                     int16_t later = o->d + o->vd * 45;
                     hit = (o->d > pd + band && later < pd + band) || (o->d < pd - band && later > pd - band);
@@ -276,8 +290,8 @@ void ai_think(World *w)
             }
             if (!hit) continue;
         }
-        for (k = 0; k < MAX_OBJS; k++)
-            if (w->obj[k].type == s->type && w->obj[k].z == s->z) { ov = w->obj[k].v; break; }
+        for (k = obj_find(w->obj, 0, OBJ_BIT(s->type)); k < MAX_OBJS; k = obj_find(w->obj, k + 1, OBJ_BIT(s->type)))
+            if (w->obj[k].z == s->z) { ov = w->obj[k].v; break; }
         if (ov < 0) ov = 0;
         gap = (int16_t)(dz >> FBITS) - len - CAR_LEN;
         if (ov == 0) {

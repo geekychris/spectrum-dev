@@ -26,6 +26,7 @@ int world_spawn(World *w, int type, int32_t z, int16_t d, int16_t v, int flags)
         o->v = o->vt = v;
         o->lane = (d < 0 ? -1 - (int)((-d >> FBITS) / LANE_W) : lane_of(w, d));
         o->colour = (uint8_t)(sc_rand(&w->rng) & 3);
+        if (i >= obj_top) obj_top = i + 1;  /* port: the scans' bound */
         return i;
     }
     return -1;
@@ -34,15 +35,8 @@ int world_spawn(World *w, int type, int32_t z, int16_t d, int16_t v, int flags)
 /* is lane free of moving things from dz0 to dz1 segments around z? */
 int lane_clear(const World *w, int lane, int32_t z, int dz0, int dz1, int skip)
 {
-    int i;
-    for (i = 0; i < MAX_OBJS; i++) {
-        const Obj *o = &w->obj[i];
-        int32_t dz;
-        if (i == skip || o->type == OBJ_NONE || o->lane != lane) continue;
-        dz = o->z - z;
-        if (dz > dz0 * SEGF && dz < dz1 * SEGF) return 0;
-    }
-    return 1;
+    /* port: the loop is lane_scan() (sim_asm.asm) */
+    return lane_scan(w->obj, lane, z, dz0 * SEGF, dz1 * SEGF, skip);
 }
 
 /* where to pass something small in the lane: on the shoulder if there's
@@ -158,8 +152,11 @@ void traffic_spawn(World *w)
     int16_t d, v;
     int32_t z;
 
-    for (i = 0; i < MAX_OBJS; i++)
-        if (w->obj[i].hz < 0 && (w->obj[i].type == OBJ_CAR || w->obj[i].type == OBJ_TRUCK)) n++;
+    {
+        const Obj *o = w->obj;
+        for (i = 0; i < MAX_OBJS; i++, o++)
+            if (o->hz < 0 && (o->type == OBJ_CAR || o->type == OBJ_TRUCK)) n++;
+    }
     if (n >= want || (sc_rand(&w->rng) & 7)) return;
 
     type = (sc_rand(&w->rng) % 5) ? OBJ_CAR : OBJ_TRUCK;
@@ -207,14 +204,11 @@ static void vehicle_follow(World *w, Obj *o, int i)
     int16_t lead_v = 0, gap, des, t = o->vt;
     int k, len = obj_len(o->type), found = 0;
 
-    for (k = 0; k < MAX_OBJS; k++) {
-        const Obj *p = &w->obj[k];
-        if (k == i || p->type == OBJ_NONE || p->v < 0 || p->type == OBJ_CYCLIST ||
-            p->type == OBJ_DEBRIS) continue;
-        if (iabs16(p->d - o->d) > (40 * (1 << FBITS))) continue;
-        dz = p->z - o->z;
-        if (dz > 0 && dz < best) { best = dz; lead_v = p->v; found = 1; }
-    }
+    const Obj *p;
+    (void)k; (void)i;
+    /* port: the search is lead_scan() (sim_asm.asm) */
+    p = lead_scan(w->obj, o, &best);
+    if (p) { lead_v = p->v; found = 1; }
     dz = c->z - o->z;
     if (c->state == CS_DRIVING && dz > 0 && dz < best &&
         (iabs16(c->d - o->d) < (40 * (1 << FBITS)) || (c->d >= 0 && lane_of(w, c->d) == o->lane))) {
@@ -246,9 +240,15 @@ void objects_update(World *w)
     const RouteInfo *r = &route_info[w->route];
     Car *c = &w->car;
     int i;
+    Obj *o = w->obj;
+    int cd_any;
 
-    for (i = 0; i < MAX_OBJS; i++) {
-        Obj *o = &w->obj[i];
+    /* port: the scans' bound, lowered past slots freed since */
+    while (obj_top > 0 && w->obj[obj_top - 1].type == OBJ_NONE) obj_top--;
+    /* port: no cyclist or debris now means none this step (nothing turns into
+       one or is spawned here), so the vehicles needn't look for them */
+    cd_any = obj_find(w->obj, 0, OBJ_BIT(OBJ_CYCLIST) | OBJ_BIT(OBJ_DEBRIS)) < MAX_OBJS;
+    for (i = 0; i < MAX_OBJS; i++, o++) {
         int32_t dz;
         if (o->type == OBJ_NONE) continue;
         if (o->cool > 0) o->cool--;
@@ -330,7 +330,10 @@ void objects_update(World *w)
                 /* round a cyclist, within the lane */
                 int16_t to = lane_centre(w, o->lane) * (1 << FBITS);
                 int k;
-                for (k = 0; k < MAX_OBJS; k++) {
+                /* port: only cyclists and debris do anything here, so only they are visited */
+                for (k = cd_any ? obj_find(w->obj, 0, OBJ_BIT(OBJ_CYCLIST) | OBJ_BIT(OBJ_DEBRIS)) : MAX_OBJS;
+                     k < MAX_OBJS;
+                     k = obj_find(w->obj, k + 1, OBJ_BIT(OBJ_CYCLIST) | OBJ_BIT(OBJ_DEBRIS))) {
                     const Obj *p = &w->obj[k];
                     int32_t ahead = p->z - o->z;
                     if (ahead <= -SEGF || ahead >= 6 * SEGF || iabs16(p->d - to) >= (34 * (1 << FBITS)))
@@ -428,7 +431,8 @@ void collide(World *w)
     int i, k, cs;
 
     if (c->state != CS_DRIVING && c->state != CS_AQUAPLANE) return;
-    for (i = 0; i < MAX_OBJS; i++) {
+    /* port: obj_find visits the slots in use */
+    for (i = obj_find(w->obj, 0, OBJ_ANY); i < MAX_OBJS; i = obj_find(w->obj, i + 1, OBJ_ANY)) {
         Obj *o = &w->obj[i];
         int32_t dz;
         int16_t dd;
