@@ -37,15 +37,17 @@ extern const uint8_t *spr_src;
 extern uint8_t spr_col, spr_y, spr_n, spr_lines, spr_stride, spr_mode;
 extern void spr_blit(void);
 
-/* op: 0 xor, 1 or, 2 and-not */
+/* op: 0 xor, 1 or, 2 and-not, 3 store */
 static void spr_op(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h, uint8_t op)
 {
     uint8_t col = x >> 3, n = w + 1;
     if (y >= 192) return;
     if (col + n > 32) n = 32 - col;                  /* clip right */
-    {   /* pre + (x & 7) * (w + 1) * h, without a multiply */
-        uint16_t stride = (uint16_t)(w + 1) * h;
-        uint8_t k = x & 7;
+    {   /* pre + (x & 7) * (w + 1) * h, without a multiply call */
+        uint16_t stride = 0;
+        uint8_t k = w + 1;
+        while (k--) stride += h;
+        k = x & 7;
         spr_src = pre;
         while (k--) spr_src += stride;
     }
@@ -61,6 +63,7 @@ static void spr_op(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t 
 void spr_xor(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h) { spr_op(x, y, pre, w, h, 0); }
 void spr_or(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h) { spr_op(x, y, pre, w, h, 1); }
 void spr_clear(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h) { spr_op(x, y, pre, w, h, 2); }
+void spr_put(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h) { spr_op(x, y, pre, w, h, 3); }
 
 void gfx_fill_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h, uint8_t pattern)
 {

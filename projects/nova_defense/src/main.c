@@ -519,41 +519,6 @@ static void title_screen(void)
     text_center(23, "QAOP/KEMPSTON/SINCLAIR  FIRE");
 }
 
-static void enter_name(int8_t place)
-{
-    char name[4] = "AAA";
-    uint8_t pos = 0, held = 0;
-    screen_clear(INK_WHITE | BRIGHT, INK_BLACK);
-    attr_fill(0, 4, 32, 2, INK_YELLOW | BRIGHT);
-    text_big(5, 4, "NEW HI SCORE");
-    text_center(9, "TYPE YOUR INITIALS");
-    text_center(10, "(OR UP/DOWN + FIRE)");
-    zx_log("nova: hiscore rank=%d\n", place);
-    while (pos < 3) {
-        char k;
-        uint8_t p;
-        frame_wait();
-        attr_fill(14, 14, 3, 2, INK_WHITE | BRIGHT);
-        attr_set(14 + pos, 14, INK_BLACK | PAPER_YELLOW | BRIGHT);
-        zx_print_at(14, 14, name);
-        input_read();
-        p = input_pressed();
-        k = input_letter();
-        if (k && !held) {
-            name[pos++] = k;
-            held = 1;
-            beep(40, 8);
-        }
-        else if (!k) held = 0;
-        if (pos >= 3) break;
-        if (p & IN_UP) name[pos] = name[pos] == 'Z' ? 'A' : name[pos] + 1;
-        if (p & IN_DOWN) name[pos] = name[pos] == 'A' ? 'Z' : name[pos] - 1;
-        if (p & (IN_FIRE | IN_START)) { pos++; beep(40, 8); }
-    }
-    hs_insert(place, name, gs.score);
-    zx_log("nova: name=%s\n", name);
-}
-
 /* ------------------------------------------------------------ main loop */
 
 static void log_state(void)
@@ -638,7 +603,7 @@ int main(void)
             }
             else if (gs.state == STATE_TITLE) {
                 int8_t place = hs_rank(gs.score);
-                if (place >= 0) enter_name(place);
+                if (place >= 0) hs_enter(place, gs.score, "nova");
                 title_screen();
                 zx_log("nova: title\n");
             }

@@ -1,7 +1,8 @@
 ; Inner loop of the 48K sprite blitter (see gfx48.c spr_op): applies
 ; spr_n bytes per line, spr_lines lines, from spr_src (advancing spr_stride
 ; per line) to the screen at column spr_col of lines spr_y.., with
-; spr_mode 0 = XOR, 1 = OR, 2 = AND NOT. Parameters in globals (set by C).
+; spr_mode 0 = XOR, 1 = OR, 2 = AND NOT, 3 = store. Parameters in globals
+; (set by C).
 
 SECTION code_user
 
@@ -45,6 +46,15 @@ blit_nc:
     jr z,blit_xor
     dec a
     jr z,blit_or
+    dec a
+    jr z,blit_andn
+blit_store:
+    ld a,(hl)
+    ld (de),a
+    inc hl
+    inc de
+    djnz blit_store
+    jr blit_next
 blit_andn:
     ld a,(hl)
     cpl

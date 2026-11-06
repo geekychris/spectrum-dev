@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <z80.h>
 #include <input.h>
+#include <intrinsic.h>
 #include "zxgame.h"
 
 uint8_t input_kempston;
@@ -37,22 +38,60 @@ void input_init(void)
     input_prev = input_last = 0;
 }
 
+/* edge latching (input_latch(1)): input_sample() runs in the interrupt and
+   collects keys that went down; input_pressed() then reports those */
+extern uint8_t input_edge_rows[8], input_edge_kemp;
+static uint8_t latching, latched_pressed;
+
+void input_latch(uint8_t on)
+{
+    uint8_t i;
+    for (i = 0; i < 8; i++) input_edge_rows[i] = 0;
+    input_edge_kemp = 0;
+    latching = on;
+}
+
+static uint8_t decode(const uint8_t *rows, uint8_t pressed_is_one)
+{
+    uint8_t i, b = 0;
+    const keymap *k = keys;
+    for (i = 0; i < NKEYS; i++, k++) {
+        uint8_t hit = rows[k->row] & k->mask;
+        if (pressed_is_one ? hit : !hit) b |= k->bits;
+    }
+    return b;
+}
+
+static uint8_t kemp_bits(uint8_t r)
+{
+    uint8_t b = 0;
+    if (r & 0x01) b |= IN_RIGHT;
+    if (r & 0x02) b |= IN_LEFT;
+    if (r & 0x04) b |= IN_DOWN;
+    if (r & 0x08) b |= IN_UP;
+    if (r & 0x10) b |= IN_FIRE;
+    return b;
+}
+
 uint8_t input_read(void)
 {
-    uint8_t i, b = 0, r;
-    const keymap *k = keys;
+    uint8_t i, b;
     for (i = 0; i < 8; i++) rows_now[i] = z80_inp(row_port[i]);
-    for (i = 0; i < NKEYS; i++, k++)
-        if (!(rows_now[k->row] & k->mask)) b |= k->bits;
+    b = decode(rows_now, 0);
     /* BREAK = CAPS SHIFT + SPACE: not a fire */
     if (!(rows_now[0] & 0x01) && !(rows_now[7] & 0x01)) b = (b & ~IN_FIRE) | IN_QUIT;
-    if (input_kempston) {
-        r = z80_inp(0x001F);
-        if (r & 0x01) b |= IN_RIGHT;
-        if (r & 0x02) b |= IN_LEFT;
-        if (r & 0x04) b |= IN_DOWN;
-        if (r & 0x08) b |= IN_UP;
-        if (r & 0x10) b |= IN_FIRE;
+    if (input_kempston) b |= kemp_bits(z80_inp(0x001F));
+    if (latching) {
+        uint8_t edges[8], ke;
+        intrinsic_di();
+        for (i = 0; i < 8; i++) {
+            edges[i] = input_edge_rows[i];
+            input_edge_rows[i] = 0;
+        }
+        ke = input_edge_kemp;
+        input_edge_kemp = 0;
+        intrinsic_ei();
+        latched_pressed = decode(edges, 1) | kemp_bits(ke) | (b & ~input_last);
     }
     input_prev = input_last;
     input_last = b;
@@ -61,7 +100,7 @@ uint8_t input_read(void)
 
 uint8_t input_pressed(void)
 {
-    return input_last & ~input_prev;
+    return latching ? latched_pressed : (input_last & ~input_prev);
 }
 
 uint8_t key_down(uint16_t scancode)

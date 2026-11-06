@@ -73,6 +73,11 @@ extern void input_init(void);
    SPACE or M or 0 = fire, Z = fire2, ENTER = start; plus the Kempston */
 extern uint8_t input_read(void);
 extern uint8_t input_pressed(void);        /* bits that went down since the last read */
+/* latch presses between reads: call input_sample() from frame_hook (every
+   interrupt) and input_latch(1); then a tap shorter than a slow game frame
+   still shows up in the next input_read()/input_pressed() */
+extern void input_sample(void);
+extern void input_latch(uint8_t on);
 extern uint8_t input_last;                 /* state from the last input_read() */
 extern uint8_t key_down(uint16_t scancode);/* raw: IN_KEY_SCANCODE_x from <input.h> */
 extern char input_letter(void);            /* a letter key held now ('A'..'Z'), else 0 */
@@ -110,11 +115,13 @@ extern void gfx_init(void);                /* fills zx_row */
 /* pre-shift a sprite w bytes wide, h lines: writes 8 shifted copies of
    (w+1)-byte lines to dst (8*(w+1)*h bytes). */
 extern void spr_preshift(const uint8_t *src, uint8_t w, uint8_t h, uint8_t *dst);
-/* XOR / OR / AND-NOT a pre-shifted sprite at pixel (x, y). x 0..255; clips at
-   the right edge and at y >= 192. */
+/* XOR / OR / AND-NOT / store a pre-shifted sprite at pixel (x, y). x 0..255;
+   clips at the right edge and at y >= 192. spr_put overwrites the bytes (for
+   solid objects that clear their own trail). */
 extern void spr_xor(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h);
 extern void spr_or(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h);
 extern void spr_clear(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h);
+extern void spr_put(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h);
 /* clear / fill pixel lines y..y+h-1 between byte columns c0..c0+wc-1 */
 extern void gfx_clear_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h);
 extern void gfx_fill_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h, uint8_t pattern);
@@ -142,5 +149,8 @@ extern void hs_init(uint32_t base);        /* defaults: base*5, base*4, ... */
 extern int8_t hs_rank(uint32_t score);     /* place 0..4, or -1 */
 extern void hs_insert(int8_t place, const char *name, uint32_t score);
 extern void hs_draw(uint8_t col, uint8_t row);   /* 48K screen */
+/* initials entry screen (48K screen): typed letters, or UP/DOWN + FIRE; logs
+   "<game>: hiscore rank=N" and "<game>: name=XYZ", then inserts the entry */
+extern void hs_enter(int8_t place, uint32_t score, const char *game);
 
 #endif
