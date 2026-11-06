@@ -87,6 +87,12 @@ case "$cmd" in
              fi
              "$0" test "$p" || fails=$((fails+1))
            done
+           step "sdk tools (mod2ay, nextpic)"
+           if "$PY" "$ROOT/sdk/tools/test_tools.py" >"$ROOT/build/selftest-sdktools.log" 2>&1; then
+             ok "sdk tools ($(grep -c '  PASS' "$ROOT/build/selftest-sdktools.log") checks)"
+           else
+             grep FAIL "$ROOT/build/selftest-sdktools.log"; warn "sdk tools failed (build/selftest-sdktools.log)"; fails=$((fails+1))
+           fi
            step "template (48K + Next)"
            if "$PY" "$ROOT/tools/zxdev/tests/test_template.py" >"$ROOT/build/selftest-template.log" 2>&1; then
              ok "template builds and passes its test on both targets"

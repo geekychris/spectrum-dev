@@ -14,6 +14,8 @@
 | | |
 |---|---|
 | `tools/mod2ay.py` | ProTracker MOD -> a `modplay` song: channel routing, instruments, pitch from each sample's waveform (`--help`) |
+| `tools/nextpic.py` | pictures -> Layer 2 banks (320 or 256 mode) + the `BANK_n` asm + a palette, sprite sheets -> patterns (16x16 or 32x32 quads); also a Python module (`rgb9`, `l2_bytes`, `write_banks`, `quad_patterns`; boing_pinball's gen_gfx.py uses it) |
+| `tools/test_tools.py` | their tests (`./zx selftest` runs them) |
 
 ## Game layer
 

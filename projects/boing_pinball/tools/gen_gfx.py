@@ -28,6 +28,8 @@ from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, os.path.join(ROOT, "..", "..", "sdk", "tools"))
+from nextpic import l2_bytes, quad_patterns, rgb9, write_banks  # noqa: E402
 
 S = 0.49                                  # the original's view, scaled to fit 256 rows
 KX, KY, KZ = 0.55 * S, 0.44 * S, 0.33 * S
@@ -315,12 +317,6 @@ def draw_panel(cv, d):
 DMD_X, DMD_Y, DMD_W, DMD_H = 168, 58, 144, 48
 
 
-def rgb9(c12):
-    """12-bit Amiga RGB -> the Next's 9-bit RGB333"""
-    r, g, b = (c12 >> 8) & 15, (c12 >> 4) & 15, c12 & 15
-    return (r >> 1) << 6 | (g >> 1) << 3 | (b >> 1)
-
-
 def ball_frames(br=3.6):
     """render.c make_ball: the Boing ball, 8 frames of one checker square's turn"""
     frames = []
@@ -376,15 +372,6 @@ def flipper_frames(f, n=8):
     return frames, ox, oy
 
 
-def to_patterns(pix32):
-    """a 32 x 32 image -> four 16 x 16 patterns: TL, TR, BL, BR"""
-    out = []
-    for qy in (0, 16):
-        for qx in (0, 16):
-            out.append([pix32[(qy + y) * 32 + qx + x] for y in range(16) for x in range(16)])
-    return out
-
-
 def main(path, n):
     d = json.load(open(path))
     theme = [0, 1, 2][int(n)]
@@ -392,17 +379,14 @@ def main(path, n):
     cv, lamps = draw_table(d, theme)
     draw_panel(cv, d)
     # Layer 2's 320 mode is column-major: byte x * 256 + y
-    pix = cv.im.load()
-    l2 = bytes(pix[x, y] for x in range(W) for y in range(H))
-    for k in range(5):                    # five 16K banks (src/data.asm)
-        open(os.path.join(ROOT, "gfx", f"l2_{n}_{k}.bin"), "wb").write(l2[k * 16384:(k + 1) * 16384])
+    write_banks(l2_bytes(cv.im, 320), 30, os.path.join("gfx", f"l2_{n}"), asm_file=False)   # src/data.asm
     cv.im.putpalette(sum(([((c >> 6) & 7) * 36, ((c >> 3) & 7) * 36, (c & 7) * 36] for c in palette9(d, theme, lamps)), []))
     cv.im.save(os.path.join(ROOT, "gfx", f"l2_{n}.png"))
     # sprites (the same for every table)
     pats = ball_frames()
     fl, fox, foy = flipper_frames(d["flip"][0])
     for fr in fl:
-        pats += to_patterns(fr)
+        pats += quad_patterns(fr)
     plunger = [0xE3] * 256
     for y in range(16):
         for x in range(6, 10):
