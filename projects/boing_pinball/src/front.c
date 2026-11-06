@@ -43,45 +43,11 @@ struct {
 
 /* ------------------------------------------------------------ Layer 2 */
 
-/* 320 mode is column-major: column x is 256 bytes in page L2_BANK*2 + x/32.
-   Drawing maps that page into slot 2 (the table's data goes back after). */
-static uint8_t *l2col(uint16_t x)
-{
-    ZXN_WRITE_MMU2(L2_BANK * 2 + (x >> 5));
-    return (uint8_t *)0x4000 + ((x & 31) << 8);
-}
-
-static void l2_done(void) { ZXN_WRITE_MMU2(DATA_PAGE); }
-
-static void l2rect(uint16_t x, uint8_t y, uint16_t w, uint8_t h, uint8_t c)
-{
-    for (; w; w--, x++) memset(l2col(x) + y, c, h);
-    l2_done();
-}
-
-/* a character of the 5x7 font, each dot sx x sy pixels with the lower
-   `gap` rows of it left dark (the dot-matrix look) */
-static void l2char(uint16_t x, uint8_t y, char ch, uint8_t c, uint8_t sx, uint8_t sy, uint8_t gap)
-{
-    const uint8_t *gl = font5_glyph(ch);
-    uint8_t col, r, k, j;
-    if (!gl) return;
-    for (col = 0; col < FONT5_W; col++)
-        for (k = 0; k < sx; k++, x++) {
-            uint8_t *p = l2col(x) + y;
-            for (r = 0; r < FONT5_H; r++, p += sy)
-                if (gl[r] & (0x80 >> col))
-                    for (j = 0; j < sy - gap; j++) p[j] = c;
-        }
-}
-
-static uint16_t text_w(const char *s, uint8_t sx) { return (uint16_t)strlen(s) * 6 * sx - sx; }
-
-static void l2text(uint16_t x, uint8_t y, const char *s, uint8_t c, uint8_t sx, uint8_t sy, uint8_t gap)
-{
-    for (; *s; s++, x += 6 * sx) l2char(x, y, *s, c, sx, sy, gap);
-    l2_done();
-}
+/* the SDK's 320 mode helpers (l2w_*, nextgfx.h), through slot 2: the
+   table's data goes back there after drawing */
+#define l2rect(x, y, w, h, c)  l2w_fill(x, y, w, h, c)
+#define l2text  l2w_text5
+#define text_w  font5_width
 
 /* ------------------------------------------------------------ the display */
 
@@ -112,27 +78,14 @@ static void dmd(const char *big, const char *small, uint8_t flash)
 
 static void video_init(void)
 {
-    uint16_t i;
     next_reg(0x68, 0x80);               /* the ULA off (its memory holds the table's data) */
-    next_reg(0x70, 0x10);               /* Layer 2: 320 x 256 */
-    next_reg(0x12, L2_BANK);
-    next_reg(0x1C, 0x01);               /* reset the Layer 2 clip index */
-    next_reg(0x18, 0);                  /* clip: x 0..159 (pairs of pixels), y 0..255 */
-    next_reg(0x18, 159);
-    next_reg(0x18, 0);
-    next_reg(0x18, 255);
-    next_reg(0x16, 0);                  /* no scroll */
-    next_reg(0x17, 0);
-    for (i = 0; i < 256; i++) pal_set(1, (uint8_t)i, l2_pal_0[i]);
-    z80_outp(0x123B, 0x02);             /* Layer 2 on */
+    l2w_slot = 2;
+    l2w_restore = DATA_PAGE;
+    l2w_init(L2_BANK);
+    pal_load(1, l2_pal_0, 256);
     spr_init();
-    for (i = 0; i < 16; i++) pal_set(2, (uint8_t)i, spr_pal[i]);
-    /* the patterns, from bank 35 through slot 2 */
-    for (i = 0; i < SPR_NPAT; i++) {
-        ZXN_WRITE_MMU2(SPR_PAGE + (i >> 5));
-        spr_pattern((uint8_t)i, (const uint8_t *)0x4000 + ((i & 31) << 8));
-    }
-    l2_done();
+    pal_load(2, spr_pal, 16);
+    spr_patterns_from_pages(SPR_PAGE, 2, 0, SPR_NPAT, DATA_PAGE);
 }
 
 /* ------------------------------------------------------------ what moves */
@@ -174,19 +127,10 @@ static void draw_flippers(void)
         if (fr > 7) fr = 7;
         p = SPR_FLIP + fr * 4;
         y0 = SY(f->d.py, 0) - FLIP_OY;
-        if (f->d.side == 0) {
-            x0 = SX(f->d.px) - FLIP_OX;
-            spr_show(s++, x0, y0, p, 0);
-            spr_show(s++, x0 + 16, y0, p + 1, 0);
-            spr_show(s++, x0, y0 + 16, p + 2, 0);
-            spr_show(s++, x0 + 16, y0 + 16, p + 3, 0);
-        } else {                        /* the left one, mirrored */
-            x0 = SX(f->d.px) - (31 - FLIP_OX);
-            spr_show(s++, x0, y0, p + 1, SPR_MIRROR_X);
-            spr_show(s++, x0 + 16, y0, p, SPR_MIRROR_X);
-            spr_show(s++, x0, y0 + 16, p + 3, SPR_MIRROR_X);
-            spr_show(s++, x0 + 16, y0 + 16, p + 2, SPR_MIRROR_X);
-        }
+        /* the right one is the left one mirrored */
+        x0 = SX(f->d.px) - (f->d.side == 0 ? FLIP_OX : 31 - FLIP_OX);
+        spr_show_quad(s, x0, y0, p, f->d.side != 0);
+        s += 4;
     }
 }
 

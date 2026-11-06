@@ -2,7 +2,7 @@
  * Boing Pinball for the Spectrum Next: memory map and start-up.
  *
  *   0x0000-0x3FFF  bank 20: the rules (pb_rules.c), over the ROM
- *   0x4000-0x5FFF  page 44: the table's data (table_0.c), over the ULA
+ *   0x4000-0x5FFF  page 44: the table's data (table_0.c, sin_tab.c), over the ULA
  *                  screen (the ULA is off); Layer 2 pages are mapped here
  *                  briefly to draw
  *   0x6000-0x7FFF  page 46: the front end (front.c)

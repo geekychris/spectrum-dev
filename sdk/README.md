@@ -26,7 +26,8 @@ part). Tests: `projects/sdktest` (48K/128K) and `projects/sdktestnext`.
 | | `hiscore.c` | high-score table, the initials editor (`hs_edit_*`, any screen) |
 | | `hiscore48.c` | the table and the initials screen on the 48K screen (`hs_draw`, `hs_enter`) |
 | `font5.h` | `font5.c` | a 5x7 font for drawing text yourself (Layer 2, a dot-matrix display), `font5_width` |
-| `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites, palettes, TurboSound chip select |
+| `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites (`spr_show_quad` 32x32, patterns from memory pages), palettes (`pal_load`), TurboSound chip select |
+| | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |
 | | `next/nextl2.c` | Layer 2 256x192 double buffered: clear, fill, rect, blit, ROM-font text |
 | | `next/l2text5.c` | `l2_text5`, `l2_text5_center`: the 5x7 font on Layer 2 |
 

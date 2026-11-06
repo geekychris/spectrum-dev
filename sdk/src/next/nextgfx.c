@@ -53,6 +53,28 @@ void spr_hide(uint8_t n)
     z80_outp(0x57, 0);                                  /* not visible, 4-byte form */
 }
 
+/* 32 x 32 from four patterns pat..pat+3 (top left, top right, bottom left,
+   bottom right); mirrored: the halves swap and each is mirrored */
+void spr_show_quad(uint8_t first, int16_t x, int16_t y, uint8_t pat, uint8_t mirror_x)
+{
+    uint8_t f = mirror_x ? SPR_MIRROR_X : 0, a = mirror_x ? 1 : 0;
+    spr_show(first, x, y, pat + a, f);
+    spr_show(first + 1, x + 16, y, pat + (a ^ 1), f);
+    spr_show(first + 2, x, y + 16, pat + 2 + a, f);
+    spr_show(first + 3, x + 16, y + 16, pat + 2 + (a ^ 1), f);
+}
+
+/* patterns from memory pages: 32 to an 8K page, read through MMU slot `slot` */
+void spr_patterns_from_pages(uint8_t page, uint8_t slot, uint8_t first, uint8_t count, uint8_t restore)
+{
+    uint8_t i;
+    for (i = 0; i < count; i++) {
+        ZXN_WRITE_REG(0x50 + slot, page + (i >> 5));
+        spr_pattern(first + i, (const uint8_t *)((uint16_t)slot << 13) + ((uint16_t)(i & 31) << 8));
+    }
+    ZXN_WRITE_REG(0x50 + slot, restore);
+}
+
 static const uint8_t pal_sel[3] = {0x00, 0x10, 0x20};  /* ULA, L2, sprites (first) */
 
 void pal_set8(uint8_t which, uint8_t index, uint8_t rrrgggbb)
@@ -68,6 +90,12 @@ void pal_set(uint8_t which, uint8_t index, uint16_t rgb333)
     ZXN_WRITE_REG(0x40, index);
     ZXN_WRITE_REG(0x44, (rgb333 >> 1) & 0xFF);          /* RRRGGGBB */
     ZXN_WRITE_REG(0x44, rgb333 & 1);                    /* low blue bit */
+}
+
+void pal_load(uint8_t which, const uint16_t *rgb333, uint16_t n)
+{
+    uint16_t i;
+    for (i = 0; i < n; i++) pal_set(which, (uint8_t)i, rgb333[i]);
 }
 
 void ay_chip(uint8_t n)

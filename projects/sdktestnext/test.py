@@ -54,6 +54,16 @@ with Emulator(machine="next") as e:
     for keys, bits in (("P", "02"), ("FIRE", "10"), ("ENTER", "40")):
         e.press(keys)
         check(f"input {keys}", e.run_until(f"sdk: pressed={bits}", 10))
+    check("320 x 256 mode set up", e.run_until("sdk: wide ready", 20))
+    e.run(2)
+    full = e.screenshot()
+    P = lambda x, y: full.getpixel((32 + 2 * x, 48 + 2 * y))      # display pixel -> screenshot
+    check("l2w_fill in the border area (x 290..309)", near(P(300, 210), (255, 0, 0)) and not near(P(285, 210), (255, 0, 0)), str(P(300, 210)))
+    green = sum(near(P(x, y), (0, 255, 0)) for x in range(10, 60) for y in range(10, 26))
+    check("l2w_text5", 60 < green < 400, str(green))
+    check("quad sprite: TL TR BL BR", near(P(104, 104), (255, 0, 0)) and near(P(120, 104), (0, 255, 0))
+          and near(P(104, 120), (0, 0, 255)) and near(P(120, 120), (255, 255, 0)), str([P(104, 104), P(120, 104)]))
+    check("quad sprite mirrored: the halves swap", near(P(204, 104), (0, 255, 0)) and near(P(220, 104), (255, 0, 0)), str([P(204, 104), P(220, 104)]))
     check("finishes", e.run_until("ZX:DONE", 20))
 
 print(f"{'FAIL' if failures else 'PASS'}: sdktestnext")

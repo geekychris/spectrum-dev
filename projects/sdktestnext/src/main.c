@@ -85,6 +85,25 @@ int main(void)
         if (p) zx_log("sdk: pressed=%02x\n", p);
         if (p & IN_START) break;
     }
+    /* Layer 2 320 x 256 (l2w_*), a 32 x 32 quad sprite, pal_load */
+    {
+        static const uint16_t pal4[4] = {0x000, 0x1C0, 0x038, 0x007};   /* black red green blue */
+        uint8_t q;
+        l2w_init(9);
+        pal_load(1, pal4, 4);
+        l2w_fill(0, 0, 320, 256, 0);
+        l2w_fill(290, 200, 20, 30, 1);                  /* right of the 256-wide area, in the border */
+        l2w_text5(10, 10, "WIDE", 2, 2, 2, 0);
+        for (q = 0; q < 4; q++) {                       /* four patterns: quadrant colours */
+            uint16_t i;
+            for (i = 0; i < 256; i++) ball[i] = q == 0 ? RGB8(7, 0, 0) : q == 1 ? RGB8(0, 7, 0) : q == 2 ? RGB8(0, 0, 3) : RGB8(7, 7, 0);
+            spr_pattern(10 + q, ball);
+        }
+        spr_show_quad(20, 100, 100, 10, 0);
+        spr_show_quad(24, 200, 100, 10, 1);
+        zx_log("sdk: wide ready\n");
+        for (q = 0; q < 10; q++) frame_wait();
+    }
     zx_log("ZX:DONE\n");
     for (;;) frame_wait();
 }
