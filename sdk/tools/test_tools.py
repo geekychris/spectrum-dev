@@ -114,5 +114,14 @@ loop = s[0] | s[1] << 8
 check("aystream loop point writes every register", loop != 0xFFFF and s[loop + 1] & 0x3F == 0x3F)
 check("aystream period(440) at 1.75 MHz", period(440) == 249)
 
+# zxrle: round trips, runs and literals at their limits
+from zxrle import pack, unpack  # noqa: E402
+cases = [b"", b"a", b"aa", b"aaa", b"." * 129, b"." * 130, b"." * 600 + b"R" + b"." * 50,
+         bytes(range(256)), bytes(range(130)) + b"x" * 200]
+check("zxrle round trips", all(unpack(pack(c)) == c for c in cases))
+check("zxrle packs runs (600 dots -> a few bytes)", len(pack(b"." * 600)) <= 12)
+check("zxrle ends with 0x80 and never uses it as a control byte elsewhere",
+      all(pack(c)[-1] == 0x80 for c in cases))
+
 print(f"{'FAIL' if failures else 'PASS'}: sdk tools")
 sys.exit(1 if failures else 0)

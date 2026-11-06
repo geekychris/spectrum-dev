@@ -43,7 +43,12 @@ uint16_t copper_end(void)
     for (i = 0; i < copper_n * 2; i++) ZXN_WRITE_REG(0x60, copper_buf[i]);
     ZXN_WRITE_REG(0x60, 0xFF);           /* HALT: wait for a line that never comes */
     ZXN_WRITE_REG(0x60, 0xFF);
+    copper_run();
+    return copper_n;
+}
+
+void copper_run(void)
+{
     ZXN_WRITE_REG(0x61, 0x00);
     ZXN_WRITE_REG(0x62, 0xC0);           /* %11: restart at the top of each frame */
-    return copper_n;
 }

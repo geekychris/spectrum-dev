@@ -10,6 +10,11 @@
  *   copper_end()              upload the list and run it from the top of
  *                             every frame (mode %11). Returns the number of
  *                             instructions (1024 at most)
+ *   copper_stop() / copper_run()
+ *                             pause the uploaded list / run it again from
+ *                             the top (e.g. around CPU palette loads, which
+ *                             share NextReg 0x43/0x40 with a list that
+ *                             switches palettes)
  *
  * Line numbers are the ULA's: line 0 is the first pixel line of the 256 x 192
  * display, so the 320 x 256 Layer 2 row y is line y - 32, and its top 32
@@ -41,5 +46,6 @@ extern void copper_wait(uint16_t line, uint8_t h);
 extern void copper_move(uint8_t reg, uint8_t val);
 extern uint16_t copper_end(void);
 extern void copper_stop(void);
+extern void copper_run(void);
 
 #endif
