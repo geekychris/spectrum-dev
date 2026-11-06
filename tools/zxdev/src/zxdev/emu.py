@@ -152,7 +152,7 @@ class Emulator:
         if self.paused:
             self._enter_step()
             # same starting state every time, whatever ran before we got the CPU
-            self.z.cmd("hard-reset-cpu")
+            self._power_on_state()
         self.mark = self.log_end()
 
     def _stop_process(self):
@@ -247,7 +247,7 @@ class Emulator:
         with self.held():
             if want and want != self.machine:
                 self.set_machine(want)
-            self._cmd("hard-reset-cpu")
+            self._power_on_state()
             self._cmd(f'smartload "{p}"', timeout=60)
         self.program = str(p)
         self.load_frame = self.frame()
@@ -259,6 +259,18 @@ class Emulator:
         self._joy_at_load = self.joystick()
         self.last_stop = None
         return self.status()
+
+    POWER_ON_REGS = {"AF": 0xFFFF, "SP": 0xFFFF, "BC": 0, "DE": 0, "HL": 0, "IX": 0, "IY": 0,
+                     "AF'": 0, "BC'": 0, "DE'": 0, "HL'": 0, "I": 0, "R": 0}
+
+    def _power_on_state(self):
+        """Hard reset into a defined state: ZEsarUX's hard reset keeps RAM and
+        most registers, so a boot would depend on what ran before. Zero RAM,
+        fix the registers and the FLASH phase (CPU must be held)."""
+        self._cmd("hard-reset-cpu")
+        self._cmd("zxh-sync ram")
+        for r, v in self.POWER_ON_REGS.items():
+            self._cmd(f"set-register {r}={v}")
 
     def set_machine(self, name: str):
         """Switch machine (resets). A window emulator is restarted instead: on
@@ -288,7 +300,10 @@ class Emulator:
     def reset(self, hard: bool = True):
         """Reset the machine (the loaded program is gone; use load() to rerun it)."""
         with self.held():
-            self._cmd("hard-reset-cpu" if hard else "reset-cpu")
+            if hard:
+                self._power_on_state()
+            else:
+                self._cmd("reset-cpu")
         self.mark = self.log_end()
 
     # ------------------------------------------------------------- running
@@ -315,9 +330,20 @@ class Emulator:
             res["break"] = brk
         if res["reason"] in ("break", "log"):
             res["symbol"] = self.symbols.name_of(res["pc"])
-        self.last_stop = {k: res.get(k) for k in ("reason", "pc", "symbol", "break", "frame",
-                                                  "since_load", "tstates")}
+        self._note_stop(res)
         return res
+
+    _WHY = {"frames": "frame_limit", "log": "log_match", "at": "position", "realtime": "frame_limit"}
+
+    def _note_stop(self, res: dict):
+        """last_stop: where and why emulation stopped. why = breakpoint, watchpoint,
+        step, frame_limit, log_match or position."""
+        why = self._WHY.get(res.get("reason"), res.get("reason"))
+        if res.get("reason") == "break":
+            why = "watchpoint" if "Memory Breakpoint" in (res.get("break") or "") else "breakpoint"
+        res["why"] = why
+        self.last_stop = {k: res.get(k) for k in ("why", "reason", "pc", "symbol", "break", "frame",
+                                                  "since_load", "tstates")}
 
     def position(self) -> dict:
         """Where emulation is: frame (absolute), frames since load, T-state in the frame."""
@@ -334,18 +360,67 @@ class Emulator:
             return {"reason": "at", "frames": 0, **pos}
         return self._run(target - pos["frame"] + 2, at=(target, tstates))
 
+    def _free_running(self) -> bool:
+        return not self.paused and self.z is not None and not self.z.step_mode
+
     def run(self, frames: int = 1) -> dict:
-        """Advance `frames` frames (stops early at a breakpoint: see result['reason'])."""
-        if not self.paused and self.z is not None and not self.z.step_mode:
-            time.sleep(frames / 50)
-            return {"frames": frames, "reason": "realtime", "frame": self.frame()}
+        """Advance `frames` frames (stops early at a breakpoint: see result['reason']).
+        In a free-running window this fast-forwards on the emulator's main thread,
+        so the user's keyboard/joystick keep working meanwhile."""
+        if self._free_running():
+            return self._fast_forward(frames=frames)
         return self._run(frames)
+
+    def _fast_forward(self, frames: int | None = None, until: bytes | None = None,
+                      since: int | None = None, timeout: float = 600) -> dict:
+        """Window sessions: run turbo on the main thread (host input stays live),
+        polling for the frame count / log text / a breakpoint, then go back to real
+        time. Stops within a few frames of the condition (not on the instruction)."""
+        start = self.frame()
+        since = self.mark if since is None else since
+        self._cmd("zxh-turbo 1")
+        res = {"reason": "frames"}
+        t0 = time.monotonic()
+        try:
+            while time.monotonic() - t0 < timeout:
+                st = kv(self._cmd("zxh-status"))
+                f = int(st["frames"])
+                if st.get("brk") == "1":
+                    res["reason"] = "break"
+                    break
+                if until:
+                    text = self.log_text(since).encode("latin-1")
+                    i = text.find(until)
+                    if i >= 0:
+                        res["reason"] = "log"
+                        res["match"] = max(since, self._logbase) + i + len(until)
+                        break
+                if frames is not None and f - start >= frames:
+                    break
+                time.sleep(0.01)
+            else:
+                res["reason"] = "timeout"
+        finally:
+            self._cmd("zxh-turbo 0")
+        if res["reason"] == "break":
+            self._enter_step()          # the debugger menu opened in the window; take the CPU
+            self.paused = True
+        st = kv(self._cmd("zxh-status"))
+        res.update(frames=int(st["frames"]) - start, frame=int(st["frames"]),
+                   tstates=int(st["tstates"]), pc=int(st["pc"], 16))
+        res["since_load"] = res["frame"] - self.load_frame
+        res["symbol"] = self.symbols.name_of(res["pc"])
+        self._note_stop(res)
+        return res
 
     def run_until(self, text: str, max_frames: int = 3000, since: int | None = None) -> bool:
         """Run until the guest log contains `text` (written after `since`, default:
         after the last log()/reset/load/previous match). Stops on that exact
         instruction. Returns False if max_frames pass first (or a breakpoint hits)."""
-        r = self._run(max_frames, until=text.encode("latin-1"), since=since)
+        if self._free_running():
+            r = self._fast_forward(frames=max_frames, until=text.encode("latin-1"), since=since)
+        else:
+            r = self._run(max_frames, until=text.encode("latin-1"), since=since)
         self.last_run = r
         if r["reason"] == "log":
             self.mark = r["match"]
@@ -665,8 +740,12 @@ class Emulator:
         """Reload the program and re-apply a recorded input log at the same
         frames/T-states; check every checkpoint's screen hash. Deterministic in
         paused sessions (the replay always holds the CPU)."""
+        base = None
         if not isinstance(rec, dict):
+            base = Path(rec).resolve().parent
             rec = json.loads(Path(rec).read_text())
+        if rec.get("version") == 2:
+            return self._replay_v2(rec, base, verify)
         if not Path(rec["program"]).exists():
             raise EmulatorError(f"replay program {rec['program']} not found")
         self.delete()
@@ -692,6 +771,129 @@ class Emulator:
         ok = all(r["ok"] for r in results)
         return {"ok": ok, "checkpoints": results, "events": len(rec["events"]),
                 "position": self.position()}
+
+    # ------------------------------------------------------------- input recorder (all sources)
+
+    def record_input(self, action: str = "start", path=None, from_reset: bool = False) -> dict:
+        """Record every input change (agent-injected AND the user's keyboard/joystick
+        in the window) with frame + T-state, plus a hash of every frame.
+
+        start: from the current point (a .zsf snapshot is taken to replay from), or
+               from_reset=True: reload the program first and replay from the load.
+        stop:  stop recording.
+        save:  write the recording (JSON + snapshot next to it); stops if needed.
+        status: counts."""
+        if action == "start":
+            if from_reset:
+                if not self.program:
+                    raise EmulatorError("from_reset needs a loaded program")
+                self.reload()
+                snap = None
+            else:
+                snap = self.save_state(self._tmp / f"rec-start-{time.monotonic_ns()}.zsf")
+            with self.held():
+                pos = self.position()
+                self._cmd("zxh-hash clear")
+                self._cmd("zxh-hash on")
+                self._cmd("zxh-rec start")
+            self._recording = {"program": self.program, "machine": self.machine,
+                               "snapshot": snap, "from_reset": bool(from_reset),
+                               "frame": pos["frame"], "tstates": pos["tstates"],
+                               "since_load": pos["since_load"], "done": False}
+            return {"recording": True, **pos}
+        rec = getattr(self, "_recording", None)
+        if rec is None:
+            raise EmulatorError("not recording (record_input start first)")
+        if action == "status":
+            return {"recording": not rec["done"], **kv(self._cmd("zxh-rec status"))}
+        if action in ("stop", "save") and not rec["done"]:
+            with self.held():
+                pos = self.position()
+                self._cmd("zxh-rec stop")
+                self._cmd("zxh-hash off")
+                rec["events"] = self._rec_events()
+                rec["hashes"] = self._hashes(rec["frame"])
+                rec["end"] = {"f": pos["frame"] - rec["frame"], "t": pos["tstates"]}
+            rec["done"] = True
+        if action == "stop":
+            return {"recording": False, "events": len(rec["events"]), "frames": rec["end"]["f"]}
+        if action == "save":
+            if not path:
+                raise ValueError("save needs a path")
+            p = Path(path).resolve()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            out = {"version": 2, "program": rec["program"], "machine": rec["machine"],
+                   "start": {"from_reset": rec["from_reset"], "tstates": rec["tstates"],
+                             "since_load": rec["since_load"]},
+                   "events": [{"f": f - rec["frame"], "t": t, "state": st} for f, t, st in rec["events"]],
+                   "hashes": rec["hashes"], "end": rec["end"]}
+            if rec["snapshot"]:
+                snap = p.with_suffix(".zsf")
+                shutil.copy(rec["snapshot"], snap)
+                out["start"]["snapshot"] = snap.name
+            p.write_text(json.dumps(out, indent=None, separators=(",", ":")))
+            return {"path": str(p), "events": len(out["events"]), "frames": rec["end"]["f"],
+                    "hashes": len(out["hashes"]), "snapshot": out["start"].get("snapshot")}
+        raise ValueError(f"unknown action {action!r}: start, stop, save, status")
+
+    def _rec_events(self) -> list:
+        out = self._cmd("zxh-rec log 0", timeout=60).splitlines()
+        evs = []
+        for ln in out[1:]:
+            f, t, st = ln.split()
+            evs.append((int(f), int(t), st))
+        return evs
+
+    def _hashes(self, base_frame: int) -> list:
+        out = self._cmd("zxh-hash get 0", timeout=60).splitlines()
+        return [[int(f) - base_frame, h] for f, h in (ln.split() for ln in out[1:])]
+
+    def _run_to_abs(self, frame: int, tstates: int):
+        pos = self.position()
+        if (pos["frame"], pos["tstates"]) >= (frame, tstates):
+            return
+        while True:
+            r = self._run(frame - self.position()["frame"] + 2, at=(frame, tstates))
+            if r["reason"] == "at":
+                return
+            if r["reason"] not in ("break",):
+                raise EmulatorError(f"replay could not reach frame {frame} t={tstates}: {r}")
+
+    def _replay_v2(self, rec: dict, base: Path | None, verify: bool) -> dict:
+        start = rec["start"]
+        self.delete()
+        if start.get("snapshot"):
+            snap = Path(start["snapshot"])
+            if not snap.is_absolute() and base is not None:
+                snap = base / snap
+            self.load_state(snap)
+            self.program = rec["program"]
+            self.symbols = Symbols.load(Path(rec["program"]).with_suffix(".map"))
+            self.symbols.add_file(Path(rec["program"]).with_suffix(".sym"))
+        else:
+            self.load(rec["program"], rec.get("machine"))
+            self._run_to_abs(self.load_frame + start.get("since_load", 0), start.get("tstates", 0))
+        with self.held():
+            f0 = self.position()["frame"]
+            t0 = self.position()["tstates"]
+            self._cmd("zxh-hash clear")
+            self._cmd("zxh-hash on")
+            for ev in rec["events"]:
+                self._run_to_abs(f0 + ev["f"], ev["t"])
+                self._cmd(f"zxh-input-set {ev['state']}")
+            self._run_to_abs(f0 + rec["end"]["f"], rec["end"]["t"])
+            self._cmd("zxh-hash off")
+            got = self._hashes(f0)
+        res = {"ok": True, "frames": rec["end"]["f"], "events": len(rec["events"]),
+               "hashes": got, "start_tstates": t0, "recorded_start_tstates": start.get("tstates")}
+        if verify and rec.get("hashes"):
+            want = {f: h for f, h in rec["hashes"]}
+            have = {f: h for f, h in got}
+            common = sorted(set(want) & set(have))
+            bad = [f for f in common if want[f] != have[f]]
+            res.update(ok=not bad and len(common) > 0, compared=len(common),
+                       first_mismatch=bad[0] if bad else None, mismatches=len(bad))
+        return res
 
     # ------------------------------------------------------------- restart
 
@@ -919,6 +1121,8 @@ class Emulator:
             for _ in range(max(1, count)):
                 self._cmd("cpu-step")
         r = self.regs()
+        pos = self.position()
+        self._note_stop({"reason": "step", "pc": r["PC"], "symbol": self.symbols.name_of(r["PC"]), **pos})
         return {"regs": r, "pc_symbol": self.symbols.name_of(r.get("PC", 0)),
                 "next": self.disasm("pc", 1)}
 
@@ -927,6 +1131,8 @@ class Emulator:
         with self.held():
             self._cmd("cpu-step-over", timeout=60)
         r = self.regs()
+        pos = self.position()
+        self._note_stop({"reason": "step", "pc": r["PC"], "symbol": self.symbols.name_of(r["PC"]), **pos})
         return {"regs": r, "pc_symbol": self.symbols.name_of(r.get("PC", 0)),
                 "next": self.disasm("pc", 1)}
 

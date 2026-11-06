@@ -1,5 +1,5 @@
 diff --git a/src/cores/core_spectrum.c b/src/cores/core_spectrum.c
-index 9e0d179..107b151 100644
+index 9e0d179..dda79a6 100644
 --- a/src/cores/core_spectrum.c
 +++ b/src/cores/core_spectrum.c
 @@ -46,6 +46,7 @@
@@ -19,7 +19,16 @@ index 9e0d179..107b151 100644
  
      if (debug_registers) scr_debug_registers();
  
-@@ -1157,6 +1160,8 @@ void cpu_core_loop_spectrum(void)
+@@ -1047,6 +1050,8 @@ void cpu_core_loop_spectrum(void)
+ 
+     debug_get_t_stados_parcial_pre();
+ 
++    zxh_input_poll(); //zxh: input recorder (cheap no-op unless recording)
++
+     timer_check_interrupt();
+ 
+ 
+@@ -1157,6 +1162,8 @@ void cpu_core_loop_spectrum(void)
  
          //y de momento actualizamos tablas de teclado segun tecla leida
          //printf ("Actualizamos tablas teclado %d pc=%XH\n", contador_segundo,reg_pc);
@@ -28,7 +37,7 @@ index 9e0d179..107b151 100644
          TIMESENSOR_ENTRY_PRE(TIMESENSOR_ID_scr_actualiza_tablas_teclado);
          scr_actualiza_tablas_teclado();
          TIMESENSOR_ENTRY_POST(TIMESENSOR_ID_scr_actualiza_tablas_teclado);
-@@ -1166,6 +1171,7 @@ void cpu_core_loop_spectrum(void)
+@@ -1166,6 +1173,7 @@ void cpu_core_loop_spectrum(void)
          TIMESENSOR_ENTRY_PRE(TIMESENSOR_ID_realjoystick_main);
          realjoystick_main();
          TIMESENSOR_ENTRY_POST(TIMESENSOR_ID_realjoystick_main);

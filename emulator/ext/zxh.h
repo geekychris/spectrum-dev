@@ -42,6 +42,10 @@ extern int zxh_host_io_allowed(void);
 /* tbblue.c: value of NextReg 0xB0 / 0xB1 (extended keys), set by zxh-nextkeys. */
 extern int zxh_next_extkeys(unsigned char reg);
 
+/* core_spectrum.c: start of every core loop iteration (instruction boundary);
+   records input-state changes while zxh-rec is on. */
+extern void zxh_input_poll(void);
+
 /* remote.c: dispatch for commands starting with "zxh-". */
 extern void zxh_remote_command(int misocket, char *command, char *params);
 

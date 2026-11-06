@@ -4,8 +4,9 @@
  * Reads Next registers (machine id, core version), switches to 28 MHz, draws
  * a 256x192 Layer 2 (8 bpp) picture through an MMU slot, keeps the ULA text
  * visible through Layer 2's transparent colour, shows two hardware sprites
- * (one moving, one 2x scaled), and logs input including the Next's extra
- * keys (NextReg 0xB0/0xB1).
+ * (one moving, one 2x scaled), a tilemap row of yellow stripes in the
+ * bottom border, and logs input including the Next's extra keys
+ * (NextReg 0xB0/0xB1).
  */
 #include <stdio.h>
 #include <input.h>
@@ -31,6 +32,30 @@ static void upload_ball_pattern(void)
             signed char dx = (signed char)(x * 2) - 15, dy = (signed char)(y * 2) - 15;
             z80_outp(0x5B, dx * dx + dy * dy <= 225 ? 0xE0 : 0xE3);
         }
+}
+
+/* 40x32 tilemap (no attribute bytes) at 0x6000, tile definitions at 0x6600,
+   both in bank 5. Tile 0 is all transparent (index 15), tile 1 solid index 1
+   (yellow in the tilemap palette). Row 30 (bottom border) alternates them. */
+static void setup_tilemap(void)
+{
+    unsigned char *map = (unsigned char *)0x6000;
+    unsigned char *defs = (unsigned char *)0x6600;
+    unsigned int i;
+    for (i = 0; i < 32; i++) {
+        defs[i] = 0xFF;                                 /* 4 bpp: two pixels per byte */
+        defs[32 + i] = 0x11;
+    }
+    for (i = 0; i < 40 * 32; i++) map[i] = 0;
+    for (i = 0; i < 40; i++) map[30 * 40 + i] = i & 1;
+    ZXN_WRITE_REG(0x43, 0x30);                          /* write the tilemap palette */
+    ZXN_WRITE_REG(0x40, 1);
+    ZXN_WRITE_REG(0x41, 0xFC);                          /* index 1 = yellow (RRRGGGBB) */
+    ZXN_WRITE_REG(0x43, 0x00);
+    ZXN_WRITE_REG(0x6E, 0x20);                          /* map at 0x4000 + 0x2000 */
+    ZXN_WRITE_REG(0x6F, 0x26);                          /* definitions at 0x4000 + 0x2600 */
+    ZXN_WRITE_REG(0x6C, 0x00);                          /* default tile attribute */
+    ZXN_WRITE_REG(0x6B, 0xA1);                          /* on, 40x32, no attributes, over ULA */
 }
 
 static void set_sprite(unsigned char n, unsigned int x, unsigned char y, unsigned char attr4)
@@ -88,6 +113,7 @@ int main(void)
     }
 
     draw_layer2();
+    setup_tilemap();
     upload_ball_pattern();
     ZXN_WRITE_REG(0x15, 0x01);                          /* sprites visible (SLU order) */
     set_sprite(0, ball_x, 60, 0);                       /* moves right every frame */

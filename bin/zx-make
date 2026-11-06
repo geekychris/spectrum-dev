@@ -10,8 +10,11 @@ source "$(dirname "$0")/../scripts/lib.sh"
 proj="$PWD"
 if [ "${1:-}" = "-C" ]; then proj="$(cd "$2" && pwd)"; shift 2; fi
 [ -f "$proj/Makefile" ] || die "no Makefile in $proj"
-docker image inspect "$TOOLCHAIN_IMAGE" >/dev/null 2>&1 \
-  || die "toolchain image $TOOLCHAIN_IMAGE missing – run ./zx setup (or scripts/build-toolchain-image.sh)"
+if ! docker image inspect "$TOOLCHAIN_IMAGE" >/dev/null 2>&1; then
+  # gone (e.g. pruned): rebuild it, usually seconds from Docker's build cache
+  warn "toolchain image $TOOLCHAIN_IMAGE missing – rebuilding"
+  "$ZX_ROOT/scripts/build-toolchain-image.sh" >&2 || die "could not rebuild $TOOLCHAIN_IMAGE"
+fi
 
 mounts=(-v "$ZX_ROOT:/work")
 case "$proj/" in
