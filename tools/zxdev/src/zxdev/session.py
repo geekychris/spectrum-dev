@@ -73,7 +73,26 @@ class Session:
             "status": (lambda: {**e.status(), "session": self.info}, "machine, frame, pc, program, ports"),
             "load": (lambda path, machine=None: e.load(resolve_program(path), machine),
                      "load(path|project, machine?): reset + smartload .tap/.nex/.sna/.z80/.zsf"),
-            "reset": (lambda hard=True: (e.reset(hard), e.status())[1], "reset(hard=true): reset the machine"),
+            "reset": (lambda hard=True: (e.reset(hard), e.status())[1],
+                      "reset(hard=true): hard reset (RAM cleared) or soft reset (CPU only)"),
+            "reload": (lambda: e.reload(), "reset + load the same program again"),
+            "power_cycle": (lambda: e.power_cycle(), "fresh emulator process, same machine, no program"),
+            "reboot": (lambda: e.reboot(), "kill + restart the emulator and reload the program (wedged session)"),
+            "position": (lambda: e.position(), "frame, frames since load, T-state"),
+            "run_to": (lambda frame, tstates=0: e.run_to(frame, tstates),
+                       "run_to(frame, tstates=0): to an exact position (frames since load)"),
+            "input_log": (lambda: {"events": e.input_log()}, "input changes since load, with positions"),
+            "checkpoint": (lambda label="": e.checkpoint(label), "checkpoint(label): record the screen hash here"),
+            "save_replay": (lambda path: {"path": path, **{k: v for k, v in e.save_replay(path).items() if k != "events"},
+                                          "events": len(e.input_log())},
+                            "save_replay(path): input log + checkpoints since load -> JSON"),
+            "replay": (lambda path, verify=True: e.replay(path, verify),
+                       "replay(path, verify=true): reload, re-apply inputs, compare screen hashes"),
+            "screen_hash": (lambda layer="screen": {"md5": e.screen_hash(layer)}, "screen_hash(layer=screen)"),
+            "record_video": (lambda path, frames=100, every=1, scale=1, layer="screen":
+                             e.record_video(path, frames, every, scale, layer),
+                             "record_video(path .gif|.mp4|dir, frames=100, every=1, scale=1)"),
+            "memory_map": (lambda: e.memory_map(), "128K banks / Next MMU pages currently mapped"),
             "machine": (lambda name=None: (e.set_machine(name), e.status())[1] if name else {"machine": e.machine},
                         "machine(name): 48k 128k plus2 plus2a plus3 pentagon next"),
             "pause": (lambda: (e.pause(), e.status())[1], "stop free-running"),
@@ -96,11 +115,14 @@ class Session:
                          "joystick(kind?): Kempston, Sinclair 1, Sinclair 2, Cursor, Fuller, None"),
             "sequence": (lambda steps: e.sequence(steps),
                          "sequence(steps): [{press,hold}, {run}, {until,max}, {type}, {hold}, {release}]"),
-            "screenshot": (self._screenshot, "screenshot(path?, border=true, scale=1): PNG (png_b64)"),
+            "screenshot": (self._screenshot,
+                           "screenshot(path?, border=true, scale=1, layer=screen|ula|layer2|sprites): PNG (png_b64)"),
             "regs": (lambda: {**e.regs(), "pc_symbol": e.symbols.name_of(e.regs()["PC"])}, "CPU registers"),
             "set_reg": (lambda reg, value: e.set_reg(reg, value), "set_reg(reg, value)"),
-            "read_mem": (self._read_mem, "read_mem(addr, length=64): hex + dump; addr may be a symbol"),
-            "write_mem": (self._write_mem, "write_mem(addr, hex)"),
+            "read_mem": (self._read_mem,
+                         "read_mem(addr, length=64, bank?, page?): hex + dump; addr may be a symbol; "
+                         "bank = 16K RAM bank (128K/Next), page = 8K Next page"),
+            "write_mem": (self._write_mem, "write_mem(addr, hex, bank?, page?)"),
             "find_mem": (self._find_mem, "find_mem(hex|text, start=0, end=65536)"),
             "disasm": (lambda addr="pc", count=12: {"listing": "\n".join(e.disasm(addr, count))},
                        "disasm(addr=pc, count=12)"),
@@ -132,22 +154,22 @@ class Session:
         p = Path(p)
         return str(p if p.is_absolute() or p.parent != Path(".") else repo_root() / "build" / "states" / p)
 
-    def _screenshot(self, path=None, border=True, scale=1):
-        img = self.emu.screenshot(path, border, scale)
+    def _screenshot(self, path=None, border=True, scale=1, layer="screen"):
+        img = self.emu.screenshot(path, border, scale, layer)
         buf = io.BytesIO()
         img.save(buf, "PNG")
         return {"png_b64": base64.b64encode(buf.getvalue()).decode(), "width": img.width,
                 "height": img.height, "path": path, "colors": len(img.getcolors(1 << 16) or [])}
 
-    def _read_mem(self, addr, length=64):
+    def _read_mem(self, addr, length=64, bank=None, page=None):
         a = self.emu.addr(addr)
-        data = self.emu.read_mem(a, int(length))
-        return {"addr": a, "hex": data.hex(), "dump": _hexdump(a, data)}
+        data = self.emu.read_mem(a, int(length), bank=bank, page=page)
+        return {"addr": a, "bank": bank, "page": page, "hex": data.hex(), "dump": _hexdump(a, data)}
 
-    def _write_mem(self, addr, hex):
+    def _write_mem(self, addr, hex, bank=None, page=None):
         data = bytes.fromhex(hex.replace(" ", ""))
-        self.emu.write_mem(addr, data)
-        return {"addr": self.emu.addr(addr), "written": len(data)}
+        self.emu.write_mem(addr, data, bank=bank, page=page)
+        return {"addr": self.emu.addr(addr), "bank": bank, "page": page, "written": len(data)}
 
     def _find_mem(self, hex=None, text=None, start=0, end=0x10000):
         needle = bytes.fromhex(hex.replace(" ", "")) if hex else text.encode("latin-1")
@@ -162,7 +184,17 @@ class Session:
         table = self.commands()
         if cmd not in table:
             raise ValueError(f"unknown command {cmd!r} (try help)")
-        with self.lock:
+        if cmd == "reboot" and not self.lock.acquire(timeout=3):
+            # another command is stuck inside the emulator: kill it so that
+            # command fails and lets go of the lock, then restart
+            try:
+                self.emu.proc.kill()
+            except OSError:
+                pass
+            self.lock.acquire()
+        elif cmd != "reboot":
+            self.lock.acquire()
+        try:
             try:
                 return table[cmd][0](**(args or {}))
             finally:
@@ -173,6 +205,8 @@ class Session:
                     self.info.update(now)
                     if self.registry:
                         self.registry.write_text(json.dumps(self.info))
+        finally:
+            self.lock.release()
 
 
 class _Handler(socketserver.StreamRequestHandler):

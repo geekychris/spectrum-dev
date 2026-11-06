@@ -6,15 +6,18 @@
  *
  * ZRCP commands added (all answer on one line unless noted):
  *
- *   zxh-status                 frames=N log=END nowait=0|1 step=0|1 pc=XXXX
- *   zxh-run frames=N [until=HEX] [since=OFF]
+ *   zxh-status                 frames=N tstates=T log=END nowait=0|1 step=0|1 pc=XXXX
+ *   zxh-run frames=N [until=HEX] [since=OFF] [at=FRAME:TSTATE]
  *                              cpu-step mode only. Runs up to N complete frames
  *                              as fast as possible, deterministically. Stops
  *                              early when the debug log (after absolute offset
  *                              OFF, default: log end at call time) contains the
- *                              bytes HEX, or when a breakpoint fires. Answers:
- *                              frames=RAN total=N reason=frames|log|break
- *                              pc=XXXX log=END [match=OFF] [break=MESSAGE]
+ *                              bytes HEX, when a breakpoint fires, or at the
+ *                              first instruction boundary at/after frame
+ *                              FRAME, T-state TSTATE (exact replay). Answers:
+ *                              frames=RAN total=N tstates=T
+ *                              reason=frames|log|break|at pc=XXXX log=END
+ *                              [match=OFF] [break=MESSAGE]
  *   zxh-log [since] [max]      two lines: "base=B end=E next=X", then the log
  *                              bytes [since, X) as hex (X-since <= max, default
  *                              32768). base = oldest offset still buffered.
@@ -22,6 +25,7 @@
  *   zxh-turbo 0|1              free-running mode without host pacing
  *   zxh-joystick [name]        get/set the emulated joystick (Kempston,
  *                              "Sinclair 1", "Sinclair 2", Cursor, None...)
+ *   zxh-nextkeys [B0 B1]       get/set the Next extended-key registers (hex)
  *   zxh-help                   this list
  *
  * GPL-3.0-or-later, like ZEsarUX.
@@ -139,6 +143,18 @@ int zxh_host_io_allowed(void)
 int zxh_host_io_allowed(void) { return 1; }
 #endif
 
+/* ---- Spectrum Next extended keys (NextReg 0xB0/0xB1), injected by zxh-nextkeys.
+   ZEsarUX does not emulate these registers; bits are 1 while a key is held:
+   0xB0: 7 ;  6 "  5 ,  4 .  3 UP  2 DOWN  1 LEFT  0 RIGHT
+   0xB1: 7 DELETE  6 EDIT  5 BREAK  4 INV VIDEO  3 TRUE VIDEO  2 GRAPH  1 CAPS LOCK  0 EXTEND */
+
+static unsigned char zxh_extkeys[2];
+
+int zxh_next_extkeys(unsigned char reg)
+{
+    return zxh_extkeys[reg == 0xB1 ? 1 : 0];
+}
+
 /* ---- ZRCP commands ---- */
 
 static int zxh_hexval(char c)
@@ -178,7 +194,8 @@ static void zxh_cmd_run(int sock, int argc, char **argv)
     char *s;
     unsigned long want, ran = 0, start, since, match = 0, seen;
     unsigned char needle[256];
-    int nlen = 0, saved_nowait;
+    int nlen = 0, saved_nowait, use_at = 0, at_t = 0;
+    unsigned long at_frame = 0;
     const char *reason = "frames";
 
     if (menu_event_remote_protocol_enterstep.v == 0) {
@@ -201,6 +218,13 @@ static void zxh_cmd_run(int sock, int argc, char **argv)
     }
     s = zxh_arg(argc, argv, "since");
     since = s ? strtoul(s, NULL, 0) : zxh_log_end();
+    s = zxh_arg(argc, argv, "at");
+    if (s != NULL) {
+        char *colon = strchr(s, ':');
+        at_frame = strtoul(s, NULL, 0);
+        at_t = colon ? atoi(colon + 1) : 0;
+        use_at = 1;
+    }
 
     remote_cpu_before_core_loop();
     saved_nowait = zxh_nowait;
@@ -213,6 +237,10 @@ static void zxh_cmd_run(int sock, int argc, char **argv)
     }
     else {
         while (zxh_frames - start < want) {
+            if (use_at && (zxh_frames > at_frame || (zxh_frames == at_frame && t_estados >= at_t))) {
+                reason = "at";
+                break;
+            }
             cpu_core_loop();
             if (menu_abierto || menu_breakpoint_exception.v) {
                 reason = "break";
@@ -232,8 +260,8 @@ static void zxh_cmd_run(int sock, int argc, char **argv)
     zxh_nowait = saved_nowait;
     ran = zxh_frames - start;
 
-    escribir_socket_format(sock, "frames=%lu total=%lu reason=%s pc=%04X log=%lu",
-                           ran, zxh_frames, reason, (unsigned)reg_pc, zxh_log_end());
+    escribir_socket_format(sock, "frames=%lu total=%lu tstates=%d reason=%s pc=%04X log=%lu",
+                           ran, zxh_frames, t_estados, reason, (unsigned)reg_pc, zxh_log_end());
     if (match) escribir_socket_format(sock, " match=%lu", match);
     if (menu_breakpoint_exception.v) {
         escribir_socket_format(sock, " break=%s", catch_breakpoint_message);
@@ -308,8 +336,8 @@ void zxh_remote_command(int sock, char *command, char *params)
     remote_parse_commands_argvc(params, &argc, argv);
 
     if (!strcmp(command, "zxh-status")) {
-        escribir_socket_format(sock, "frames=%lu log=%lu nowait=%d step=%d pc=%04X",
-                               zxh_frames, zxh_log_end(), zxh_nowait,
+        escribir_socket_format(sock, "frames=%lu tstates=%d log=%lu nowait=%d step=%d pc=%04X",
+                               zxh_frames, t_estados, zxh_log_end(), zxh_nowait,
                                menu_event_remote_protocol_enterstep.v, (unsigned)reg_pc);
     }
     else if (!strcmp(command, "zxh-run")) zxh_cmd_run(sock, argc, argv);
@@ -326,6 +354,13 @@ void zxh_remote_command(int sock, char *command, char *params)
         escribir_socket_format(sock, "nowait=%d", zxh_nowait);
     }
     else if (!strcmp(command, "zxh-joystick")) zxh_cmd_joystick(sock, argc, argv);
+    else if (!strcmp(command, "zxh-nextkeys")) {
+        if (argc >= 2) {
+            zxh_extkeys[0] = (unsigned char)strtoul(argv[0], NULL, 16);
+            zxh_extkeys[1] = (unsigned char)strtoul(argv[1], NULL, 16);
+        }
+        escribir_socket_format(sock, "b0=%02x b1=%02x", zxh_extkeys[0], zxh_extkeys[1]);
+    }
     else if (!strcmp(command, "zxh-help")) {
         escribir_socket(sock,
             "zxh-status\n"
@@ -333,7 +368,8 @@ void zxh_remote_command(int sock, char *command, char *params)
             "zxh-log [since] [max]\n"
             "zxh-log-clear\n"
             "zxh-turbo 0|1\n"
-            "zxh-joystick [type]\n");
+            "zxh-joystick [type]\n"
+            "zxh-nextkeys [B0hex B1hex]\n");
     }
     else {
         escribir_socket(sock, "ERROR. unknown zxh command (zxh-help)");

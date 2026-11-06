@@ -36,6 +36,28 @@ index 9e0d179..107b151 100644
  
  
  
+diff --git a/src/machines/tbblue.c b/src/machines/tbblue.c
+index 3b41ad3..7fa4eb4 100644
+--- a/src/machines/tbblue.c
++++ b/src/machines/tbblue.c
+@@ -25,6 +25,7 @@
+ 
+ #include "cpu.h"
+ #include "tbblue.h"
++#include "zxh.h"
+ #include "mem128.h"
+ #include "debug.h"
+ #include "contend.h"
+@@ -5479,6 +5480,9 @@ z80_byte tbblue_get_value_port_register(z80_byte registro)
+ 
+ 
+ 
++    //zxh: extended keys (NextReg 0xB0/0xB1), injected by the harness
++    if (registro==0xB0 || registro==0xB1) return zxh_next_extkeys(registro);
++
+     switch(registro)
+     {
+         case 0:
 diff --git a/src/timer.c b/src/timer.c
 index dff21fd..6197e22 100644
 --- a/src/timer.c

@@ -3,7 +3,9 @@
  *
  * Reads Next registers (machine id, core version), switches to 28 MHz, draws
  * a 256x192 Layer 2 (8 bpp) picture through an MMU slot, keeps the ULA text
- * visible through Layer 2's transparent colour, and logs input.
+ * visible through Layer 2's transparent colour, shows two hardware sprites
+ * (one moving, one 2x scaled), and logs input including the Next's extra
+ * keys (NextReg 0xB0/0xB1).
  */
 #include <stdio.h>
 #include <input.h>
@@ -16,7 +18,30 @@
 #define L2_TRANSPARENT 0xE3          /* default global transparency colour */
 
 static unsigned int frames;
-static unsigned char keys;
+static unsigned char keys, ext0, ext1;
+static unsigned char ball_x = 72;
+
+/* 16x16 8 bpp ball: red disc on the sprite transparent colour (0xE3) */
+static void upload_ball_pattern(void)
+{
+    unsigned char x, y;
+    z80_outp(0x303B, 0);                                /* pattern slot 0 */
+    for (y = 0; y < 16; y++)
+        for (x = 0; x < 16; x++) {
+            signed char dx = (signed char)(x * 2) - 15, dy = (signed char)(y * 2) - 15;
+            z80_outp(0x5B, dx * dx + dy * dy <= 225 ? 0xE0 : 0xE3);
+        }
+}
+
+static void set_sprite(unsigned char n, unsigned int x, unsigned char y, unsigned char attr4)
+{
+    z80_outp(0x303B, n);                                /* attribute slot n */
+    z80_outp(0x57, x & 0xFF);
+    z80_outp(0x57, y);
+    z80_outp(0x57, (x >> 8) & 1);                       /* no palette offset/mirror/rotate */
+    z80_outp(0x57, attr4 ? 0xC0 : 0x80);                /* visible, pattern 0, (5th byte) */
+    if (attr4) z80_outp(0x57, attr4);
+}
 
 /* Layer 2 256x192 lives in three 16K banks starting at NextReg 0x12 (9 after
    NextZXOS boots), i.e. six 8K pages from 2*bank. Map each page at 0x6000
@@ -63,6 +88,10 @@ int main(void)
     }
 
     draw_layer2();
+    upload_ball_pattern();
+    ZXN_WRITE_REG(0x15, 0x01);                          /* sprites visible (SLU order) */
+    set_sprite(0, ball_x, 60, 0);                       /* moves right every frame */
+    set_sprite(1, 232, 182, 0x0A);                      /* fixed, 2x scale both ways */
     zx_log("hellonext: machine=%u core=%u.%u speed=%u\n", id, core >> 4, core & 15,
            ZXN_READ_REG(0x07) & 3);
     zx_log("hellonext: ready\n");
@@ -81,5 +110,16 @@ int main(void)
         }
         keys = k;
         if (frames % 250 == 0) zx_log("hellonext: frame %u\n", frames);
+
+        ball_x = ball_x >= 248 ? 32 : ball_x + 1;
+        set_sprite(0, ball_x, 60, 0);
+
+        {
+            unsigned char b0 = ZXN_READ_REG(0xB0), b1 = ZXN_READ_REG(0xB1);
+            if (b0 != ext0 || b1 != ext1) {
+                zx_log("hellonext: extkeys b0=%02x b1=%02x frame=%u\n", b0, b1, frames);
+                ext0 = b0; ext1 = b1;
+            }
+        }
     }
 }

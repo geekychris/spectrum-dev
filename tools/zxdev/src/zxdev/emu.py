@@ -16,6 +16,8 @@ A frame is 1/50 s of guest time (69888 T-states on a 48K).
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import socket
@@ -93,6 +95,11 @@ class Emulator:
         self._logtext = bytearray()   # all guest log bytes fetched so far
         self._logbase = 0             # absolute offset of _logtext[0]
         self._held: list[str] = []
+        self._inputs: list[dict] = []   # input changes since load: {seq, f, t, ports, ext} / {joystick}
+        self._checkpoints: list[dict] = []
+        self._seq = 0
+        self._joy_at_load = joystick
+        self.last_stop: dict | None = None
         self._bps: dict[int, dict] = {}
         self._watches: dict[int, dict] = {}
         self._tmp = Path(tempfile.mkdtemp(prefix="zxdev-"))
@@ -248,6 +255,9 @@ class Emulator:
         self.symbols.add_file(p.with_suffix(".sym"))         # sjasmplus
         self.mark = self.log_end()
         self._held = []
+        self._inputs, self._checkpoints, self._seq = [], [], 0
+        self._joy_at_load = self.joystick()
+        self.last_stop = None
         return self.status()
 
     def set_machine(self, name: str):
@@ -283,24 +293,46 @@ class Emulator:
 
     # ------------------------------------------------------------- running
 
-    def _run(self, frames: int, until: bytes | None = None, since: int | None = None) -> dict:
+    def _run(self, frames: int, until: bytes | None = None, since: int | None = None,
+             at: tuple[int, int] | None = None) -> dict:
         frames = max(0, int(frames))
         line = f"zxh-run frames={frames}"
         if until:
             line += f" until={until.hex()} since={self.mark if since is None else since}"
+        if at:
+            line += f" at={at[0]}:{at[1]}"
         with self.held():
             out = self._cmd(line, timeout=30 + frames / 50)
         r = kv(out)
         res = {"frames": int(r.get("frames", 0)), "frame": int(r.get("total", 0)),
-               "reason": r.get("reason"), "pc": int(r.get("pc", "0"), 16)}
+               "tstates": int(r.get("tstates", 0)), "reason": r.get("reason"),
+               "pc": int(r.get("pc", "0"), 16)}
+        res["since_load"] = res["frame"] - self.load_frame
         if "match" in r:
             res["match"] = int(r["match"])
         brk = kv_tail(out, "break")
         if brk:
             res["break"] = brk
-        if res["reason"] == "break":
+        if res["reason"] in ("break", "log"):
             res["symbol"] = self.symbols.name_of(res["pc"])
+        self.last_stop = {k: res.get(k) for k in ("reason", "pc", "symbol", "break", "frame",
+                                                  "since_load", "tstates")}
         return res
+
+    def position(self) -> dict:
+        """Where emulation is: frame (absolute), frames since load, T-state in the frame."""
+        r = kv(self._cmd("zxh-status"))
+        f = int(r["frames"])
+        return {"frame": f, "since_load": f - self.load_frame, "tstates": int(r["tstates"])}
+
+    def run_to(self, since_load: int, tstates: int = 0) -> dict:
+        """Run to the first instruction boundary at/after (frame since load, T-state).
+        Breakpoints still stop it (reason 'break')."""
+        target = self.load_frame + since_load
+        pos = self.position()
+        if (pos["frame"], pos["tstates"]) >= (target, tstates):
+            return {"reason": "at", "frames": 0, **pos}
+        return self._run(target - pos["frame"] + 2, at=(target, tstates))
 
     def run(self, frames: int = 1) -> dict:
         """Advance `frames` frames (stops early at a breakpoint: see result['reason'])."""
@@ -329,7 +361,9 @@ class Emulator:
                 "pc_symbol": self.symbols.name_of(int(r["pc"], 16)),
                 "paused": self.paused, "window": self.window, "program": self.program,
                 "log_end": int(r["log"]), "symbols": len(self.symbols), "zrcp_port": self.port,
-                "breakpoints": len(self._bps), "watchpoints": len(self._watches)}
+                "breakpoints": len(self._bps), "watchpoints": len(self._watches),
+                "since_load": int(r["frames"]) - self.load_frame, "tstates": int(r["tstates"]),
+                "inputs_logged": len(self._inputs), "last_stop": self.last_stop}
 
     # ------------------------------------------------------------- debug log
 
@@ -375,7 +409,19 @@ class Emulator:
     # ------------------------------------------------------------- input
 
     def _ports(self, pressed):
-        self._cmd("set-ui-io-ports " + K.ports_hex(pressed))
+        ports = K.ports_hex(pressed)
+        b0, b1 = K.next_ext(pressed)
+        self._apply_input(ports, f"{b0:02x}{b1:02x}")
+
+    def _apply_input(self, ports: str, ext: str = "0000", log: bool = True):
+        self._cmd("set-ui-io-ports " + ports)
+        if self.machine == "next":
+            self._cmd(f"zxh-nextkeys {ext[:2]} {ext[2:]}")
+        if log:
+            pos = self.position()
+            self._seq += 1
+            self._inputs.append({"seq": self._seq, "f": pos["since_load"], "t": pos["tstates"],
+                                 "ports": ports, "ext": ext})
 
     def hold(self, keys):
         """Press and keep holding keys / joystick directions ('Q', 'SPACE', 'UP+FIRE')."""
@@ -408,14 +454,25 @@ class Emulator:
         return r
 
     def joystick(self, kind: str | None = None) -> str:
-        """Get/set the emulated joystick: Kempston, Sinclair 1, Sinclair 2, Cursor, Fuller, None."""
-        return self._cmd("zxh-joystick" + (f" {kind}" if kind else "")).strip()
+        """Get/set the emulated joystick: Kempston, Sinclair 1, Sinclair 2, Cursor, Fuller, None.
+        Joystick directions (UP DOWN LEFT RIGHT FIRE) are mapped onto it: Sinclair and
+        Cursor joysticks appear as number keys in the keyboard matrix."""
+        out = self._cmd("zxh-joystick" + (f" {kind}" if kind else "")).strip()
+        if kind and self.program:
+            pos = self.position()
+            self._seq += 1
+            self._inputs.append({"seq": self._seq, "f": pos["since_load"], "t": pos["tstates"],
+                                 "joystick": out})
+        return out
 
     def sequence(self, steps) -> list:
         """[{"press": "Q", "hold": 3}, {"run": 20}, {"until": "text", "max": 500}, {"hold": "UP"},
-        {"release": "UP"}, {"type": "10 PRINT"}] -> results."""
+        {"release": "UP"}, {"type": "10 PRINT"}] -> results. Any step may carry "at": N
+        (frames since load, plus optional "t") to run there first: timed scripts."""
         out = []
         for st in steps:
+            if "at" in st:   # frames since load (optionally "t": T-state in that frame)
+                self.run_to(int(st["at"]), int(st.get("t", 0)))
             if "press" in st:
                 out.append(self.press(st["press"], st.get("hold", 3), st.get("release", 3)))
             elif "run" in st:
@@ -428,17 +485,30 @@ class Emulator:
                 self.hold(st["hold"]); out.append(True)
             elif "release" in st:
                 self.release(st["release"] or None); out.append(True)
+            elif "at" in st:
+                out.append(self.position())
             else:
                 raise ValueError(f"bad step {st!r}")
         return out
 
     # ------------------------------------------------------------- screen
 
-    def screenshot(self, path=None, border: bool = True, scale: int = 1):
+    def screenshot(self, path=None, border: bool = True, scale: int = 1, layer: str = "screen"):
         """The frame as displayed (PIL RGB image). 48K/128K: 352x304 with border
         (paper 256x192 at 48,56); Next: 704x608 (ZEsarUX renders the Next at 2x
-        so 640-wide modes fit). border=False crops to the paper area."""
+        so 640-wide modes fit). border=False crops to the paper area.
+        layer: "screen" (composited output), or one layer rendered from memory at
+        its native size: "ula" (256x192), "layer2" (Next, 256x192/320x256/640x256),
+        "sprites" (Next, the 320x256 sprite plane, RGBA)."""
         from PIL import Image
+        if layer != "screen":
+            img = self.render_layer(layer)
+            if scale and scale != 1:
+                img = img.resize((img.width * scale, img.height * scale), Image.NEAREST)
+            if path:
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                img.save(path)
+            return img
         bmp = self._tmp / f"shot-{time.monotonic_ns()}.bmp"
         self._cmd(f'save-screen "{bmp}"')
         for _ in range(50):
@@ -459,6 +529,221 @@ class Emulator:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             img.save(path)
         return img
+
+    # ------------------------------------------------------------- layers, hashes, video
+
+    def _reg(self, n: int) -> int:
+        return int(self._cmd(f"tbblue-get-register {n}").strip().rstrip("Hh"), 16)
+
+    def _palette(self, which: str, second: bool) -> list[int]:
+        out = self._cmd(f"tbblue-get-palette {which} {'second' if second else 'first'} 0 256")
+        return [int(v, 16) for v in out.split()]
+
+    def _zone_read(self, zone: int, off: int, n: int) -> bytes:
+        out = bytearray()
+        self._cmd(f"set-memory-zone {zone}")
+        try:
+            while n > 0:
+                k = min(n, 4096)
+                out += bytes.fromhex(self._cmd(f"read-memory {off} {k}").strip())
+                off += k
+                n -= k
+        finally:
+            self._cmd("set-memory-zone -1")
+        return bytes(out)
+
+    def _zone_write(self, zone: int, off: int, data: bytes):
+        self._cmd(f"set-memory-zone {zone}")
+        try:
+            for i in range(0, len(data), 128):
+                self._cmd(f"write-memory {off + i} " + " ".join(str(b) for b in data[i:i + 128]))
+        finally:
+            self._cmd("set-memory-zone -1")
+
+    def render_layer(self, layer: str):
+        from . import video
+        if layer == "ula":
+            if self.machine in ("16k", "48k", "48k+"):
+                scr = self.read_mem(0x4000, 6912)
+            else:
+                bank = 7 if "SCR7" in self._cmd("get-paging-state") else 5
+                scr = self.read_mem(0, 6912, bank=bank)
+            return video.render_ula(scr)
+        if self.machine != "next":
+            raise EmulatorError(f"layer {layer!r} needs the Next (machine is {self.machine})")
+        if layer == "layer2":
+            r70 = self._reg(0x70)
+            mode = (r70 >> 4) & 3
+            mode = 0 if mode == 3 else mode
+            size = 48 * 1024 if mode == 0 else 80 * 1024
+            data = self._zone_read(0, video.NEXT_RAM + self._reg(0x12) * 16384, size)
+            pal = self._palette("layer2", bool(self._reg(0x43) & 4))
+            return video.render_layer2(data, pal, mode, self._reg(0x14), (r70 & 15) << 4)
+        if layer == "sprites":
+            attrs = self._zone_read(31, 0, 640)
+            pats = self._zone_read(14, 0, 16384)
+            pal = self._palette("sprite", bool(self._reg(0x43) & 8))
+            return video.render_sprites(attrs, pats, pal, self._reg(0x4B))
+        raise ValueError(f"unknown layer {layer!r}: screen, ula, layer2, sprites")
+
+    def screen_hash(self, layer: str = "screen") -> str:
+        """md5 of the displayed frame's RGB pixels (or of one layer)."""
+        img = self.screenshot(layer=layer)
+        return hashlib.md5(img.tobytes()).hexdigest()
+
+    def record_video(self, path, frames: int = 100, every: int = 1, scale: int = 1,
+                     layer: str = "screen") -> dict:
+        """Record `frames` frames (one picture every `every` frames) to .gif, .mp4,
+        or a directory of PNGs. Paused sessions advance deterministically; window
+        sessions are sampled in real time. MP4 needs ffmpeg on PATH."""
+        from PIL import Image
+        p = Path(path)
+        shots = []
+        for i in range(0, max(1, frames), max(1, every)):
+            if i:
+                self.run(every)
+            shots.append(self.screenshot(scale=scale, layer=layer).convert("RGB"))
+        fps = 50 / max(1, every)
+        if p.suffix.lower() == ".gif":
+            p.parent.mkdir(parents=True, exist_ok=True)
+            shots[0].save(p, save_all=True, append_images=shots[1:], loop=0,
+                          duration=int(1000 / fps), optimize=False)
+        elif p.suffix.lower() in (".mp4", ".mov", ".webm"):
+            ff = shutil.which("ffmpeg")
+            if not ff:
+                raise EmulatorError("ffmpeg not found: use a .gif path, or install ffmpeg")
+            tmp = self._tmp / "video"
+            shutil.rmtree(tmp, ignore_errors=True)
+            tmp.mkdir()
+            for i, im in enumerate(shots):
+                im.save(tmp / f"{i:05d}.png")
+            p.parent.mkdir(parents=True, exist_ok=True)
+            r = subprocess.run([ff, "-y", "-loglevel", "error", "-framerate", f"{fps:g}",
+                                "-i", str(tmp / "%05d.png"), "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=neighbor",
+                                "-pix_fmt", "yuv420p", str(p)], capture_output=True, text=True)
+            if r.returncode:
+                raise EmulatorError(f"ffmpeg failed: {r.stderr.strip()[-500:]}")
+        else:
+            p.mkdir(parents=True, exist_ok=True)
+            for i, im in enumerate(shots):
+                im.save(p / f"{i:05d}.png")
+        return {"path": str(p), "frames": len(shots), "fps": fps,
+                "size": list(shots[0].size)}
+
+    # ------------------------------------------------------------- replay
+
+    def input_log(self) -> list[dict]:
+        """Every input change since the program was loaded, with its position."""
+        return list(self._inputs)
+
+    def checkpoint(self, label: str = "") -> dict:
+        """Remember the screen hash here (a replay checks it at the same point)."""
+        pos = self.position()
+        self._seq += 1
+        cp = {"seq": self._seq, "f": pos["since_load"], "t": pos["tstates"],
+              "label": label or f"cp{len(self._checkpoints) + 1}", "screen": self.screen_hash(),
+              "pc": self.regs()["PC"]}
+        self._checkpoints.append(cp)
+        return cp
+
+    def save_replay(self, path=None) -> dict:
+        """Input log + checkpoints + the final position/hash as a replay (JSON).
+        Covers everything since the last load()."""
+        if not self.program:
+            raise EmulatorError("no program loaded: a replay starts from load()")
+        end = self.checkpoint("end")
+        self._checkpoints.pop()
+        rec = {"version": 1, "program": self.program, "machine": self.machine,
+               "joystick": self._joy_at_load, "events": self.input_log(),
+               "checkpoints": list(self._checkpoints), "end": end}
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).write_text(json.dumps(rec, indent=1))
+        return rec
+
+    def replay(self, rec, verify: bool = True) -> dict:
+        """Reload the program and re-apply a recorded input log at the same
+        frames/T-states; check every checkpoint's screen hash. Deterministic in
+        paused sessions (the replay always holds the CPU)."""
+        if not isinstance(rec, dict):
+            rec = json.loads(Path(rec).read_text())
+        if not Path(rec["program"]).exists():
+            raise EmulatorError(f"replay program {rec['program']} not found")
+        self.delete()
+        self.load(rec["program"], rec.get("machine"))
+        self.joystick(rec.get("joystick") or "Kempston")
+        self._inputs = []
+        items = [("event", e) for e in rec["events"]] + [("check", c) for c in rec["checkpoints"]]
+        items.append(("check", rec["end"]))
+        items.sort(key=lambda it: (it[1]["f"], it[1]["t"], it[1].get("seq", 0)))
+        results = []
+        with self.held():
+            for kind, it in items:
+                self.run_to(it["f"], it["t"])
+                if kind == "event":
+                    if "joystick" in it:
+                        self.joystick(it["joystick"])
+                    else:
+                        self._apply_input(it["ports"], it.get("ext", "0000"))
+                elif verify:
+                    got = self.screen_hash()
+                    results.append({"label": it["label"], "f": it["f"], "t": it["t"],
+                                    "expected": it["screen"], "got": got, "ok": got == it["screen"]})
+        ok = all(r["ok"] for r in results)
+        return {"ok": ok, "checkpoints": results, "events": len(rec["events"]),
+                "position": self.position()}
+
+    # ------------------------------------------------------------- restart
+
+    def reload(self) -> dict:
+        """Reset and load the same program again."""
+        if not self.program:
+            raise EmulatorError("no program loaded")
+        return self.load(self.program)
+
+    def power_cycle(self) -> dict:
+        """Cold start: a fresh ZEsarUX process with the same machine (no program)."""
+        paused = self.paused
+        self._stop_process()
+        self.port = free_port()
+        self.paused = True
+        self._logtext, self._logbase = bytearray(), 0
+        self._bps.clear()
+        self._watches.clear()
+        self._held = []
+        self.program = None
+        self.symbols = Symbols()
+        self.load_frame = 0
+        self._start()
+        if not paused:
+            self.resume()
+        return self.status()
+
+    def reboot(self) -> dict:
+        """Recover a wedged emulator: kill it, start a fresh one, reload the program."""
+        prog = self.program
+        try:
+            self.proc.kill()
+        except OSError:
+            pass
+        paused = self.paused
+        self.paused = True
+        self.power_cycle()
+        if prog:
+            self.load(prog)
+        if not paused:
+            self.resume()
+        return self.status()
+
+    def memory_map(self) -> dict:
+        """What is paged where: 128K banks (and screen bank), or Next MMU pages."""
+        if self.machine in ("16k", "48k", "48k+"):
+            return {"machine": self.machine, "slots": ["ROM", "RAM 4000", "RAM 8000", "RAM C000"]}
+        pages = self._cmd("get-memory-pages").strip()
+        out = {"machine": self.machine, "pages": pages, "paging": self._cmd("get-paging-state").strip()}
+        if self.machine == "next":
+            out["mmu"] = [self._reg(0x50 + i) for i in range(8)]
+        return out
 
     # ------------------------------------------------------------- registers / memory
 
@@ -495,7 +780,21 @@ class Emulator:
         self._cmd(f"set-register {name.upper()}={v}")
         return self.regs()
 
-    def read_mem(self, addr, length: int = 16) -> bytes:
+    def _bank_offset(self, bank, page) -> int:
+        if self.machine == "next":
+            return 0x40000 + (bank * 16384 if bank is not None else page * 8192)
+        if page is not None:
+            raise ValueError("8K pages are a Next thing; use bank= (16K) on 128K machines")
+        if self.machine in ("16k", "48k", "48k+"):
+            raise ValueError("a 48K has no banks: use plain addresses")
+        return bank * 16384
+
+    def read_mem(self, addr, length: int = 16, bank: int | None = None, page: int | None = None) -> bytes:
+        """Read the 64K CPU view, or (bank=N) a 16K RAM bank on 128K/+2/+3/Next,
+        or (page=N) an 8K Next RAM page, whatever is paged in. With bank/page,
+        addr is the offset inside it."""
+        if bank is not None or page is not None:
+            return self._zone_read(0, self._bank_offset(bank, page) + int(self.addr(addr)), length)
         a = self.addr(addr)
         out = bytearray()
         while length > 0:
@@ -505,7 +804,9 @@ class Emulator:
             length -= n
         return bytes(out)
 
-    def write_mem(self, addr, data: bytes):
+    def write_mem(self, addr, data: bytes, bank: int | None = None, page: int | None = None):
+        if bank is not None or page is not None:
+            return self._zone_write(0, self._bank_offset(bank, page) + int(self.addr(addr)), data)
         a = self.addr(addr)
         for i in range(0, len(data), 128):
             chunk = data[i:i + 128]
@@ -643,12 +944,20 @@ class Emulator:
     # ------------------------------------------------------------- snapshots
 
     def save_state(self, path) -> str:
-        """Snapshot to a file: .zsf (ZEsarUX, complete incl. Next), .z80, .sna."""
+        """Snapshot to a file: .zsf (ZEsarUX, complete incl. Next), .z80, .sna (48K/128K).
+        A load does not re-render: compare screens one frame after load_state()."""
         p = Path(path)
         if p.suffix == "":
             p = p.with_suffix(".zsf")
         p = p.resolve()
         p.parent.mkdir(parents=True, exist_ok=True)
+        if self.machine == "next" and p.suffix.lower() != ".zsf":
+            # ZEsarUX can't write .sna/.z80 for the Next; it opens an error
+            # dialog and blocks the remote protocol
+            raise EmulatorError("the Next can only be snapshotted as .zsf")
+        if p.suffix.lower() not in (".zsf", ".z80", ".sna", ".zx", ".sp"):
+            raise EmulatorError(f"unsupported snapshot format {p.suffix} (.zsf .z80 .sna .zx .sp; "
+                                "ZEsarUX has no .szx writer)")
         # snapshot-save takes the rest of the line verbatim (no quoting)
         tmp = self._tmp / f"state{p.suffix}" if " " in str(p) else p
         with self.held():

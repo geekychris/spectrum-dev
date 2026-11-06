@@ -39,6 +39,9 @@ extern int zxh_force_render(void);
    used by screenshots) is unaffected. */
 extern int zxh_host_io_allowed(void);
 
+/* tbblue.c: value of NextReg 0xB0 / 0xB1 (extended keys), set by zxh-nextkeys. */
+extern int zxh_next_extkeys(unsigned char reg);
+
 /* remote.c: dispatch for commands starting with "zxh-". */
 extern void zxh_remote_command(int misocket, char *command, char *params);
 
