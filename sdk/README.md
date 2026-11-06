@@ -9,6 +9,12 @@
 | `template/` | what `./zx new <name> [--next]` copies: main loop, keyboard + Kempston input, logging, `test.py` |
 
 
+## Tools
+
+| | |
+|---|---|
+| `tools/mod2ay.py` | ProTracker MOD -> a `modplay` song: channel routing, instruments, pitch from each sample's waveform (`--help`) |
+
 ## Game layer
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
@@ -25,6 +31,7 @@ part). Tests: `projects/sdktest` (48K/128K) and `projects/sdktestnext`.
 | | `gfx48.c`, `spr_blit.asm` | 48K screen: row table, pre-shifted sprites (xor/or/clear/store), rects, tiles, attributes, big text, numbers |
 | | `hiscore.c` | high-score table, the initials editor (`hs_edit_*`, any screen) |
 | | `hiscore48.c` | the table and the initials screen on the 48K screen (`hs_draw`, `hs_enter`) |
+| `modplay.h` | `modplay.c` | plays a MOD converted by `tools/mod2ay.py`: four channels routed to TurboSound chips, tone / noise / kick instruments; leaves free channels to `ay_sfx` |
 | `font5.h` | `font5.c` | a 5x7 font for drawing text yourself (Layer 2, a dot-matrix display), `font5_width` |
 | `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites (`spr_show_quad` 32x32, patterns from memory pages), palettes (`pal_load`), TurboSound chip select |
 | | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |

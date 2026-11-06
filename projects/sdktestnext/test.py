@@ -32,6 +32,10 @@ with Emulator(machine="next") as e:
     check("TurboSound chip 1 registers", "ts chip1 r0=144" in log)
     check("rnd + fix maths on the Next", "rnd=33153,24609 fix_div=384 sin32=181" in log)
     check("frame timer at 28 MHz", "frames=25" in log)
+    # chip 1 A: period 300 (low byte 44), volume 12, tone on; chip 0 B: noise at 8
+    # (9 - 1 after a tick), noise B on and tone C on (the effect) in chip 0's mixer
+    check("modplay: tone on chip 1, noise on chip 0, the effect's mixer bit kept",
+          "modplay c1a=44,12 mix1=3e c0b=8 mix0=2b" in log, [l for l in log.splitlines() if "modplay" in l])
 
     l2 = e.screenshot(layer="layer2")
     check("Layer 2 border rectangle", near(l2.getpixel((0, 0)), (255, 255, 255)) and near(l2.getpixel((255, 191)), (255, 255, 255)))

@@ -18,7 +18,7 @@ void beep_sweep(uint16_t from, uint16_t to, uint8_t step, uint8_t cycles)
 
 /* ---- AY-3-8912 (128K/+2/+3, the Next's TurboSound chip 0) ---- */
 
-static uint8_t ay_mixer = 0x3F;      /* register 7: all tone + noise off */
+uint8_t ay_mixer = 0x3F;             /* register 7 of chip 0: all tone + noise off (modplay.c shares it) */
 
 void ay_write(uint8_t reg, uint8_t val)
 {

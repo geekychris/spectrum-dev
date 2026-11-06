@@ -20,7 +20,7 @@
 #include "zxlog.h"
 #include "game.h"
 #include "font5.h"
-#include "music.h"
+#include "modplay.h"
 
 /* port: 320x256 with 12-pixel cells becomes 256x192 with 9-pixel cells */
 #define CELL     9
@@ -317,98 +317,11 @@ static void render(void)
 
 /* ------------------------------------------------------------ sound */
 
-/* the MOD (music.c): lead + bass on AY 0 A/B, drums + stab/bell on AY 1 A/B;
-   AY 0 C is left for the effects (sound_tick) */
-static uint16_t m_row;
-static uint8_t m_tick, drum, drum_t, c3_vol, c3_decay, c3_t;
-
-static void ay_reg(uint8_t chip, uint8_t reg, uint8_t v)
-{
-    ay_chip(chip);
-    ay_write(reg, v);
-}
-
-static void music_start(void)
-{
-    uint8_t i;
-    if (!ay_present) return;
-    for (i = 0; i < 14; i++) ay_reg(1, i, 0);   /* chip 1 silent (ay_init only does chip 0) */
-    ay_reg(1, 7, 0x3F);
-    ay_chip(0);
-    ay_init();
-    ay_tone(0, 0, 0);                   /* chip 0: A and B tone on, C for effects */
-    ay_tone(1, 0, 0);
-    m_row = 0;
-    m_tick = 0;
-}
-
-static void music_tick(void)
-{
-    const uint8_t *row;
-    uint8_t mix, v;
-    uint16_t p;
-    if (!ay_present) return;
-    if (m_tick == 0) {
-        row = music_rows[m_row];
-        if (row[0]) {
-            p = music_lead_period[row[0] - 1];
-            ay_reg(0, 0, p);
-            ay_reg(0, 1, p >> 8);
-            ay_reg(0, 8, 11);
-        }
-        if (row[1]) {
-            p = music_bass_period[row[1] - 1];
-            ay_reg(0, 2, p);
-            ay_reg(0, 3, p >> 8);
-            ay_reg(0, 9, 12);
-        }
-        if (row[2]) {
-            drum = row[2];
-            drum_t = 0;
-        }
-        if (row[3]) {
-            p = music_ch3_period[(row[3] & 0x7F) - 1];
-            ay_reg(1, 2, p);
-            ay_reg(1, 3, p >> 8);
-            c3_vol = row[3] & 0x80 ? 11 : 10;          /* bell rings, stab is short */
-            c3_decay = row[3] & 0x80 ? 6 : 2;
-            c3_t = 0;
-        }
-        if (++m_row == MUSIC_ROWS) m_row = 0;
-    }
-    if (++m_tick >= music_speed) m_tick = 0;
-
-    /* drums on AY 1 A: kick = falling tone, snare = noise, hat = short high noise */
-    mix = 0x3F & ~0x02;                                /* B tone on */
-    v = 0;
-    if (drum == 1) {
-        p = 250 + drum_t * 220;
-        ay_reg(1, 0, p);
-        ay_reg(1, 1, p >> 8);
-        v = drum_t < 6 ? 13 - drum_t * 2 : 0;
-        mix &= ~0x01;
-    }
-    else if (drum == 2) {
-        ay_reg(1, 6, 10);
-        v = drum_t < 10 ? 12 - drum_t : 0;
-        mix &= ~0x08;
-    }
-    else if (drum == 3) {
-        ay_reg(1, 6, 1);
-        v = drum_t < 3 ? 10 - drum_t * 3 : 0;
-        mix &= ~0x08;
-    }
-    if (drum && !v) drum = 0;
-    if (drum_t < 255) drum_t++;
-    ay_reg(1, 7, mix);
-    ay_reg(1, 8, v);
-    if (c3_vol && ++c3_t >= c3_decay) {
-        c3_t = 0;
-        c3_vol--;
-    }
-    ay_reg(1, 9, c3_vol);
-    ay_chip(0);
-}
+/* the MOD (src/music.c, sdk/tools/mod2ay.py; see README): lead + bass on
+   AY 0 A/B, drums + stab/bell on AY 1 A/B; AY 0 C is left for the effects */
+extern const mod_song stak_song;
+#define music_start() modplay_start(&stak_song)
+#define music_tick()  modplay_tick()
 
 static void sound_events(void)
 {

@@ -38,7 +38,7 @@ pointer walks; the original is kept under `#if 0`). Port changes are marked
 - **Hardware sprites** for the falling piece, its landing marks and the next
   piece (12 sprites, 8 patterns).
 - **TurboSound**: the original's ProTracker MOD (`tools/stakattack.mod`,
-  converted by `tools/mod2ay.py` into `src/music.c`) on two AY chips: lead
+  converted by `sdk/tools/mod2ay.py` (`tools/make_music.sh`) into `src/music.c`, played by the SDK's `modplay`) on two AY chips: lead
   and bass on AY 0, drums (tone-sweep kick, noise snare and hat) and the
   stab/bell channel on AY 1; the drop/lock/clear effects on AY 0's third
   channel.

@@ -8,6 +8,7 @@
 #include "zxgame.h"
 #include "nextgfx.h"
 #include "zxlog.h"
+#include "modplay.h"
 
 static uint8_t ball[256];
 
@@ -64,6 +65,29 @@ int main(void)
     zx_log("sdk: ts chip1 r0=%u\n", z80_inp(0xFFFD));
     ay_chip(0);
 
+    /* modplay: a two-row song, a tone on chip 1 A and noise on chip 0 B */
+    {
+        static const mod_inst ins[2] = {{MI_TONE, 12, 0, 1, 0}, {MI_NOISE, 9, 1, 1, 7}};
+        static const mod_voice v0[1] = {{300, 0}}, v1[1] = {{0, 1}};
+        static const uint8_t rows[8] = {1, 1, 0, 0, 0, 0, 0, 0};
+        static const mod_song song = {2, 3, rows, {v0, v1, 0, 0}, ins, {MOD_ROUTE(1, 0), MOD_ROUTE(0, 1), 0xFF, 0xFF}};
+        uint8_t r0, r8, r7, b9, a7;
+        ay_chip(0);
+        ay_init();
+        ay_sfx(2, 500, 15, 1, 0);                       /* an effect on chip 0 C: its mixer bit stays */
+        modplay_start(&song);
+        modplay_tick();
+        modplay_tick();
+        ay_chip(1);
+        z80_outp(0xFFFD, 0); r0 = z80_inp(0xFFFD);
+        z80_outp(0xFFFD, 8); r8 = z80_inp(0xFFFD);
+        z80_outp(0xFFFD, 7); r7 = z80_inp(0xFFFD);
+        ay_chip(0);
+        z80_outp(0xFFFD, 9); b9 = z80_inp(0xFFFD);
+        z80_outp(0xFFFD, 7); a7 = z80_inp(0xFFFD);
+        zx_log("sdk: modplay c1a=%u,%u mix1=%02x c0b=%u mix0=%02x\n", r0, r8, r7, b9, a7);
+        modplay_stop();
+    }
     rnd_seed(1);
     {
         uint16_t r1 = rnd16(), r2 = rnd16();
