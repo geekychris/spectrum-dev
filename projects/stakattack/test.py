@@ -200,7 +200,7 @@ with Emulator(machine="next") as e:
         if "hiscore rank" in more or "stak: title" in more:
             break
     if "hiscore rank" in more:
-        e.run(40)                                          # the entry screen is drawn
+        e.run(2)                                           # (typing at once: the letters are latched)
         e.screenshot(SHOTS / "hiscore.png")
         e.type("BOT")
         e.run(10)

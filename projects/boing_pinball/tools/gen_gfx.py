@@ -58,8 +58,8 @@ PANEL = {"bg": 0x112, "frame": 0xA86, "title": 0xFD4, "text": 0xCCD, "dim": 0x66
 
 
 def font():
-    """the 5x7 font of this project (src/font.c, the Amiga StakAttack.s), '!'..'Z'"""
-    src = open(os.path.join(ROOT, "src", "font.c")).read()
+    """the SDK's 5x7 font (sdk/src/font5.c), '!'..'Z'"""
+    src = open(os.path.join(ROOT, "..", "..", "sdk", "src", "font5.c")).read()
     rows = re.findall(r"\{ (0x[0-9A-F]{2}(?:, 0x[0-9A-F]{2}){6}) \}", src)
     return [[int(v, 16) for v in r.split(", ")] for r in rows]
 

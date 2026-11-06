@@ -81,6 +81,9 @@ extern void input_latch(uint8_t on);
 extern uint8_t input_last;                 /* state from the last input_read() */
 extern uint8_t key_down(uint16_t scancode);/* raw: IN_KEY_SCANCODE_x from <input.h> */
 extern char input_letter(void);            /* a letter key held now ('A'..'Z'), else 0 */
+/* a letter key that went down since the read before the last input_read()
+   (latched ones too, see input_latch), else 0: for typing */
+extern char input_letter_pressed(void);
 
 /* ------------------------------------------------------------ sound */
 
@@ -149,6 +152,15 @@ extern void hs_init(uint32_t base);        /* defaults: base*5, base*4, ... */
 extern int8_t hs_rank(uint32_t score);     /* place 0..4, or -1 */
 extern void hs_insert(int8_t place, const char *name, uint32_t score);
 extern void hs_draw(uint8_t col, uint8_t row);   /* 48K screen */
+/* the initials editor, for any screen: hs_edit_begin(), then each frame
+   input_read() and hs_edit_step(), redraw on HS_EDIT_CHANGED, stop on
+   HS_EDIT_DONE (name[] is the three letters, pos the one being edited) */
+typedef struct { char name[4]; uint8_t pos; } hs_editor;
+#define HS_EDIT_CHANGED 1               /* name or pos changed */
+#define HS_EDIT_TAKEN   2               /* a letter was taken (a sound) */
+#define HS_EDIT_DONE    4
+extern void hs_edit_begin(hs_editor *e);
+extern uint8_t hs_edit_step(hs_editor *e);
 /* initials entry screen (48K screen): typed letters, or UP/DOWN + FIRE; logs
    "<game>: hiscore rank=N" and "<game>: name=XYZ", then inserts the entry */
 extern void hs_enter(int8_t place, uint32_t score, const char *game);

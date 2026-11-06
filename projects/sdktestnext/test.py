@@ -39,6 +39,8 @@ with Emulator(machine="next") as e:
     check("Layer 2 clear colour (palette entry 1 = blue)", near(l2.getpixel((128, 180)), (0, 0, 255)), str(l2.getpixel((128, 180))))
     check("Layer 2 fill", near(l2.getpixel((30, 40)), (255, 0, 0)))
     check("Layer 2 scaled text", sum(near(l2.getpixel((x, y)), (0, 255, 0)) for x in range(80, 144) for y in range(30, 46)) > 50)
+    blue = sum(near(l2.getpixel((x, y)), (0, 255, 255)) for x in range(150, 210) for y in range(60, 74))
+    check("5x7 font text (l2_text5)", 100 < blue < 500, str(blue))
     check("keyed blit keeps the background", near(l2.getpixel((21, 100)), (255, 255, 0)) and not near(l2.getpixel((20, 100)), (255, 255, 0)))
     check("plot", near(l2.getpixel((200, 150)), (255, 0, 255)))
     sp = e.screenshot(layer="sprites")

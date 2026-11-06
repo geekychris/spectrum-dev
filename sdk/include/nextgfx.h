@@ -41,6 +41,9 @@ extern void l2_blit(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *s
 /* text with the ROM font, `scale` 1..3, colour on transparent */
 extern void l2_text(uint8_t x, uint8_t y, const char *s, uint8_t colour, uint8_t scale);
 extern void l2_num(uint8_t x, uint8_t y, uint32_t v, uint8_t digits, uint8_t colour, uint8_t scale);
+/* text in the 5x7 font (font5.h), colour on transparent; _center: centred on cx */
+extern void l2_text5(uint8_t x, uint8_t y, const char *s, uint8_t colour, uint8_t scale);
+extern void l2_text5_center(uint8_t cx, uint8_t y, const char *s, uint8_t colour, uint8_t scale);
 
 extern void spr_init(void);              /* all sprites hidden, visible over the border */
 extern void spr_pattern(uint8_t slot, const uint8_t *pixels256);

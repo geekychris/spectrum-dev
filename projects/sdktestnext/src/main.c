@@ -27,6 +27,7 @@ int main(void)
     l2_rect(0, 0, 256, 192, RGB8(7, 7, 3));
     l2_fill(20, 30, 40, 20, RGB8(7, 0, 0));
     l2_text(80, 30, "NEXT", RGB8(0, 7, 0), 2);
+    l2_text5(150, 60, "FONT5", RGB8(0, 7, 3), 2);       /* the SDK's 5x7 font */
     for (i = 0; i < 64; i++) ball[i] = (i & 1) ? RGB8(7, 7, 0) : L2_TRANSPARENT;
     l2_blit(20, 100, 8, 8, ball, L2_TRANSPARENT);
     l2_plot(200, 150, RGB8(7, 0, 7));

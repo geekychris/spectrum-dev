@@ -27,6 +27,7 @@ static const keymap keys[] = {
 #define NKEYS (sizeof(keys) / sizeof(keys[0]))
 static const uint16_t row_port[8] = {0xFEFE, 0xFDFE, 0xFBFE, 0xF7FE, 0xEFFE, 0xDFFE, 0xBFFE, 0x7FFE};
 static uint8_t rows_now[8];
+static uint8_t key_edges[8];            /* keys that went down since the read before (1 = yes) */
 
 void input_init(void)
 {
@@ -76,7 +77,11 @@ static uint8_t kemp_bits(uint8_t r)
 uint8_t input_read(void)
 {
     uint8_t i, b;
-    for (i = 0; i < 8; i++) rows_now[i] = z80_inp(row_port[i]);
+    for (i = 0; i < 8; i++) {
+        uint8_t r = z80_inp(row_port[i]);
+        key_edges[i] = (uint8_t)(~r & rows_now[i] & 0x1F);   /* down now, up at the last read */
+        rows_now[i] = r;
+    }
     b = decode(rows_now, 0);
     /* BREAK = CAPS SHIFT + SPACE: not a fire */
     if (!(rows_now[0] & 0x01) && !(rows_now[7] & 0x01)) b = (b & ~IN_FIRE) | IN_QUIT;
@@ -86,6 +91,7 @@ uint8_t input_read(void)
         intrinsic_di();
         for (i = 0; i < 8; i++) {
             edges[i] = input_edge_rows[i];
+            key_edges[i] |= edges[i];
             input_edge_rows[i] = 0;
         }
         ke = input_edge_kemp;
@@ -116,6 +122,17 @@ static const char letter_rows[8][5] = {
     {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {'P', 'O', 'I', 'U', 'Y'},
     {0, 'L', 'K', 'J', 'H'}, {0, 0, 'M', 'N', 'B'},
 };
+
+char input_letter_pressed(void)
+{
+    uint8_t r, b, v;
+    for (r = 0; r < 8; r++) {
+        v = key_edges[r];
+        for (b = 0; b < 5; b++)
+            if ((v & (1 << b)) && letter_rows[r][b]) return letter_rows[r][b];
+    }
+    return 0;
+}
 
 char input_letter(void)
 {

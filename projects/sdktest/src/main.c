@@ -96,6 +96,25 @@ int main(void)
     frame_wait();
     zx_log("sdk: overruns after a long beep=%u\n", frame_overruns);
 
+    /* the initials editor, latched: the loop only reads every 3 frames, the
+       test taps keys for 1 frame */
+    frame_hook = input_sample;
+    input_latch(1);
+    {
+        hs_editor ed;
+        uint8_t r = 0;
+        zx_log("sdk: hs edit ready\n");
+        hs_edit_begin(&ed);
+        while (!(r & HS_EDIT_DONE)) {
+            frame_wait(); frame_wait(); frame_wait();
+            input_read();
+            r = hs_edit_step(&ed);
+        }
+        zx_log("sdk: hs edit name=%s\n", ed.name);
+    }
+    input_latch(0);
+    frame_hook = 0;
+
     zx_log("sdk: input ready\n");
     for (;;) {
         uint8_t b, p;

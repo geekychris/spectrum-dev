@@ -42,7 +42,12 @@ for machine in ("48k", "128k"):
     print(f"== {machine}")
     with Emulator(machine=machine) as e:
         e.load(TAP)
-        check("runs to the input stage", e.run_until("sdk: input ready", 4000))
+        check("runs to the initials editor", e.run_until("sdk: hs edit ready", 4000))
+        e.run(2)
+        for k in "BOT":                                   # 2-frame taps (a real press is longer);
+            e.press(k, hold_frames=2, release_frames=1)   # the loop reads every 3rd frame only
+        check("initials editor: quick taps latched (hs_edit)", e.run_until("sdk: hs edit name=BOT", 30))
+        check("runs to the input stage", e.run_until("sdk: input ready", 100))
         log = e.log(0)
         check("fix_mul / fix_div", val(log, "fix_mul") == "768" and val(log, "fix_div") == "384"
               and val(log, "fix_div2") == "-384,64,-512", log.splitlines()[0])

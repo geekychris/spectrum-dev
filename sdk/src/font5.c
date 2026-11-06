@@ -1,8 +1,16 @@
-/* The original's 5x7 font (draw.c), '!'..'Z', 7 rows a char, bits 7..3. */
+/* A 5x7 font, '!'..'Z' (see font5.h): the Amiga StakAttack's, used by the
+   Next games and their tools (boing_pinball/tools/gen_gfx.py reads it). */
 #include <stdint.h>
-#include "font.h"
+#include <string.h>
+#include "font5.h"
 
-const uint8_t font_data[FONT_CHARS][FONT_H] = {
+uint16_t font5_width(const char *s, uint8_t scale)
+{
+    uint16_t n = (uint16_t)strlen(s);
+    return n ? n * (FONT5_W + 1) * scale - scale : 0;
+}
+
+const uint8_t font5x7[FONT5_CHARS][FONT5_H] = {
     /* ! (33) */
     { 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x20 },
     /* " (34) */

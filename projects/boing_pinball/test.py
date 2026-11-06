@@ -120,7 +120,7 @@ with Emulator(machine="next") as e:
         if "hiscore rank" in more or "pinball: title" in more:
             break
     if "hiscore rank" in more:
-        e.run(20)
+        e.run(2)                                           # typing at once: the letters are latched
         e.type("BOT")
         e.run(10)
         more += e.log()

@@ -19,7 +19,7 @@
 #include "nextgfx.h"
 #include "zxlog.h"
 #include "game.h"
-#include "font.h"
+#include "font5.h"
 #include "music.h"
 
 /* port: 320x256 with 12-pixel cells becomes 256x192 with 9-pixel cells */
@@ -42,45 +42,9 @@ GameState gs;
 
 /* ------------------------------------------------------------ drawing */
 
-static void draw_char(uint8_t x, uint8_t y, char ch, uint8_t pen, uint8_t scale)
-{
-    const uint8_t *g;
-    uint8_t r, c;
-    if (ch < FONT_FIRST || ch > FONT_LAST) return;
-    g = font_data[ch - FONT_FIRST];
-    for (r = 0; r < FONT_H; r++, y += scale) {
-        uint8_t bits = g[r], xx = x;
-        for (c = 0; c < FONT_W; ) {             /* one fill per run of pixels */
-            uint8_t n = 0;
-            while (c + n < FONT_W && (bits & (0x80 >> (c + n)))) n++;
-            if (n) {
-                l2_fill(xx, y, n * scale, scale, pen);
-                c += n;
-                xx += n * scale;
-            }
-            else {
-                c++;
-                xx += scale;
-            }
-        }
-    }
-}
-
-static void draw_text(uint8_t x, uint8_t y, const char *s, uint8_t pen, uint8_t scale)
-{
-    for (; *s; s++, x += (FONT_W + 1) * scale) draw_char(x, y, *s, pen, scale);
-}
-
-static uint8_t text_width(const char *s, uint8_t scale)
-{
-    uint8_t n = strlen(s);
-    return n ? n * (FONT_W + 1) * scale - scale : 0;
-}
-
-static void draw_center(uint8_t cx, uint8_t y, const char *s, uint8_t pen, uint8_t scale)
-{
-    draw_text(cx - text_width(s, scale) / 2, y, s, pen, scale);
-}
+#define draw_text   l2_text5          /* the SDK's 5x7 font (the original's) */
+#define draw_center l2_text5_center
+#define text_width  font5_width
 
 static char *num_str(uint32_t v)
 {
@@ -458,14 +422,14 @@ static void sound_events(void)
 
 static void enter_name(int8_t place)
 {
-    char name[4] = "AAA";
-    uint8_t pos = 0, held = 1, i, redraw = 2, full = 2;
+    hs_editor ed;
+    uint8_t i, redraw = 2, full = 2, r = 0;
     zx_log("stak: hiscore rank=%d\n", place);
     hide_sprites(0, 12);
-    input_read();
-    while (pos < 3) {
-        char k;
-        uint8_t p;
+    hs_edit_begin(&ed);
+    while (!(r & HS_EDIT_DONE)) {
+        if (r & HS_EDIT_CHANGED) redraw = 2;
+        if (r & HS_EDIT_TAKEN) ay_sfx(2, 120, 12, 3, 0);
         if (redraw) {                   /* into each buffer once after a change */
             redraw--;
             if (full) {
@@ -477,8 +441,9 @@ static void enter_name(int8_t place)
                 draw_center(128, 100, "OR JOYSTICK AND FIRE", 10, 1);
             }
             for (i = 0; i < 3; i++) {
-                l2_fill(104 + i * 18, 124, 14, 18, i == pos ? 15 : 0);
-                draw_char(106 + i * 18, 126, name[i], i < pos ? 9 : 14, 2);
+                char ch[2] = {ed.name[i], 0};
+                l2_fill(104 + i * 18, 124, 14, 18, i == ed.pos ? 15 : 0);
+                draw_text(106 + i * 18, 126, ch, i < ed.pos ? 9 : 14, 2);
             }
         }
         frame_wait();
@@ -486,26 +451,10 @@ static void enter_name(int8_t place)
         music_tick();
         sound_tick();
         input_read();
-        p = input_pressed();
-        k = input_letter();
-        if (k && !held) {
-            name[pos++] = k;
-            held = 1;
-            redraw = 2;
-            ay_sfx(2, 120, 12, 3, 0);
-            continue;
-        }
-        if (!k) held = 0;
-        if (p & (IN_UP | IN_DOWN | IN_FIRE | IN_START)) redraw = 2;
-        if (p & IN_UP) name[pos] = name[pos] == 'Z' ? 'A' : name[pos] + 1;
-        if (p & IN_DOWN) name[pos] = name[pos] == 'A' ? 'Z' : name[pos] - 1;
-        if (p & (IN_FIRE | IN_START)) {
-            pos++;
-            ay_sfx(2, 120, 12, 3, 0);
-        }
+        r = hs_edit_step(&ed);
     }
-    hs_insert(place, name, gs.score);
-    zx_log("stak: name=%s\n", name);
+    hs_insert(place, ed.name, gs.score);
+    zx_log("stak: name=%s\n", ed.name);
 }
 
 /* ------------------------------------------------------------ main */

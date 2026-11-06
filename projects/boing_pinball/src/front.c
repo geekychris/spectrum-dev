@@ -23,7 +23,7 @@
 #include "zxlog.h"
 #include "pbz.h"
 #include "gfx.h"
-#include "font.h"
+#include "font5.h"
 
 #define L2_BANK  30
 #define SPR_PAGE 70                     /* bank 35 */
@@ -63,14 +63,13 @@ static void l2rect(uint16_t x, uint8_t y, uint16_t w, uint8_t h, uint8_t c)
    `gap` rows of it left dark (the dot-matrix look) */
 static void l2char(uint16_t x, uint8_t y, char ch, uint8_t c, uint8_t sx, uint8_t sy, uint8_t gap)
 {
-    const uint8_t *gl;
+    const uint8_t *gl = font5_glyph(ch);
     uint8_t col, r, k, j;
-    if (ch < FONT_FIRST || ch > FONT_LAST) return;
-    gl = font_data[ch - FONT_FIRST];
-    for (col = 0; col < FONT_W; col++)
+    if (!gl) return;
+    for (col = 0; col < FONT5_W; col++)
         for (k = 0; k < sx; k++, x++) {
             uint8_t *p = l2col(x) + y;
-            for (r = 0; r < FONT_H; r++, p += sy)
+            for (r = 0; r < FONT5_H; r++, p += sy)
                 if (gl[r] & (0x80 >> col))
                     for (j = 0; j < sy - gap; j++) p[j] = c;
         }
@@ -292,39 +291,25 @@ static uint8_t start_pressed(void)
 
 static void enter_name(int8_t place)
 {
-    char name[4] = "A__", small[24];
-    uint8_t pos = 0, held = 1;
+    hs_editor ed;
+    char small[24];
+    uint8_t r = HS_EDIT_CHANGED;
     zx_log("pinball: hiscore rank=%d\n", place);
-    input_read();
-    while (pos < 3) {
-        char k;
-        uint8_t p;
+    hs_edit_begin(&ed);
+    while (!(r & HS_EDIT_DONE)) {
+        if (r & HS_EDIT_CHANGED) {
+            strcpy(small, "INITIALS  ");
+            strcat(small, ed.name);
+            dmd("HIGH SCORE", small, 0);
+        }
+        if (r & HS_EDIT_TAKEN) ay_sfx(2, 120, 12, 3, 0);
         frame_wait();
         sound_tick();
-        strcpy(small, "INITIALS  ");
-        strcat(small, name);
-        dmd("HIGH SCORE", small, 0);
         input_read();
-        p = input_pressed();
-        k = input_letter();
-        if (k && !held) {
-            name[pos++] = k;
-            if (pos < 3) name[pos] = 'A';
-            held = 1;
-            ay_sfx(2, 120, 12, 3, 0);
-            continue;
-        }
-        if (!k) held = 0;
-        if (p & IN_UP) name[pos] = name[pos] == 'Z' ? 'A' : name[pos] + 1;
-        if (p & IN_DOWN) name[pos] = name[pos] == 'A' ? 'Z' : name[pos] - 1;
-        if (p & (IN_FIRE | IN_START)) {
-            pos++;
-            if (pos < 3) name[pos] = 'A';
-            ay_sfx(2, 120, 12, 3, 0);
-        }
+        r = hs_edit_step(&ed);
     }
-    hs_insert(place, name, g.score);
-    zx_log("pinball: name=%s\n", name);
+    hs_insert(place, ed.name, g.score);
+    zx_log("pinball: name=%s\n", ed.name);
 }
 
 /* ------------------------------------------------------------ the game */
