@@ -51,6 +51,25 @@ Additions: a high-score table on the title and initials entry after a game
 cover the well, as in the original; the pieces are sprites, so they're
 hidden while paused.
 
+## Next features used
+
+What it uses beyond a 48K/128K Spectrum, and why:
+
+| feature | used for | why it's needed |
+|---|---|---|
+| **Layer 2** (256 x 192, 8 bits a pixel, double buffered in banks 9-14) | the well, the HUD, the screens, in the original's 16 colours | the 48K screen has two colours per 8 x 8 cell: 9-pixel gems in 16 colours side by side would clash everywhere |
+| **hardware sprites** (12 of 128, 8 patterns) | the falling piece, its landing marks, the next piece | they move every frame without redrawing the well; only changed cells are ever drawn into Layer 2 |
+| **palettes** (9-bit RGB) | the Amiga's 12-bit colours, for Layer 2 and the sprites | the original's colours, not the Spectrum's 15 |
+| **28 MHz** | the game logic, the C drawing | zsdcc's code is slow; at 3.5 MHz the cell redraws and the ghost search (up to 19 collision tests a frame) wouldn't fit a frame |
+| **TurboSound** (3 AY chips) | the original's four-channel MOD on two chips (`modplay`), the effects on a third channel | one AY has three channels; the MOD needs four, plus one for the effects |
+| **MMU banking** | the title and the empty game screen kept in banks 18-23 | 48K each; a 64K address space can't hold them |
+| **zxnDMA** | changing screens: one of those copied into the back buffer | about 2 T-states a byte: no lost frame (17 when redrawn in C) |
+| **Next registers** (`NEXTREG`) | the above, set up in a few instructions | |
+
+Not used: the **tilemap** (the cells are 9 pixels, not 8), the **copper**
+(nothing changes mid-screen), **Z80N instructions** other than what z88dk's
+Next library uses (`NEXTREG`, `MUL` in its multiplies).
+
 ## Test
 
 `./zx test stakattack`: a bot reads `gs` from memory and places each piece

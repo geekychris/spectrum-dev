@@ -59,6 +59,25 @@ Not ported: the Deep Dive and Robot Foundry tables (the data converts; each
 needs its picture and its upper flipper's sprites), the MOD music (the AY
 plays the original's effects), the painted AmigaOS 4 artwork.
 
+## Next features used
+
+What it uses beyond a 48K/128K Spectrum, and why:
+
+| feature | used for | why it's needed |
+|---|---|---|
+| **28 MHz** | the physics: 120 steps a second, a few substeps each, capsule and circle collisions | it takes about half of each frame at 28 MHz: at 3.5 MHz it would run 4x slower than real time |
+| **Z80N `MUL`** | every 16 x 16 multiply of the physics (`fixmath.h`) | a 16 x 16 multiply in a few dozen T-states instead of hundreds |
+| **Layer 2, 320 x 256 mode** | the whole table at once, 8 bits a pixel, border to border | the table's art in the original's colours, no scrolling; the 48K screen's 256 x 192 two-colour cells couldn't show it |
+| **memory banks in the .nex** | the 80K picture and the sprite patterns go straight into banks 30-35 when it loads; NextReg 0x12 shows the picture from there | no copying, no main memory used |
+| **MMU banking** | the rules' code in bank 20 over the ROM (0x0000), the table data and the front end in 8K pages at 0x4000 and 0x6000 | the program is about 50K of code and data: more than the 28K a 64K address space leaves at 0x8000 |
+| **hardware sprites** (13 of 128) | the Boing balls (8 frames of spin), the flippers (8 angles, 32 x 32 from four sprites; the right one is the left mirrored), the plunger | everything that moves, with no redrawing of the table |
+| **palettes** | the lamps, drop targets, bumper and sling flashes and the spinner each own a palette entry | a lamp lights up by changing one colour: no drawing at all |
+| **AY** | the original's effects | |
+
+Not used: the **tilemap** and the **copper** (the picture never changes),
+**DMA** (only the dot-matrix display is ever drawn, a few hundred bytes),
+**TurboSound** beyond the first chip (the MOD music isn't ported).
+
 ## Test
 
 `./zx test boing_pinball`: a Python bot reads `pin_probe` and plays like the

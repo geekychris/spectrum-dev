@@ -1,10 +1,9 @@
 /*
  * export_table.c - builds Boing Pinball's tables with the original code
- * (amiga_mcp/examples/boing_pinball/pb_tables.c + pb_core.c, compiled on the
- * host) and writes them as JSON for tools/gen_table.py, which makes the
- * Spectrum Next's table data and pictures from it.
- *
- *   cc -O1 -I<amiga3d> -I<boing_pinball> export_table.c pb_core.c pb_tables.c a3d_fix.c a3d_math.c
+ * (tools/orig: the Amiga game's pb_tables.c + pb_core.c, compiled on the
+ * host) and writes them as JSON for tools/gen_table.py and gen_gfx.py,
+ * which make the Spectrum Next's table data and pictures from it.
+ * tools/make_data.sh builds and runs it.
  */
 #include <stdio.h>
 #include <stdint.h>

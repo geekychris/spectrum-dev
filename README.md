@@ -192,10 +192,15 @@ They are part of `./zx selftest`.
 | [StakAttack](projects/stakattack/README.md) | Next `.nex`: Layer 2, hardware sprites, TurboSound music | ![](docs/images/stakattack.gif) |
 | [Boing Pinball](projects/boing_pinball/README.md) | Next `.nex`: the original's physics and rules in 16-bit, 320x256 Layer 2, sprites, banked code | ![](docs/images/boing_pinball.gif) |
 
+How the two machines compare as targets, and what each game uses:
+[docs/48k-vs-next.md](docs/48k-vs-next.md).
+
 The shared game layer is in `sdk/include/zxgame.h` (8.8 fixed point, trig,
 random numbers, IM 2 frame timer, latched input with Kempston support,
-beeper/AY sound and music, 48K sprites/text, high scores) and
-`sdk/include/nextgfx.h` (Layer 2, sprites, palettes, TurboSound).
+beeper/AY sound and music, 48K sprites/text, high scores and the initials
+editor), `fixmath.h` (16-bit fixed point, Z80N MUL), `font5.h`, `modplay.h`
+(MOD music), `nextgfx.h` (Layer 2 in both modes, sprites, palettes,
+TurboSound, DMA) and the tools in `sdk/tools`; see [sdk/README.md](sdk/README.md).
 
 ## Repository layout
 
@@ -215,6 +220,7 @@ beeper/AY sound and music, 48K sprites/text, high scores) and
 
 - [docs/emulator-harness.md](docs/emulator-harness.md) — sessions, control API, input, log, debugger, Python
 - [docs/devbench.md](docs/devbench.md) — web UI, REST, MCP over HTTP
+- [docs/48k-vs-next.md](docs/48k-vs-next.md) — the 48K and the Next as targets, what the games use
 - [emulator/patches/README.md](emulator/patches/README.md) — what the patch changes and why
 - [sdk/README.md](sdk/README.md) — build rules, helpers, z88dk notes
 - [CLAUDE.md](CLAUDE.md) — commands and rules learned the hard way

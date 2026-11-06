@@ -1,0 +1,57 @@
+# The 48K Spectrum and the Spectrum Next as targets
+
+Both build from the same C (`TARGET := zx` or `zxn` in a project's
+Makefile) with the same SDK (`sdk/`). What differs, and what it meant for
+the four games in `projects/`:
+
+| | 48K / 128K Spectrum | Spectrum Next |
+|---|---|---|
+| CPU | Z80, 3.5 MHz (69,888 T-states a frame) | Z80N, up to 28 MHz (~560,000 a frame); extra instructions (`MUL`, `NEXTREG`, `LDIRX`...) |
+| memory | 48K (128K: banks at 0xC000) | 1-2 MB in 8K pages, any page in any of the eight 8K slots (MMU) |
+| graphics | 256 x 192, 1 bit a pixel, 2 colours per 8 x 8 cell (attributes) | the ULA screen, plus Layer 2 (256 x 192, 320 x 256 or 640 x 256, up to 8 bits a pixel), a tilemap, 128 hardware sprites, 9-bit palettes, the copper |
+| sound | beeper; 128K: one AY (3 channels) | three AYs (TurboSound, 9 channels), DACs |
+| other | | zxnDMA (memory copies at ~2 T-states a byte) |
+| files | `.tap` (BASIC loader + code) | `.nex` (loads code and data into banks directly) |
+
+## What the games did on each
+
+**48K** (Nova Defense, Frank the Frog): every pixel is drawn by the CPU, and
+the CPU is slow, so the work goes into drawing less:
+
+- sprites pre-shifted into 8 copies so a draw is byte moves, written in
+  assembly where it mattered (`spr_blit.asm`, Nova's swarm rows, Frank's
+  lane objects)
+- colour from attributes: objects are laid out on 8-pixel rows so each lane
+  or row has its own colours (Frank's lanes are two character rows)
+- only what moved is redrawn (Nova's shields, Frank's trails), and Frank
+  draws half the lanes each frame
+- the game logic runs at a fixed 50 Hz while the screen updates when it can
+  (Nova 35-48 fps, Frank about 19), so the games play at the original speed
+- sound on the beeper (which stops the CPU), or on the AY on a 128K
+
+**Next** (StakAttack, Boing Pinball): the hardware does what the CPU did on
+the 48K:
+
+- Layer 2 gives 8-bit colour anywhere, so the original art and colours
+  survive; Boing's whole table is a 320 x 256 picture loaded into banks
+- hardware sprites move everything that moves without touching the
+  background
+- palette entries animate lamps without drawing
+- DMA copies whole screens (StakAttack changes screens without losing a
+  frame)
+- 28 MHz and `MUL` make Boing's 16-bit physics (120 steps a second) fit in
+  half a frame; zsdcc's C is still the cost to watch
+- MMU banking holds more code and data than a 64K address space: Boing runs
+  its rules from a bank mapped over the ROM
+- TurboSound plays a four-channel MOD and the effects at once
+
+## Things to know
+
+- z88dk's zsdcc makes large, slow code (Boing's original 16.16 core: 61K);
+  keep hot loops simple or in assembly, and see CLAUDE.md for its bugs.
+- On the 48K, games end below 0xF000 (the SDK's IM 2 table); on the Next,
+  `src/main.c` of boing_pinball shows a banked memory map.
+- ZEsarUX runs the Next at 28 MHz only after the SDK's `next_init()` (see
+  CLAUDE.md); our tests check it.
+- Tools: `sdk/tools/mod2ay.py` (MOD music for the AY), `sdk/tools/nextpic.py`
+  (pictures to Layer 2 banks and sprite patterns).

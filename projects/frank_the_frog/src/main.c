@@ -291,14 +291,13 @@ static void frog_xor(WORD x, WORD y, uint8_t splat)
 
 static void frog_erase(void)
 {
-    uint8_t c, k = 0, n;
+    uint8_t c, n;
     uint8_t *a;
     if (frog_dx < 0) return;
     frog_xor(frog_dx, frog_dy, frog_dsplat);
     a = (uint8_t *)0x5800 + ((uint16_t)(frog_dy >> 3) << 5) + (frog_dx >> 3);
     n = (frog_dx >> 3) < 30 ? 3 : 32 - (frog_dx >> 3);
     for (c = 0; c < n; c++) { a[c] = frog_attr_save[c]; a[c + 32] = frog_attr_save[c + 3]; }
-    (void)k;
     frog_dx = -1;
 }
 

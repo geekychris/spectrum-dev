@@ -134,14 +134,21 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
 - SDK: next_init really selects 28 MHz under ZEsarUX; hiscore.c and nextgfx.c
   split so Next games don't link the 48K screen code or the Layer 2 drawing.
 
+### Cleanup (2026-11-06)
+
+SDK modules pulled out of the games, each with a test (sdktest,
+sdktestnext, sdk/tools/test_tools.py): `font5` + `l2_text5`, the initials
+editor `hs_edit_*` with latched letters (lost initials fixed in every
+game), Layer 2 320x256 helpers `l2w_*`, `spr_show_quad`,
+`spr_patterns_from_pages`, `pal_load`, `modplay` + `tools/mod2ay.py`,
+`fixmath.h`, `tools/nextpic.py`, zxnDMA (`dma.c`; StakAttack changes
+screens by DMA). "Next features used" in StakAttack's and Boing Pinball's
+READMEs; docs/48k-vs-next.md.
+
 ### Known limitations (games)
 
-- Frank the Frog's ~19 fps redraw is a zsdcc cost problem; moving the per-object
-  loop of `draw_lane` and the frog's draw/erase to asm would roughly double it.
-- StakAttack: switching between the title and the game redraws a whole Layer 2
-  buffer in C (several frames). Pause/game over only draw a box.
-- Letters typed in the first frames of a high-score screen are lost (the screen is
-  still being drawn; `input_letter` reads live keys).
+- Frank's redraw stays ~19 fps: the floor is ~5K T-states per lane object
+  (about 17 a frame); moving draw_lane's loop to asm would give ~20 fps.
 
 ## Game candidates (survey)
 
