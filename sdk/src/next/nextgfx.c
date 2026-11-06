@@ -18,7 +18,11 @@ uint8_t next_reg_read(uint8_t reg) { return ZXN_READ_REG(reg); }
 
 void next_init(void)
 {
-    ZXN_WRITE_REG(0x07, 0x03);           /* 28 MHz */
+    /* 28 MHz. Write another speed first: ZEsarUX only applies register 7 when
+       it changes, and its .nex loader sets 28 MHz while the PC is in ROM, where
+       its default "deny turbo in ROM" caps it at 14 MHz (harmless on a Next) */
+    ZXN_WRITE_REG(0x07, 0x02);
+    ZXN_WRITE_REG(0x07, 0x03);
     ZXN_WRITE_REG(0x15, 0x01);           /* sprites visible, order S L U */
     ZXN_WRITE_REG(0x14, L2_TRANSPARENT); /* global transparency */
     ZXN_WRITE_REG(0x4B, L2_TRANSPARENT); /* sprite transparency index */

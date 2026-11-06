@@ -73,8 +73,10 @@ Details: docs/emulator-harness.md.
   frame is lost unless input is latched: `frame_hook = input_sample; input_latch(1);`
   (presses are then edges collected by the interrupt; a press also counts as held for
   that read, and a release a slow frame hid is not seen - see stakattack's DAS note).
-- ZEsarUX runs the Next's "28 MHz" at about 14 MHz (`get-cpu-frequency`): budget
-  ~280K T-states a frame there.
+- ZEsarUX's .nex loader sets 28 MHz while the PC is in ROM, where its default "deny
+  turbo in ROM" caps it at 14 MHz, and it only re-applies NextReg 7 when the value
+  changes: next_init() writes 2 then 3. Check with ZRCP `get-cpu-turbo-speed` (8 =
+  28 MHz, ~560K T-states a frame).
 - newlib's terminal ignores ZX control codes (`printf("\x16...")` prints `?`):
   draw text with `zx_print_at()` (sdk/include/zxtext.h, ROM font). The default
   STARTUP is 31 (no terminal); STARTUP=0 brings the printf terminal back.
