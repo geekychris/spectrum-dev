@@ -96,6 +96,16 @@ int main(void)
         int16_t d1 = div_q14(-3, 4), d2 = div_q14(100, 100);
         zx_log("sdk: fixmath %ld %ld %ld %d %d %d %u %u %u %d %d\n", m1, m2, m3, q1, q2, q3, s1, s2, s3, d1, d2);
     }
+    {   /* zxnDMA: fill then copy a buffer */
+        static uint8_t a[300], b[300];
+        uint16_t k, ok = 0;
+        for (k = 0; k < 300; k++) a[k] = (uint8_t)(k * 7);
+        dma_fill(b, 0x5A, 300);
+        ok += b[0] == 0x5A && b[299] == 0x5A;
+        dma_copy(b + 1, a, 298);
+        ok += b[0] == 0x5A && b[1] == 0 && b[2] == 7 && b[298] == (uint8_t)(297 * 7) && b[299] == 0x5A;
+        zx_log("sdk: dma ok=%u\n", ok);
+    }
     rnd_seed(1);
     {
         uint16_t r1 = rnd16(), r2 = rnd16();

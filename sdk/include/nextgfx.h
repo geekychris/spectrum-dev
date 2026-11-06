@@ -29,8 +29,9 @@ extern uint8_t next_reg_read(uint8_t reg);
 extern uint8_t l2_back;                  /* 16K bank being drawn into */
 extern void l2_init(void);               /* enable, both buffers cleared to 0 */
 extern void l2_flip(void);               /* show the back buffer (call after frame_wait) */
-extern void l2_copy_front_to_back(void); /* start the next frame from the shown one */
-extern void l2_clear(uint8_t colour);    /* back buffer */
+extern void l2_copy_front_to_back(void); /* start the next frame from the shown one (DMA) */
+extern void l2_copy_to_back(uint8_t bank); /* a 256 x 192 screen kept in banks bank..+2 -> the back buffer (DMA) */
+extern void l2_clear(uint8_t colour);    /* back buffer (DMA) */
 extern void l2_plot(uint8_t x, uint8_t y, uint8_t colour);
 extern void l2_fill(uint8_t x, uint8_t y, uint16_t w, uint8_t h, uint8_t colour);
 extern void l2_hline(uint8_t x, uint8_t y, uint16_t w, uint8_t colour);
@@ -80,6 +81,14 @@ extern void l2w_fill(uint16_t x, uint8_t y, uint16_t w, uint16_t h, uint8_t colo
    (gap 1 gives a dot-matrix look) */
 extern void l2w_text5(uint16_t x, uint8_t y, const char *s, uint8_t colour, uint8_t sx, uint8_t sy, uint8_t gap);
 
-extern void ay_chip(uint8_t n);          /* TurboSound: 0..2 */
+extern void ay_chip(uint8_t n);
+
+/* zxnDMA (dma.c): memory copy / fill at ~2 T-states a byte (LDIR: 21); the
+   CPU waits for it. _banks: whole 16K banks (e.g. Layer 2 screens), through
+   MMU slots 0 and 1, which get the ROM back. */
+extern void dma_copy(void *dst, const void *src, uint16_t len);
+extern void dma_fill(void *dst, uint8_t value, uint16_t len);
+extern void dma_copy_banks(uint8_t dst_bank, uint8_t src_bank, uint8_t nbanks);
+extern void dma_fill_banks(uint8_t bank, uint8_t value, uint8_t nbanks);          /* TurboSound: 0..2 */
 
 #endif

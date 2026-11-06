@@ -281,25 +281,44 @@ static void draw_sprites(void)
         hide_sprites(8, 12);
 }
 
+/* the two screens that don't change, drawn once into banks of their own;
+   a new screen is a DMA copy of one of them into the back buffer */
+#define TITLE_BANK 18                   /* banks 18-20 */
+#define GAME_BANK  21                   /* banks 21-23: the well (empty), the labels */
+
+static void draw_into(uint8_t bank, void (*draw)(void))
+{
+    uint8_t back = l2_back;
+    l2_back = bank;
+    l2_clear(0);
+    draw();
+    l2_back = back;
+}
+
+static void draw_game_screen(void)
+{
+    uint8_t r, c, x, y = FIELD_Y;
+    draw_well_frame();
+    draw_hud_labels();
+    for (r = 0; r < FIELD_H; r++, y += CELL)
+        for (c = 0, x = FIELD_X; c < FIELD_W; c++, x += CELL) draw_cell(x, y, c, 0);
+}
+
 static void render(void)
 {
     uint8_t lay = layout != 0;
     if (lay) {
         layout--;
-        l2_clear(0);
+        l2_copy_to_back(gs.state == STATE_TITLE ? TITLE_BANK : GAME_BANK);
         forget_buffer();
+        memset(shown[BUF], 0, sizeof shown[0]);         /* the copy has the empty well */
     }
     switch (gs.state) {
     case STATE_TITLE:
-        if (lay) draw_title();
         break;
     case STATE_PLAYING:
     case STATE_PAUSED:
     case STATE_GAMEOVER:
-        if (lay) {
-            draw_well_frame();
-            draw_hud_labels();
-        }
         if (reframe && gs.state == STATE_PLAYING) {
             reframe--;
             draw_well_frame();
@@ -406,6 +425,8 @@ int main(void)
     l2_init();
     make_graphics();
     hs_init(1000);
+    draw_into(TITLE_BANK, draw_title);
+    draw_into(GAME_BANK, draw_game_screen);
     music_start();
     game_init(&gs);
     prev_state = gs.state;
@@ -421,6 +442,7 @@ int main(void)
             /* port: a high score is entered on the way from game over to the title */
             if (was == STATE_GAMEOVER && (in & GINPUT_START) && hs_rank(gs.score) >= 0) {
                 enter_name(hs_rank(gs.score));
+                draw_into(TITLE_BANK, draw_title);         /* the new table */
                 gs.state = STATE_TITLE;
             }
             else

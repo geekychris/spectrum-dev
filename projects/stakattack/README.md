@@ -34,7 +34,9 @@ pointer walks; the original is kept under `#if 0`). Port changes are marked
 - **Layer 2** (256x192, 8 bpp, double buffered) for the well, the HUD and the
   screens, in the original's 16 colours and 5x7 font (`src/font.c`). The
   12-pixel cells become 9-pixel gems. Each buffer remembers what it shows,
-  so a frame redraws only the cells that changed.
+  so a frame redraws only the cells that changed. The title and the empty
+  game screen are drawn once into banks of their own; changing screens is a
+  DMA copy (no lost frames, against 17 when they were redrawn in C).
 - **Hardware sprites** for the falling piece, its landing marks and the next
   piece (12 sprites, 8 patterns).
 - **TurboSound**: the original's ProTracker MOD (`tools/stakattack.mod`,

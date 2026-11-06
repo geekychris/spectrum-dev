@@ -26,13 +26,7 @@ static void map_end(void) { ZXN_WRITE_REG(0x53, slot_saved); }
 
 static void clear_bank(uint8_t bank, uint8_t colour)
 {
-    uint8_t p;
-    map_begin();
-    for (p = 0; p < 6; p++) {
-        ZXN_WRITE_REG(0x53, bank * 2 + p);
-        memset(SLOT_ADDR, colour, 8192);
-    }
-    map_end();
+    dma_fill_banks(bank, colour, 3);
 }
 
 void l2_init(void)
@@ -55,15 +49,12 @@ void l2_flip(void)
 
 void l2_copy_front_to_back(void)
 {
-    static uint8_t buf[256];
-    uint8_t y = 0;
-    map_begin();
-    do {
-        ZXN_WRITE_REG(0x53, l2_front * 2 + (y >> 5));
-        memcpy(buf, SLOT_ADDR + ((uint16_t)(y & 31) << 8), 256);
-        memcpy(line_ptr(y), buf, 256);
-    } while (++y < 192);
-    map_end();
+    dma_copy_banks(l2_back, l2_front, 3);
+}
+
+void l2_copy_to_back(uint8_t bank)
+{
+    dma_copy_banks(l2_back, bank, 3);
 }
 
 void l2_clear(uint8_t colour)
