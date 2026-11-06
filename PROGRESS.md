@@ -134,6 +134,17 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
 - SDK: next_init really selects 28 MHz under ZEsarUX; hiscore.c and nextgfx.c
   split so Next games don't link the 48K screen code or the Layer 2 drawing.
 
+- **Spectral Keep** (Next): the original's rules, rooms and physics in 16-bit Q11
+  (the same events as the original's Q12 code on the host for the test's game);
+  rooms drawn on entry into 320x256 Layer 2 from pieces the original's voxel
+  renderer makes on the host, a palette per room with a half-bright upper half
+  for shadows; moving things as sprite groups masked behind scenery in the
+  original's draw order; tilemap HUD; copper panel shade; the original's music
+  and effects as TurboSound register streams; code in three banks. Logic 50 Hz,
+  picture 50 fps about 80% of the time. No score in the original, so no table.
+  SDK: l2rle, nextspr (masks in asm), isosort, nextcopper, nexttile, palfx,
+  aystream, zxrle, dma_to_port; projects/nextlibtest.
+
 ### Cleanup (2026-11-06)
 
 SDK modules pulled out of the games, each with a test (sdktest,

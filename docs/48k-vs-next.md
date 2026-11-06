@@ -2,7 +2,7 @@
 
 Both build from the same C (`TARGET := zx` or `zxn` in a project's
 Makefile) with the same SDK (`sdk/`). What differs, and what it meant for
-the four games in `projects/`:
+the games in `projects/`:
 
 | | 48K / 128K Spectrum | Spectrum Next |
 |---|---|---|
@@ -29,7 +29,7 @@ the CPU is slow, so the work goes into drawing less:
   (Nova 35-48 fps, Frank about 19), so the games play at the original speed
 - sound on the beeper (which stops the CPU), or on the AY on a 128K
 
-**Next** (StakAttack, Boing Pinball): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -44,6 +44,12 @@ the 48K:
 - MMU banking holds more code and data than a 64K address space: Boing runs
   its rules from a bank mapped over the ROM
 - TurboSound plays a four-channel MOD and the effects at once
+- Spectral Keep draws each isometric room once into Layer 2 and moves
+  everything as sprites; a sprite behind scenery has the scenery's
+  silhouette cut out of its patterns, in the original's draw order. Shadows
+  are a palette trick (the upper half of the palette is the lower half
+  darker), the panel's shade is the copper switching palettes, the HUD is
+  the tilemap. Its code is in three banks the main loop maps in turn
 
 ## Things to know
 
@@ -54,4 +60,5 @@ the 48K:
 - ZEsarUX runs the Next at 28 MHz only after the SDK's `next_init()` (see
   CLAUDE.md); our tests check it.
 - Tools: `sdk/tools/mod2ay.py` (MOD music for the AY), `sdk/tools/nextpic.py`
-  (pictures to Layer 2 banks and sprite patterns).
+  (pictures to Layer 2 banks and sprite patterns, column RLE, sprite groups),
+  `sdk/tools/aystream.py` (AY register streams), `sdk/tools/zxrle.py`.

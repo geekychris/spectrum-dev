@@ -137,6 +137,15 @@ Details: docs/emulator-harness.md.
   port answers with its pid before using it); never pkill/killall by name, other
   agents and the user run ZEsarUX on the same machine (`./zx selftest` checks).
 - Sinclair 2 is keys 1-5 = left, right, down, up, fire (not 5-1).
+- The copper restarts at the vertical blank, raster line 248 at 50 Hz (ZEsarUX and the
+  Next), not at line 0: a list does lines 248..311 (the top border) first, then 0..247.
+- Don't write Next registers from the interrupt: a register write is two port writes
+  (select 0x243B, value 0x253B) and an interrupt in between redirects the program's value.
+- Banked code: a function at 0x0000/0x6000 must not call code in another bank, and an SDK
+  call it makes must not map over the bank its arguments live in (nexttile uses slot 2 only).
+  zsdcc won't initialise arrays of structs (`= {0}`): put big tables at a fixed address.
+- `Emulator.hold()` adds to the keys already held: `release()` before holding a new set.
+- z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 
 
 ## Layout
