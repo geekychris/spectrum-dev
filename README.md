@@ -190,6 +190,7 @@ They are part of `./zx selftest`.
 | [Nova Defense](projects/nova_defense/README.md) | 48K `.tap` | ![](docs/images/nova_defense.gif) |
 | [Frank the Frog](projects/frank_the_frog/README.md) | 48K `.tap` | ![](docs/images/frank_the_frog.gif) |
 | [StakAttack](projects/stakattack/README.md) | Next `.nex`: Layer 2, hardware sprites, TurboSound music | ![](docs/images/stakattack.gif) |
+| [Boing Pinball](projects/boing_pinball/README.md) | Next `.nex`: the original's physics and rules in 16-bit, 320x256 Layer 2, sprites, banked code | ![](docs/images/boing_pinball.gif) |
 
 The shared game layer is in `sdk/include/zxgame.h` (8.8 fixed point, trig,
 random numbers, IM 2 frame timer, latched input with Kempston support,
@@ -206,7 +207,7 @@ beeper/AY sound and music, 48K sprites/text, high scores) and
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `stakattack`), examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktestnext`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `stakattack`, `boing_pinball`), examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktestnext`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 

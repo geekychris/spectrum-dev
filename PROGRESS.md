@@ -125,7 +125,14 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   whole game, replay x2 with frame hashes, screenshots, README, GIF in docs/images.
   All in `./zx selftest` (about 3 minutes in all).
 
-Not done: **Boing Pinball** for the Next (stretch goal).
+- **Boing Pinball** (Next, stretch goal): the original core is 61K of zsdcc code
+  in 16.16 and far too slow, so the tables are built on the host by the original
+  code and exported, the physics is the original's ported to 16-bit units
+  (statistically the same game over 200 bot games; Z80 and host builds
+  bit-identical), the rules are the original's; table pre-rendered on 320x256
+  Layer 2, balls/flippers as sprites, lamps by palette. Comet Tour only.
+- SDK: next_init really selects 28 MHz under ZEsarUX; hiscore.c and nextgfx.c
+  split so Next games don't link the 48K screen code or the Layer 2 drawing.
 
 ### Known limitations (games)
 
