@@ -28,6 +28,62 @@ BS_PLAY, BS_LANE = 0, 1
 failures = []
 DEBUG = "--debug" in sys.argv
 
+# ---- the dot-matrix display: every frame must show one whole text ----
+import re as _re
+_FONT = [[int(v, 16) for v in r.split(", ")] for r in
+         _re.findall(r"\{ (0x[0-9A-F]{2}(?:, 0x[0-9A-F]{2}){6}) \}", (ROOT / "sdk" / "src" / "font5.c").read_text())]
+DMD_X, DMD_Y, DMD_W, DMD_H = 168, 58, 144, 48          # src/gfx.h
+
+
+def dmd_expected(big, small):
+    """the lit pixels for a text, laid out as front.c's dmd() does"""
+    w = lambda t, sx: len(t) * 6 * sx - sx if t else 0
+    lines = []
+    if not small:
+        sx = 3 if w(big, 3) <= DMD_W else 2 if w(big, 2) <= DMD_W else 1
+        lines.append((big, sx, (DMD_H - 7 * (sx + 1)) // 2, sx + 1))
+    else:
+        sx = 2 if w(big, 2) <= DMD_W else 1
+        lines += [(big, sx, 5, 3), (small, 1, 31, 2)]
+    lit = set()
+    for t, sx, y0, sy in lines:
+        x0 = int((DMD_W - w(t, sx)) / 2)                  # C division (towards 0)
+        for k, ch in enumerate(t):
+            o = ord(ch) - 33
+            if not 0 <= o < len(_FONT):
+                continue
+            for c in range(5):
+                for r in range(7):
+                    if _FONT[o][r] & (0x80 >> c):
+                        for i in range(sx):
+                            x = x0 + (k * 6 + c) * sx + i
+                            if 0 <= x < DMD_W:
+                                for j in range(sy - 1):
+                                    lit.add((x, y0 + r * sy + j))
+    return lit
+
+
+def dmd_check_frames(e, frames):
+    """screenshots of `frames` frames: the display shows exactly the text the
+    game says is visible (dmd_vis_*), never part of one"""
+    bad = []
+    for f in range(frames):
+        e.run(1)
+        big = e.read_mem("dmd_vis_big", 24).split(b"\0")[0].decode()
+        small = e.read_mem("dmd_vis_small", 40).split(b"\0")[0].decode()
+        img = e.screenshot()
+        sc = img.width // 352                            # 320 + a 16-pixel border each side
+        P = lambda x, y: img.getpixel(((16 + DMD_X + x) * sc, (24 + DMD_Y + y) * sc))[:3]
+        bg = P(DMD_W - 1, DMD_H - 1) if not big else None
+        want = dmd_expected(big, small)
+        if bg is None:                                   # the background: a pixel no text ever lights
+            bg = P(0, 0)
+        got = {(x, y) for x in range(DMD_W) for y in range(DMD_H) if P(x, y) != bg}
+        if got != want:
+            bad.append((f, big, small, len(got ^ want)))
+    return bad
+
+
 
 def check(name, ok, detail=""):
     print(f"  {'PASS' if ok else 'FAIL'} {name}{f'  ({detail})' if detail and not ok else ''}")
@@ -95,11 +151,16 @@ with Emulator(machine="next") as e:
     check("TurboSound AY found", e.read_mem("ay_present", 1)[0] == 1)
     e.run(200)
     e.screenshot(SHOTS / "title.png")
+    # the attract mode's display changes every 3 s: every frame across three changes
+    bad = dmd_check_frames(e, 480)
+    check("the display is never seen half drawn (attract, 480 frames)", not bad, str(bad[:3]))
     e.record_input("start", from_reset=True)
     e.run_until("pinball: ready", 3000)
     e.run(100)
     e.press("SPACE", hold_frames=2, release_frames=2)
     check("FIRE starts a game", e.run_until("pinball: start", 50))
+    bad = dmd_check_frames(e, 150)                      # the game's first messages, the score
+    check("the display is never seen half drawn (a game's start, 150 frames)", not bad, str(bad[:3]))
     log = bot_game(e)
     scores = [int(s) for s in re.findall(r"pinball: score=(\d+)", log)]
     check("the bot scores points", scores and max(scores) >= 5000, str(scores[-3:]))

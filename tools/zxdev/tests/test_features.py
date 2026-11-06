@@ -276,6 +276,18 @@ def test_restart():
         check("ZRCP port collision: detected by PID, retried, other emulator untouched",
               ok and a.alive and a.run(3)["frames"] == 3)
 
+    # stopping, rebooting or power-cycling one emulator never touches another
+    # (other agents and the user run emulators on the same machine)
+    with Emulator() as a:
+        a.load(H48)
+        a.run_until("hello48: ready", 3000)
+        b = Emulator()
+        b.reboot()
+        b.power_cycle()
+        b.close()
+        check("close / reboot / power cycle stop only their own emulator",
+              a.alive and a.run(3)["frames"] == 3 and kv_pid(a) == a.proc.pid)
+
     # a session whose emulator is stuck inside a long command
     c = SessionClient.spawn(str(H48))
     try:

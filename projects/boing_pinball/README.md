@@ -48,11 +48,13 @@ far too slow at 120 steps a second. So:
   by the .nex (`gfx/`, `src/data.asm`). Balls (8 frames of a spinning Boing
   ball), flippers (8 angles, the right one mirrored) and the plunger are
   hardware sprites. Lamps, drop targets, bumper and sling flashes and the
-  spinner each own a palette entry. The dot-matrix display is drawn into
-  Layer 2 a pixel column at a time, only the columns that change, at most 16
-  a frame right after the frame's interrupt (before the beam reaches it), so
-  it is never seen half drawn; a new message wipes in over a few frames, a
-  score change redraws a few digits. Its flashing is a palette change.
+  spinner each own a palette entry. The dot-matrix display is double
+  buffered through the palette: the next text is drawn (only the columns
+  that change, at most 16 a frame, while the beam is below the display) in a
+  pen whose colour is the background's, then a palette swap shows it all at
+  once (the second Layer 2 palette: one register write). Columns are copied
+  whole, so a visible dot never goes dark on the way: no frame, and no
+  screenshot, ever shows a half-drawn display (test.py checks 630 frames).
 - **Memory**: the rules run from bank 20 mapped over the ROM, the table data
   and the front end from 8K pages at 0x4000 / 0x6000 (see `src/main.c`).
 - 28 MHz; the simulation runs 120 steps a second against the 50 Hz frame
@@ -74,7 +76,8 @@ What it uses beyond a 48K/128K Spectrum, and why:
 | **memory banks in the .nex** | the 80K picture and the sprite patterns go straight into banks 30-35 when it loads; NextReg 0x12 shows the picture from there | no copying, no main memory used |
 | **MMU banking** | the rules' code in bank 20 over the ROM (0x0000), the table data and the front end in 8K pages at 0x4000 and 0x6000 | the program is about 50K of code and data: more than the 28K a 64K address space leaves at 0x8000 |
 | **hardware sprites** (13 of 128) | the Boing balls (8 frames of spin), the flippers (8 angles, 32 x 32 from four sprites; the right one is the left mirrored), the plunger | everything that moves, with no redrawing of the table |
-| **palettes** | the lamps, drop targets, bumper and sling flashes and the spinner each own a palette entry | a lamp lights up by changing one colour: no drawing at all |
+| **palettes** | the lamps, drop targets, bumper and sling flashes and the spinner each own a palette entry; the display swaps texts by switching between Layer 2's two palettes | a lamp lights up by changing one colour; the display changes in one register write |
+| **raster line** (NextReg 0x1E/0x1F) | the display is only changed while the beam is below it | no tearing, even after a slow frame |
 | **AY** | the original's effects | |
 
 Not used: the **tilemap** and the **copper** (the picture never changes),

@@ -51,23 +51,52 @@ struct {
 
 /* ------------------------------------------------------------ the display */
 
-/* The original's draw_dmd (one big line, or a big and a small one), drawn
-   a pixel column at a time: each column's dots are compared with what it
-   shows, only changed columns are drawn, at most DMD_BUDGET a frame, right
-   after the frame's interrupt (the beam is above the display then). A
-   score change redraws a few digits; a new message wipes in over a few
-   frames instead of being seen half drawn. Flashing is the palette. */
+/* Layer 2 has two palettes; NextReg 0x43 bit 2 picks the one shown. Entries
+   are written to both (keeping that bit), so the display can switch in one
+   write (dmd_update). */
+static uint8_t l2pal_shown;
+
+static void l2pal(uint8_t second, uint8_t idx, uint16_t c)
+{
+    ZXN_WRITE_REG(0x43, (second ? 0x50 : 0x10) | (l2pal_shown << 2));
+    ZXN_WRITE_REG(0x40, idx);
+    ZXN_WRITE_REG(0x44, (uint8_t)(c >> 1));
+    ZXN_WRITE_REG(0x44, (uint8_t)(c & 1));
+}
+
+static void set_pal(uint8_t idx, uint16_t c)
+{
+    l2pal(0, idx, c);
+    l2pal(1, idx, c);
+}
+
+/* The original's draw_dmd (one big line, or a big and a small one),
+   double buffered through the palette: the dots of the text being shown
+   are drawn in one pen, the next text's in another whose colour is the
+   background's (dots in both: a third pen, always lit). The next text is
+   drawn a pixel column at a time, only columns that differ, at most
+   DMD_BUDGET a frame, right after the frame's interrupt; when every column
+   is ready, the colours for the swapped pens go into the palette that
+   isn't shown and one register write shows it: the whole display changes
+   at once. A column is composed and copied so every pixel goes straight to
+   its final pen (a visible dot only ever turns into the always-lit pen):
+   it is never seen half drawn, whenever you look. Flashing is the palette. */
 #define DMD_BUDGET 16                   /* ~4.4K T-states a column: done before the beam reaches row 58 */
+#define PEN_A  88
+#define PEN_B  89
+#define PEN_AB 90
 
 typedef struct { const char *s; int16_t x0; uint8_t n, sx, y, sy; } dmd_line;
-static char shown_big[24], shown_small[40];
-static dmd_line lines[2];
-static uint8_t dmd_layout = 0xFF, dmd_cursor = DMD_W, dmd_flash;
-/* what each column shows and should show: line 0's dots | line 1's << 7
-   (initialised, so in the front end's page: Makefile) */
-static uint16_t col_sig[DMD_W] = {0xFFFF}, col_want[DMD_W] = {0};
-
-static void dmd_columns(const dmd_line *l, uint8_t shift);
+typedef struct { uint8_t layout; dmd_line l[2]; } dmd_geo;
+static char want_big[24], want_small[40];
+char dmd_vis_big[24], dmd_vis_small[40];        /* the text that is visible (test.py) */
+static dmd_geo geo_want, geo_vis, geo_hid;       /* where each pen's dots are */
+static uint8_t pen_vis = PEN_A, pen_hid = PEN_B, dmd_cursor, dmd_pending, dmd_flash;
+/* per column: the dots the next text needs, and what each pen holds there
+   (line 0's dots | line 1's << 7); initialised: in the front end's page */
+static uint16_t col_want[DMD_W] = {0}, sig_a[DMD_W] = {0}, sig_b[DMD_W] = {0};
+static uint16_t *sig_vis = sig_a, *sig_hid = sig_b;
+static uint8_t colbuf[DMD_H] = {0};
 
 static void dmd_set_line(dmd_line *l, const char *s, uint8_t sx, uint8_t y, uint8_t sy)
 {
@@ -77,39 +106,6 @@ static void dmd_set_line(dmd_line *l, const char *s, uint8_t sx, uint8_t y, uint
     l->x0 = (DMD_W - (int16_t)text_w(s, sx)) / 2;
     l->y = y;
     l->sy = sy;
-}
-
-static void dmd(const char *big, const char *small, uint8_t flash)
-{
-    uint8_t sx, layout;
-    if (!small) small = "";
-    if (flash != dmd_flash) {
-        dmd_flash = flash;
-        pal_set(1, P_DMD_ON, l2_pal_0[flash ? P_DMD_MID : P_DMD_ON]);
-    }
-    if (!strcmp(big, shown_big) && !strcmp(small, shown_small)) return;
-    strncpy(shown_big, big, sizeof shown_big - 1);
-    strncpy(shown_small, small, sizeof shown_small - 1);
-    if (!small[0]) {
-        sx = text_w(big, 3) <= DMD_W ? 3 : text_w(big, 2) <= DMD_W ? 2 : 1;
-        dmd_set_line(&lines[0], shown_big, sx, (DMD_H - 7 * (sx + 1)) / 2, sx + 1);
-        lines[1].n = 0;
-        layout = sx;
-    } else {
-        sx = text_w(big, 2) <= DMD_W ? 2 : 1;
-        dmd_set_line(&lines[0], shown_big, sx, 5, 3);
-        dmd_set_line(&lines[1], shown_small, 1, 31, 2);
-        layout = 4 + sx;
-    }
-    if (layout != dmd_layout) {                 /* the dots move: every column is new */
-        uint8_t x;
-        dmd_layout = layout;
-        for (x = 0; x < DMD_W; x++) col_sig[x] = 0xFFFF;
-    }
-    memset(col_want, 0, sizeof col_want);
-    dmd_columns(&lines[0], 0);
-    if (lines[1].n) dmd_columns(&lines[1], 7);
-    dmd_cursor = 0;
 }
 
 /* a line's dots into col_want, column by column (no divisions) */
@@ -131,28 +127,99 @@ static void dmd_columns(const dmd_line *l, uint8_t shift)
     }
 }
 
-static void dots(uint8_t *p, uint8_t bits, uint8_t sy)
+/* the pens' colours in palette `which` (0 / 1) */
+static void dmd_colours(uint8_t which)
 {
+    uint16_t on = l2_pal_0[dmd_flash ? P_DMD_MID : P_DMD_ON];
+    l2pal(which, pen_vis, on);
+    l2pal(which, PEN_AB, on);
+    l2pal(which, pen_hid, l2_pal_0[P_DMD_BG]);
+}
+
+static void dmd(const char *big, const char *small, uint8_t flash)
+{
+    uint8_t sx;
+    if (!small) small = "";
+    if (flash != dmd_flash) { dmd_flash = flash; dmd_colours(l2pal_shown); }
+    if (!strcmp(big, want_big) && !strcmp(small, want_small)) return;
+    strncpy(want_big, big, sizeof want_big - 1);
+    strncpy(want_small, small, sizeof want_small - 1);
+    if (!small[0]) {
+        sx = text_w(big, 3) <= DMD_W ? 3 : text_w(big, 2) <= DMD_W ? 2 : 1;
+        dmd_set_line(&geo_want.l[0], want_big, sx, (DMD_H - 7 * (sx + 1)) / 2, sx + 1);
+        geo_want.l[1].n = 0;
+        geo_want.layout = sx;
+    } else {
+        sx = text_w(big, 2) <= DMD_W ? 2 : 1;
+        dmd_set_line(&geo_want.l[0], want_big, sx, 5, 3);
+        dmd_set_line(&geo_want.l[1], want_small, 1, 31, 2);
+        geo_want.layout = 4 + sx;
+    }
+    memset(col_want, 0, sizeof col_want);
+    dmd_columns(&geo_want.l[0], 0);
+    if (geo_want.l[1].n) dmd_columns(&geo_want.l[1], 7);
+    if (geo_want.layout != geo_hid.layout) {     /* the hidden pen's dots move: redo every column */
+        uint8_t x;
+        geo_hid = geo_want;
+        for (x = 0; x < DMD_W; x++) sig_hid[x] = 0xFFFF;
+    }
+    dmd_cursor = 0;
+    dmd_pending = 1;
+}
+
+/* a pen's dots into a column being composed: `bits` rows of the line at y,
+   sy apart; where the other text has a dot too, the always-lit pen */
+static void dots(uint8_t *p, uint8_t bits, uint8_t sy, uint8_t pen)
+{
+    uint8_t j;
     for (; bits; bits >>= 1, p += sy)
-        if (bits & 1) memset(p, P_DMD_ON, sy - 1);
+        if (bits & 1)
+            for (j = 0; j < sy - 1; j++) p[j] = p[j] == P_DMD_BG ? pen : PEN_AB;
+}
+
+/* the beam's video line (0 = the first line of the 256 x 192 paper area;
+   Layer 2's 320 x 256 row r is line r - 32). The display is lines 26-74;
+   its work (at most ~50 lines' worth) starts only below it, so the beam
+   never passes it while it changes, even after a slow frame. */
+static uint8_t beam_clear_of_dmd(void)
+{
+    uint16_t line = ((uint16_t)(ZXN_READ_REG(0x1E) & 1) << 8) | ZXN_READ_REG(0x1F);
+    return line >= DMD_Y + DMD_H - 32 && line <= 280;
 }
 
 static void dmd_update(void)
 {
     uint8_t n = 0;
+    if (!dmd_pending || !beam_clear_of_dmd()) return;
+    if (dmd_cursor >= DMD_W) {                   /* all drawn: swap at the frame's start */
+        uint16_t *t = sig_vis;
+        dmd_geo g = geo_vis;
+        uint8_t p = pen_vis;
+        pen_vis = pen_hid; pen_hid = p;
+        sig_vis = sig_hid; sig_hid = t;
+        geo_vis = geo_hid; geo_hid = g;
+        dmd_colours(l2pal_shown ^ 1);           /* the hidden palette, then show it: one write */
+        l2pal_shown ^= 1;
+        ZXN_WRITE_REG(0x43, 0x10 | (l2pal_shown << 2));
+        strcpy(dmd_vis_big, want_big);
+        strcpy(dmd_vis_small, want_small);
+        dmd_pending = 0;
+        return;
+    }
     while (dmd_cursor < DMD_W && n < DMD_BUDGET) {
-        uint8_t x = dmd_cursor++, a, b;
-        uint16_t sig = col_want[x];
+        uint8_t x = dmd_cursor++;
+        uint16_t w = col_want[x], v = sig_vis[x];
         uint8_t *p;
-        if (sig == col_sig[x]) continue;
-        a = sig & 0x7F;
-        b = sig >> 7;
-        col_sig[x] = sig;
+        if (w == sig_hid[x]) continue;
+        sig_hid[x] = w;
         n++;
+        memset(colbuf, P_DMD_BG, DMD_H);
+        if (v & 0x7F) dots(colbuf + geo_vis.l[0].y, v & 0x7F, geo_vis.l[0].sy, pen_vis);
+        if (v >> 7) dots(colbuf + geo_vis.l[1].y, v >> 7, geo_vis.l[1].sy, pen_vis);
+        if (w & 0x7F) dots(colbuf + geo_hid.l[0].y, w & 0x7F, geo_hid.l[0].sy, pen_hid);
+        if (w >> 7) dots(colbuf + geo_hid.l[1].y, w >> 7, geo_hid.l[1].sy, pen_hid);
         p = l2w_column(DMD_X + x) + DMD_Y;
-        memset(p, P_DMD_BG, DMD_H);
-        if (a) dots(p + lines[0].y, a, lines[0].sy);
-        if (b) dots(p + lines[1].y, b, lines[1].sy);
+        memcpy(p, colbuf, DMD_H);
     }
     if (n) l2w_done();
 }
@@ -161,6 +228,7 @@ static void dmd_update(void)
 
 static void video_init(void)
 {
+    uint16_t i;
     next_reg(0x68, 0x80);               /* the ULA off (its memory holds the table's data) */
     l2w_slot = 2;
     l2w_restore = DATA_PAGE;
@@ -169,6 +237,8 @@ static void video_init(void)
     spr_init();
     pal_load(2, spr_pal, 16);
     spr_patterns_from_pages(SPR_PAGE, 2, 0, SPR_NPAT, DATA_PAGE);
+    for (i = 0; i < 256; i++) l2pal(1, (uint8_t)i, l2_pal_0[i]);   /* the second palette: the same */
+    dmd_colours(0);
 }
 
 /* ------------------------------------------------------------ what moves */
@@ -229,7 +299,7 @@ static uint8_t lamp_shown[L_LAMPS], drop_shown[8], spin_shown[2];
 static uint8_t bumper_flash[PB_MAX_CIRC], sling_flash[2], flash_shown[PB_MAX_CIRC + 2];
 static uint16_t frame;
 
-static void set_pal(uint8_t idx, uint16_t c) { pal_set(1, idx, c); }
+
 
 static void draw_lamps(void)
 {
@@ -450,7 +520,7 @@ void front_main(void)
         } else if (mode == M_OVER && mode_t > 150 && start && !start_was) {
             int8_t place = hs_rank((uint32_t)g.score);
             if (place >= 0) enter_name(place);
-            shown_big[0] = 0;
+            want_big[0] = 0;
             new_game(1, frame);
         }
         start_was = start;
