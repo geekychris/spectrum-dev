@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Run `make` for a Spectrum project inside the toolchain container
+# (z88dk + sjasmplus; see docker/Dockerfile).
+#
+#   bin/zx-make [-C project_dir] [make args...]
+#
+# The repo is mounted at /work; projects outside the repo at /project.
+source "$(dirname "$0")/../scripts/lib.sh"
+
+proj="$PWD"
+if [ "${1:-}" = "-C" ]; then proj="$(cd "$2" && pwd)"; shift 2; fi
+[ -f "$proj/Makefile" ] || die "no Makefile in $proj"
+docker image inspect "$TOOLCHAIN_IMAGE" >/dev/null 2>&1 \
+  || die "toolchain image $TOOLCHAIN_IMAGE missing – run ./zx setup (or scripts/build-toolchain-image.sh)"
+
+mounts=(-v "$ZX_ROOT:/work")
+case "$proj/" in
+  "$ZX_ROOT"/*) cdir="/work/${proj#"$ZX_ROOT"/}" ;;
+  *)            cdir="/project"; mounts+=(-v "$proj:/project") ;;
+esac
+
+tty=(); [ -t 0 ] && [ -t 1 ] && tty=(-t)
+exec docker run --rm ${tty[@]+"${tty[@]}"} -u "$(id -u):$(id -g)" -e HOME=/tmp \
+  -e ZX_SDK=/work/sdk "${mounts[@]}" -w "$cdir" "$TOOLCHAIN_IMAGE" make "$@"

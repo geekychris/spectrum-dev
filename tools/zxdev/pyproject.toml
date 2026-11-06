@@ -1,0 +1,22 @@
+[project]
+name = "zxdev"
+version = "0.1.0"
+description = "ZX Spectrum / Spectrum Next dev harness: scriptable ZEsarUX host, CLI, MCP server and DevBench (web UI + REST)"
+requires-python = ">=3.10"
+dependencies = [
+  "pillow>=10",
+  "mcp>=2.3,<3",
+  "starlette>=0.40",
+  "uvicorn>=0.30",
+]
+
+[project.scripts]
+zxdev = "zxdev.cli:main"
+zxdev-mcp = "zxdev.mcp_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zxdev"]
