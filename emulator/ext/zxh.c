@@ -111,7 +111,9 @@ int zxh_timer_tick(int host_tick)
 {
     int t;
     if (!zxh_nowait) return host_tick;
-    t = zxh_frame_tick;
+    /* A frame may have ended (core waiting for the host timer) before nowait
+       mode started, e.g. when we grabbed a free-running CPU: release it too. */
+    t = zxh_frame_tick || esperando_tiempo_final_t_estados.v;
     zxh_frame_tick = 0;
     return t;
 }

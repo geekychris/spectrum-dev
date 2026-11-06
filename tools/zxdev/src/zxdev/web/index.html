@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZX DevBench</title>
+<style>
+:root {
+  --bg: #f4f4f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #d9d9d2;
+  --accent: #d7262a; --accent2: #0a5bd7; --ok: #1f8a3b; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151514; --panel: #1f1f1d; --ink: #ecece6; --muted: #9a9a92; --line: #33332f;
+          --accent: #ff5a4e; --accent2: #5aa0ff; --ok: #4cc46b; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px;
+         border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font-size: 16px; margin: 0 12px 0 0; }
+header h1 span { display: inline-block; width: 46px; height: 10px; margin-right: 8px; vertical-align: middle;
+  background: linear-gradient(90deg, #d7262a 0 25%, #f2c418 25% 50%, #2aa84a 50% 75%, #1b8ad8 75%); }
+main { display: grid; grid-template-columns: minmax(0, 720px) minmax(0, 1fr); gap: 16px; padding: 16px; }
+@media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+.screen { width: 100%; image-rendering: pixelated; background: #000; border-radius: 4px; display: block; aspect-ratio: 352/304; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+button, select, input { font: inherit; padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px;
+  background: var(--bg); color: var(--ink); }
+button { cursor: pointer; } button:hover { border-color: var(--accent2); }
+button.primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+input.wide { flex: 1; min-width: 120px; }
+pre { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+  padding: 8px; margin: 0; overflow: auto; max-height: 260px; white-space: pre-wrap; word-break: break-all; }
+.status { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .grid2 { grid-template-columns: 1fr; } }
+.err { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1><span></span>ZX DevBench</h1>
+  <select id="sessions" title="session"></select>
+  <select id="projects" title="project"></select>
+  <button id="boot" class="primary">Boot headless</button>
+  <button id="bootw">Boot in window</button>
+  <button id="build">Build</button>
+  <button id="test">Test</button>
+  <button id="stop">Stop session</button>
+  <span class="status" id="msg"></span>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>Screen</h2>
+      <img id="screen" class="screen" alt="emulator screen">
+      <div class="row">
+        <button data-run="1">+1 frame</button><button data-run="50">+1 s</button><button data-run="250">+5 s</button>
+        <button id="pause">Pause</button><button id="resume">Resume</button>
+        <label><input type="checkbox" id="live"> live</label>
+        <span class="status" id="stat"></span>
+      </div>
+      <div class="row">
+        <input id="keys" class="wide" placeholder="keys: SPACE, Q+A, UP+FIRE">
+        <button id="press">Press</button>
+        <input id="text" class="wide" placeholder="type text">
+        <button id="type">Type</button>
+      </div>
+    </section>
+    <section style="margin-top:16px">
+      <h2>Console</h2>
+      <div class="row">
+        <input id="cmd" placeholder="command (help)" style="width:150px">
+        <input id="args" class="wide" placeholder='args JSON, e.g. {"addr":"main"}'>
+        <button id="send">Send</button>
+      </div>
+      <pre id="out"></pre>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Guest log (zx_log)</h2>
+      <pre id="log" style="max-height:340px"></pre>
+      <div class="row"><input id="until" class="wide" placeholder="run until log text"><button id="rununtil">Run until</button></div>
+    </section>
+    <section style="margin-top:16px">
+      <h2>Debugger</h2>
+      <div class="row">
+        <input id="bp" placeholder="symbol or $addr" style="width:160px">
+        <button id="break">Break</button><button id="watch">Watch (w)</button><button id="cont">Continue</button>
+        <button id="step">Step</button><button id="over">Over</button><button id="del">Delete all</button>
+      </div>
+      <div class="grid2"><pre id="regs"></pre><pre id="dis"></pre></div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let busy = false;
+async function api(path, body, method) {
+  const r = await fetch(path, {method: method || (body !== undefined ? "POST" : "GET"),
+    headers: {"Content-Type": "application/json"}, body: body !== undefined ? JSON.stringify(body) : undefined});
+  const t = r.headers.get("content-type") || "";
+  const d = t.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(d.error || r.statusText);
+  return d;
+}
+const cmd = (name, args) => api("/api/cmd/" + name, args || {});
+function msg(t, bad) { $("msg").textContent = t; $("msg").className = "status" + (bad ? " err" : ""); }
+async function guard(fn) { try { await fn(); } catch (e) { msg(e.message, true); } }
+
+async function loadSessions() {
+  const ss = await api("/api/sessions");
+  $("sessions").innerHTML = ss.length ? ss.map(s => `<option value="${s.pid}" ${s.selected ? "selected" : ""}>` +
+    `pid ${s.pid} · ${s.machine} · ${s.window ? "window" : "headless"} · ${(s.program || "ROM").split("/").pop()}</option>`).join("")
+    : "<option>no sessions</option>";
+  return ss.length;
+}
+async function loadProjects() {
+  const ps = await api("/api/projects");
+  $("projects").innerHTML = ps.map(p => `<option value="${p.name}">${p.name} (${p.target})</option>`).join("");
+}
+async function refresh() {
+  if (!(await loadSessions())) { $("stat").textContent = ""; return; }
+  $("screen").src = "/api/screen.png?t=" + Date.now();
+  const st = await cmd("status");
+  $("stat").textContent = `frame ${st.frame} · PC $${st.pc.toString(16).toUpperCase().padStart(4, "0")}` +
+    (st.pc_symbol ? ` (${st.pc_symbol})` : "") + (st.paused ? " · paused" : " · running");
+  const lg = await cmd("log", {all: true});
+  $("log").textContent = lg.text.split("\n").slice(-200).join("\n");
+  $("log").scrollTop = 1e9;
+  const r = await cmd("regs");
+  $("regs").textContent = ["PC","SP","AF","BC","DE","HL","IX","IY","AF'","BC'","DE'","HL'"].map(k =>
+    `${k.padEnd(4)} ${(r[k] ?? 0).toString(16).toUpperCase().padStart(4, "0")}`).join("\n") +
+    `\nF    ${r.FLAGS}\nIM ${r.IM}  IFF ${r.IFF}` + (r.pc_symbol ? `\n${r.pc_symbol}` : "");
+  $("dis").textContent = (await cmd("disasm", {addr: "pc", count: 12})).listing;
+}
+async function act(fn) { if (busy) return; busy = true; await guard(async () => { await fn(); await refresh(); }); busy = false; }
+
+$("sessions").onchange = () => act(() => api(`/api/sessions/${$("sessions").value}/select`, {}));
+$("boot").onclick = () => act(async () => { msg("starting…"); await api("/api/sessions", {project: $("projects").value}); msg("session started"); });
+$("bootw").onclick = () => act(async () => { msg("starting…"); await api("/api/sessions", {project: $("projects").value, window: true}); msg("window session started"); });
+$("build").onclick = () => act(async () => { msg("building…"); const r = await api(`/api/projects/${$("projects").value}/build`, {}); $("out").textContent = r.output; msg(r.ok ? "build OK" : "build FAILED", !r.ok); });
+$("test").onclick = () => act(async () => { msg("testing…"); const r = await api(`/api/projects/${$("projects").value}/test`, {}); $("out").textContent = r.output; msg(r.ok ? "tests PASS" : "tests FAIL", !r.ok); });
+$("stop").onclick = () => act(async () => { await api(`/api/sessions/${$("sessions").value}`, undefined, "DELETE"); msg("stopped"); });
+document.querySelectorAll("[data-run]").forEach(b => b.onclick = () => act(() => cmd("run", {frames: +b.dataset.run})));
+$("pause").onclick = () => act(() => cmd("pause"));
+$("resume").onclick = () => act(() => cmd("resume"));
+$("press").onclick = () => act(() => cmd("press", {keys: $("keys").value}));
+$("type").onclick = () => act(() => cmd("type", {text: $("text").value}));
+$("rununtil").onclick = () => act(async () => { const r = await cmd("run_until", {text: $("until").value}); msg(r.found ? `found at frame ${r.frame}` : `not found (${r.reason})`, !r.found); });
+$("break").onclick = () => act(() => cmd("break", {addr: $("bp").value}));
+$("watch").onclick = () => act(() => cmd("watch", {addr: $("bp").value}));
+$("cont").onclick = () => act(async () => { const r = await cmd("continue", {max_frames: 500}); msg(r.stopped ? `stopped at ${r.symbol || r.pc} (${r.break})` : "no break within 500 frames"); });
+$("step").onclick = () => act(() => cmd("stepi"));
+$("over").onclick = () => act(() => cmd("step_over"));
+$("del").onclick = () => act(() => cmd("delete"));
+$("send").onclick = () => act(async () => {
+  const r = await cmd($("cmd").value || "help", $("args").value ? JSON.parse($("args").value) : {});
+  if (r && r.png_b64) delete r.png_b64;
+  $("out").textContent = typeof r === "string" ? r : (r.listing || r.dump || r.output || JSON.stringify(r, null, 1));
+});
+$("cmd").onkeydown = $("args").onkeydown = (e) => { if (e.key === "Enter") $("send").click(); };
+setInterval(() => { if ($("live").checked && !busy) act(async () => {}); }, 400);
+guard(async () => { await loadProjects(); await refresh(); });
+</script>
+</body>
+</html>

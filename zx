@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# ZX Spectrum / Spectrum Next dev environment – single entry point.
+#
+#   ./zx setup                   install everything (idempotent)
+#   ./zx doctor                  check the environment
+#   ./zx new <name> [--next]     create projects/<name> from the template (48K, or Next)
+#   ./zx build <project>         compile -> projects/<p>/build/<p>.tap|.nex (+ .map)
+#   ./zx run <project|file>      window (free-running); ./zx ctl and Claude can attach
+#   ./zx serve <project|file> [--window] [--mode running]   headless session process
+#   ./zx test <project>          projects/<p>/test.py if present, else wait for ZX:DONE
+#   ./zx log <project> [--frames N] [--press KEYS@FRAME]   guest log (zx_log) dump
+#   ./zx shot <project> -o out.png [--until TEXT] [--press KEYS@FRAME]
+#   ./zx ctl [--port N] <cmd> [key=value ...]               remote-control a session (ctl help)
+#   ./zx sessions                running sessions
+#   ./zx symbols <project> [regex]
+#   ./zx devbench [--port 3580] [--open]                    web UI + REST + MCP over HTTP
+#   ./zx clean <project>
+#   ./zx selftest                build + test everything (do this before saying "done")
+#   ./zx zxdev ...               raw access to the zxdev CLI
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+source "$ROOT/scripts/lib.sh"
+
+ZXDEV="$ROOT/.venv/bin/zxdev"
+PY="$ROOT/.venv/bin/python"
+
+need_zxdev() { [ -x "$ZXDEV" ] || die "python env missing – run ./zx setup"; }
+need_emu()   { [ -x "$ZESARUX_BIN" ] || die "emulator not built – run ./zx setup (or scripts/build-emulator.sh)"; }
+
+# Build quietly; show the compiler output only if it fails.
+quiet_build() {
+  mkdir -p "$ROOT/build"
+  local log="$ROOT/build/last-build.log"
+  "$ROOT/bin/zx-make" -C "$1" >"$log" 2>&1 || { cat "$log"; die "build failed"; }
+}
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  setup)   exec "$ROOT/setup.sh" "$@" ;;
+  doctor)  exec "$ROOT/scripts/doctor.sh" "$@" ;;
+  build)   [ $# -ge 1 ] || die "usage: ./zx build <project>"
+           p="$1"; shift; exec "$ROOT/bin/zx-make" -C "$ROOT/projects/$p" "$@" ;;
+  clean)   [ $# -ge 1 ] || die "usage: ./zx clean <project>"
+           exec "$ROOT/bin/zx-make" -C "$ROOT/projects/$1" clean ;;
+  devbench|ctl|sessions)
+           need_zxdev; exec "$ZXDEV" "$cmd" "$@" ;;
+  run|serve|log|shot|symbols)
+           need_zxdev; need_emu
+           if [ $# -ge 1 ] && [ -f "$ROOT/projects/$1/Makefile" ]; then
+             # rebuild projects so you always run what you just edited
+             quiet_build "$ROOT/projects/$1"
+           fi
+           exec "$ZXDEV" "$cmd" "$@" ;;
+  test)    need_zxdev; need_emu; [ $# -ge 1 ] || die "usage: ./zx test <project>"
+           t="$1"; shift
+           if [ -f "$ROOT/projects/$t/Makefile" ]; then
+             quiet_build "$ROOT/projects/$t"
+             # projects can ship a host-side test script with richer checks
+             if [ -f "$ROOT/projects/$t/test.py" ] && [ $# -eq 0 ]; then
+               exec "$PY" "$ROOT/projects/$t/test.py"
+             fi
+           fi
+           exec "$ZXDEV" test "$t" "$@" ;;
+  new)     [ $# -ge 1 ] || die "usage: ./zx new <name> [--next]"
+           name="$1"; target=zx
+           [ "${2:-}" = "--next" ] && target=zxn
+           [[ "$name" =~ ^[a-z][a-z0-9_]*$ ]] || die "name must be lowercase [a-z0-9_]"
+           dest="$ROOT/projects/$name"
+           [ ! -e "$dest" ] || die "$dest already exists"
+           cp -R "$ROOT/sdk/template" "$dest"
+           for f in Makefile src/main.c test.py; do
+             sed -i.bak -e "s/__NAME__/$name/g" -e "s/__TARGET__/$target/g" "$dest/$f" && rm -f "$dest/$f.bak"
+           done
+           ok "created projects/$name ($([ $target = zxn ] && echo 'Spectrum Next .nex' || echo '48K .tap'))  –  ./zx run $name" ;;
+  selftest)
+           need_zxdev; need_emu
+           mkdir -p "$ROOT/build"
+           fails=0
+           for d in "$ROOT"/projects/*/; do
+             p="$(basename "$d")"; [ -f "$d/Makefile" ] || continue
+             step "$p"
+             if ! "$ROOT/bin/zx-make" -C "$d" >"$ROOT/build/selftest-$p.log" 2>&1; then
+               tail -20 "$ROOT/build/selftest-$p.log"; warn "build failed (build/selftest-$p.log)"; fails=$((fails+1)); continue
+             fi
+             "$0" test "$p" || fails=$((fails+1))
+           done
+           step "template (48K + Next)"
+           if "$PY" "$ROOT/tools/zxdev/tests/test_template.py" >"$ROOT/build/selftest-template.log" 2>&1; then
+             ok "template builds and passes its test on both targets"
+           else
+             tail -30 "$ROOT/build/selftest-template.log"; warn "template check failed"; fails=$((fails+1))
+           fi
+           step "sessions / remote control / MCP"
+           if "$PY" "$ROOT/tools/zxdev/tests/test_remote.py" >"$ROOT/build/selftest-remote.log" 2>&1; then
+             ok "remote control suite ($(grep -c '  PASS' "$ROOT/build/selftest-remote.log") checks)"
+           else
+             tail -30 "$ROOT/build/selftest-remote.log"; warn "remote control suite failed"; fails=$((fails+1))
+           fi
+           [ "$fails" -eq 0 ] && ok "all pass" || die "$fails check(s) failed" ;;
+  zxdev)   need_zxdev; exec "$ZXDEV" "$@" ;;
+  help|-h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)       die "unknown command '$cmd' (./zx help)" ;;
+esac

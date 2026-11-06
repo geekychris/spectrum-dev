@@ -18,10 +18,12 @@
 #           build/<NAME>.nex   (TARGET=zxn: loads directly on the Next)
 #           build/<NAME>.map   symbols (./zx and the MCP tools read it)
 #
-# Overridable: ORG (default 32768), STARTUP (default 0 = 32x24 text terminal
-#              on stdout; 31 = no terminal, smaller), OPT, CLIB, EXTRA_CFLAGS,
+# Overridable: ORG (default 32768), STARTUP (default 31 = no terminal; 0 = 32x24
+#              printf terminal, about 2 KB more), OPT, CLIB, EXTRA_CFLAGS,
 #              EXTRA_LDFLAGS, EXTRA_OBJS, DEBUG=1 (-O0 and no optimiser),
 #              ZX_NO_LOG=1 (compile zx_log calls out)
+#
+# ASSEMBLER=sjasmplus switches to a pure-assembly project (see above).
 #
 # Run via bin/zx-make (or ./zx build), which supplies the toolchain.
 
@@ -33,7 +35,7 @@ SDK_DIR := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 
 TARGET  ?= zx
 CLIB    ?= sdcc_ix
-STARTUP ?= 0
+STARTUP ?= 31
 ORG     ?= 32768
 SRC_DIR ?= src
 BUILD   ?= build
@@ -44,6 +46,23 @@ OPT ?= -O0
 else
 OPT ?= -SO3
 endif
+
+ifeq ($(ASSEMBLER),sjasmplus)
+# Pure assembly with sjasmplus: src/main.asm writes its own output with
+# SAVESNA / SAVETAP / SAVENEX (path build/$(NAME).<ext>, see projects/asm48).
+OUT := $(BUILD)/$(NAME).$(if $(filter zxn,$(TARGET)),nex,sna)
+ASM_MAIN ?= $(SRC_DIR)/main.asm
+.DEFAULT_GOAL := all
+all: $(OUT)
+	@echo "built $(OUT)"
+$(OUT): $(wildcard $(SRC_DIR)/*.asm $(SRC_DIR)/*.inc $(SDK_DIR)/include/*.inc)
+	mkdir -p $(BUILD)
+	sjasmplus --nologo --fullpath -I$(SDK_DIR)/include --sym=$(BUILD)/$(NAME).sym \
+	  --lst=$(BUILD)/$(NAME).lst -DNAME=$(NAME) $(EXTRA_ASFLAGS) $(ASM_MAIN)
+clean:
+	rm -rf $(BUILD)
+.PHONY: all clean
+else
 
 ifeq ($(TARGET),zx)
 OUT := $(BUILD)/$(NAME).tap
@@ -95,3 +114,5 @@ clean:
 	rm -rf $(BUILD)
 
 .PHONY: all clean
+
+endif   # ASSEMBLER

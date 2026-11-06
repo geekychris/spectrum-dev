@@ -1,7 +1,7 @@
 /*
  * hello48 - smallest useful 48K program for the spectrum_dev harness.
  *
- * Text on the 32x24 terminal, a bouncing attribute block, keyboard input,
+ * Text (zx_print_at), a bouncing attribute block, keyboard input,
  * 50 Hz frame pacing with HALT, and zx_log lines a test can wait for.
  */
 #include <stdio.h>
@@ -9,6 +9,7 @@
 #include <intrinsic.h>
 #include <arch/zx.h>
 #include "zxlog.h"
+#include "zxtext.h"
 
 static unsigned int frames;
 static unsigned char bx = 3, by = 8;
@@ -25,8 +26,8 @@ int main(void)
 {
     zx_border(INK_BLUE);
     zx_cls(PAPER_WHITE | INK_BLACK);
-    printf("\x16\x02\x02" "Hello from hello48!");
-    printf("\x16\x04\x02" "Press any key...");
+    zx_print_at(2, 2, "Hello from hello48!");
+    zx_print_at(2, 4, "Press any key...");
 
     /* colour bars along the bottom (attribute memory) */
     {
@@ -52,7 +53,9 @@ int main(void)
         k = in_inkey();
         if (k && k != keys) {
             zx_log("hello48: key %c frame=%u\n", k, frames);
-            printf("\x16\x04\x02" "You pressed: %c        ", k);
+            char msg[20];
+            sprintf(msg, "You pressed: %c  ", k);
+            zx_print_at(2, 4, msg);
         }
         keys = k;
 

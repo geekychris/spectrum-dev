@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "zx": {
+      "type": "stdio",
+      "command": "./.venv/bin/zxdev-mcp",
+      "args": []
+    }
+  }
+}

@@ -38,8 +38,8 @@ class Symbols:
                 f = [x.strip() for x in m.group(3).split(",")]
                 f += [""] * (6 - len(f))
                 kind, scope, module, section, src = f[0], f[1], f[3], f[4], f[5]
-                if kind != "addr":
-                    continue  # constants are not locations
+                if kind != "addr" or not section:
+                    continue  # constants and section-less markers are not locations
                 old = self.info.get(name)
                 if old and old["scope"] == "public" and scope != "public":
                     continue

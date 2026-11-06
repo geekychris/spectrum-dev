@@ -87,6 +87,7 @@ class Emulator:
         self.paused = (not window) if paused is None else paused
         self.port = port or free_port()
         self.program: str | None = None
+        self.load_frame = 0           # frame counter when the program was loaded
         self.symbols = Symbols()
         self.mark = 0                 # run_until/log default "since" offset
         self._logtext = bytearray()   # all guest log bytes fetched so far
@@ -123,7 +124,7 @@ class Emulator:
             self.close()
             raise EmulatorError(f"ZEsarUX did not open ZRCP on :{self.port}; see {self.log_path}") from None
         if self.paused:
-            self.z.cmd("enter-cpu-step")
+            self._enter_step()
             # same starting state every time, whatever ran before we got the CPU
             self.z.cmd("hard-reset-cpu")
         self.mark = self.log_end()
@@ -174,18 +175,28 @@ class Emulator:
         if self.z is not None and self.z.step_mode:
             yield
             return
-        self._cmd("enter-cpu-step")
+        self._enter_step()
         try:
             yield
         finally:
             if not self.paused:
                 self._cmd("exit-cpu-step")
 
+    def _enter_step(self):
+        # Some operations (set-machine) leave ZEsarUX's menu open, which
+        # blocks cpu-step mode; there is no menu to show us here, so close it.
+        out = self.z.cmd("enter-cpu-step", check=False)
+        if not self.z.step_mode:
+            self._cmd("close-all-menus")
+            self._cmd("enter-cpu-step")
+            if not self.z.step_mode:
+                raise EmulatorError(f"cannot hold the CPU: {out.strip()}")
+
     def pause(self):
         """Stop free-running (frames then only advance on run/press/continue)."""
         self.paused = True
         if not self.z.step_mode:
-            self._cmd("enter-cpu-step")
+            self._enter_step()
 
     def resume(self, turbo: bool = False):
         """Free-run in real time (turbo=True: as fast as possible)."""
@@ -199,7 +210,7 @@ class Emulator:
     def load(self, path, machine: str | None = None):
         """Reset and load a .tap/.tzx/.sna/.z80/.zsf/.nex (ZEsarUX smartload; tapes
         autoload through the ROM's LOAD ""). .nex selects the Next. Symbols are
-        read from a .map next to the file."""
+        read from a .map (z88dk) or .sym (sjasmplus) next to the file."""
         p = Path(path).resolve()
         if not p.exists():
             raise EmulatorError(f"{p} not found")
@@ -210,7 +221,9 @@ class Emulator:
             self._cmd("hard-reset-cpu")
             self._cmd(f'smartload "{p}"', timeout=60)
         self.program = str(p)
-        self.symbols = Symbols.load(p.with_suffix(".map"))
+        self.load_frame = self.frame()
+        self.symbols = Symbols.load(p.with_suffix(".map"))   # z88dk
+        self.symbols.add_file(p.with_suffix(".sym"))         # sjasmplus
         self.mark = self.log_end()
         self._held = []
         return self.status()
@@ -218,7 +231,9 @@ class Emulator:
     def set_machine(self, name: str):
         m = machine_id(name)
         with self.held():
-            self._cmd(f"set-machine {MACHINES[m]}")
+            self._cmd(f"set-machine {MACHINES[m]}")    # drops cpu-step mode, opens a menu
+            self._enter_step()
+            self._cmd("hard-reset-cpu")
         self.machine = m
         self.mark = self.log_end()
 
@@ -342,7 +357,7 @@ class Emulator:
         self._ports(self._held + [k for k in ks if k not in self._held])
         r = self.run(hold_frames)
         self._ports(self._held)
-        if release_frames:
+        if release_frames and r.get("reason") != "break":   # don't run past a breakpoint
             r = self.run(release_frames)
         return r
 
