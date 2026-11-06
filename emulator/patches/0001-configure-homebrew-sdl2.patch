@@ -1,0 +1,28 @@
+diff --git a/src/configure b/src/configure
+index 0287ac8..48184ff 100755
+--- a/src/configure
++++ b/src/configure
+@@ -1201,7 +1201,10 @@ return 0;
+ }
+ _EOF
+ 
+-	if [ "$SISTEMA" = "Darwin" ]; then
++	if [ "$SISTEMA" = "Darwin" ] && [ "$LIBSDL" = "SDL2" ] && command -v sdl2-config >/dev/null 2>&1; then
++		#zxh: Homebrew/MacPorts SDL2 (no framework)
++		$CCOMPILER -c $CFLAGS `sdl2-config --cflags` $TEMPFILE -o $TEMPFILE.o >> $LOGFILE 2>&1
++	elif [ "$SISTEMA" = "Darwin" ]; then
+ 		$CCOMPILER -c $CFLAGS -I/Library/Frameworks/$LIBSDL.framework/Headers -framework $LIBSDL -F/Library/Frameworks $TEMPFILE -o $TEMPFILE.o >> $LOGFILE 2>&1
+ 	elif [ "$SISTEMA" = "Msys" ]; then
+ 		#echo "$CCOMPILER -c $CFLAGS -Lc:\mingw\${LIBSDL}\lib -Ic:\mingw\${LIBSDL}\include -l$LIBSDL $TEMPFILE -o $TEMPFILE.o"
+@@ -1228,7 +1231,10 @@ _EOF
+ 
+ 			echo
+ 
+-			if [ "$SISTEMA" = "Darwin" ]; then
++			if [ "$SISTEMA" = "Darwin" ] && [ "$LIBSDL" = "SDL2" ] && command -v sdl2-config >/dev/null 2>&1; then
++				CFLAGS="$CFLAGS `sdl2-config --cflags`"
++				LIBS="`sdl2-config --libs` $LIBS"
++			elif [ "$SISTEMA" = "Darwin" ]; then
+ 				CFLAGS="$CFLAGS -I/Library/Frameworks/$LIBSDL.framework/Headers"
+ 				LDFLAGS="-F/Library/Frameworks $LDFLAGS"
+ 				LIBS="-framework $LIBSDL $LIBS"

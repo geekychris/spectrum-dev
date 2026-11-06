@@ -1,0 +1,7 @@
+/third_party/
+/build/
+/.venv/
+projects/*/build/
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,115 @@
+diff --git a/src/cores/core_spectrum.c b/src/cores/core_spectrum.c
+index 9e0d179..1c50c89 100644
+--- a/src/cores/core_spectrum.c
++++ b/src/cores/core_spectrum.c
+@@ -46,6 +46,7 @@
+ #include "compileoptions.h"
+ #include "contend.h"
+ #include "ula.h"
++#include "zxh.h"
+ #include "utils.h"
+ #include "realjoystick.h"
+ #include "chardetect.h"
+@@ -406,6 +407,8 @@ void core_spectrum_fin_frame_pantalla(void)
+ 
+     siguiente_frame_pantalla();
+ 
++    zxh_end_frame(); //zxh: frame counter; nowait mode skips host pacing
++
+ 
+     if (debug_registers) scr_debug_registers();
+ 
+diff --git a/src/timer.c b/src/timer.c
+index dff21fd..6197e22 100644
+--- a/src/timer.c
++++ b/src/timer.c
+@@ -35,6 +35,7 @@
+ 
+ 
+ #include "timer.h"
++#include "zxh.h"
+ #include "cpu.h"
+ #include "start.h"
+ #include "audio.h"
+@@ -1042,7 +1043,7 @@ int get_timer_check_interrupt(void)
+ void timer_check_interrupt(void)
+ {
+     //printf("timer_check_interrupt\n");
+-	int si_saltado_interrupcion=get_timer_check_interrupt();
++	int si_saltado_interrupcion=zxh_timer_tick(get_timer_check_interrupt()); //zxh
+ 
+ 
+ 	if (timer_condicion_top_speed() ) {
+diff --git a/src/ula.c b/src/ula.c
+index a8f5c69..1aa8169 100644
+--- a/src/ula.c
++++ b/src/ula.c
+@@ -24,6 +24,7 @@
+ 
+ 
+ #include "ula.h"
++#include "zxh.h"
+ #include "cpu.h"
+ #include "start.h"
+ #include "debug.h"
+@@ -206,6 +207,7 @@ void zesarux_zxi_write_register_value(z80_byte value)
+ 
+     case 1:
+       //HARDWARE_DEBUG_ASCII
++        zxh_debug_char(value); //zxh: capture for the harness debug log
+         printf ("%c",(value>=32 && value<=127 ? value : '?')  );
+         fflush(stdout);
+     break;
+diff --git a/src/video/screen.c b/src/video/screen.c
+index 8d26e74..5397e3c 100644
+--- a/src/video/screen.c
++++ b/src/video/screen.c
+@@ -67,6 +67,7 @@
+ #include "tape.h"
+ #include "joystick.h"
+ #include "atomic.h"
++#include "zxh.h"
+ 
+ 
+ //Incluimos estos dos para la funcion de fade out
+@@ -10065,6 +10066,8 @@ int screen_if_refresh(void)
+         return 1;
+     }
+ 
++    if (zxh_force_render()) return 1; //zxh: deterministic rendering
++
+     //Si esta en top speed, solo 1 frame
+     if (timer_condicion_top_speed() ) {
+         if (MACHINE_IS_Z88) {
+diff --git a/src/zrcp/remote.c b/src/zrcp/remote.c
+index 73f94ea..b6005d4 100644
+--- a/src/zrcp/remote.c
++++ b/src/zrcp/remote.c
+@@ -39,6 +39,7 @@
+ #include "utils.h"
+ #include "network.h"
+ #include "remote.h"
++#include "zxh.h"
+ #include "compileoptions.h"
+ #include "ql.h"
+ #include "disassemble.h"
+@@ -4024,6 +4025,12 @@ void interpreta_comando(char *comando,int misocket,char *buffer_lectura_socket_a
+         }
+     }
+ 
++    //zxh: spectrum_dev harness commands (zrcp/zxh.c)
++    if (!strncmp(comando_sin_parametros,"zxh-",4)) {
++        zxh_remote_command(misocket,comando_sin_parametros,parametros);
++        return;
++    }
++
+     //Ver cada comando
+     if (!strcmp(comando_sin_parametros,"help") || !strcmp(comando_sin_parametros,"?")) {
+         if (parametros[0]==0) {
+@@ -7165,3 +7172,6 @@ void enable_and_init_remote_protocol(void)
+ }
+ 
+ #endif
++
++//zxh: spectrum_dev harness extension
++#include "zxh.c"
