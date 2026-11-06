@@ -115,6 +115,14 @@ that act at exact frames:
 CLI: `./zx log p --press SPACE@200 --hold Q@250 --release ALL@300 --type "hi@320"`
 or `--script steps.json`.
 
+**Window sessions while fast-forwarding:** `run N` and `run_until` in a
+free-running window run turbo *on the emulator's main thread*, so the user's
+keyboard and joystick keep working. They poll for the frame count, log text
+or a breakpoint, then go back to real time. They stop within a few frames
+of the condition, not on the exact instruction; use a paused session for
+that. The window shows 1 frame in 8 meanwhile. `continue`, `stepi` and
+`run_to` hold the CPU (exact, but host input waits).
+
 ## The guest log
 
 Programs write text to ZEsarUX's ZXI debug port: `OUT (0xCF3B),1` selects
@@ -131,9 +139,45 @@ it; on real hardware or other emulators the ports do nothing.
 absolute offset from `log_cursor`) to choose. Text is Latin-1; the ring keeps
 the last 4 MB.
 
-## Replay
+## Recording and replay
 
-Every input change since `load` is logged with its exact position (frames
+**Input recorder** (`record_input`, MCP `emu_record_input`, `./zx record`).
+The patched core compares the whole input state at every instruction
+boundary: 8 keyboard half-rows, joystick bits, joystick type, and the Next
+extended keys. It logs each change with its frame and T-state, whatever the
+source: keys you inject, or the user typing or using a joystick in the window.
+It also hashes every rendered frame.
+
+- `record_input action=start`: from the current point. A `.zsf` snapshot
+  (plus its `.beam` beam position) is taken under the same CPU hold as the
+  start, so the replay starts at that exact instruction. The program must
+  already be running: snapshots don't contain tape/loader state.
+- `record_input action=start from_reset=true`: reloads the program and
+  records from the load.
+- `record_input action=save path=r.json`: JSON with the input changes, the
+  per-frame hashes and the end position, with `r.zsf` beside it.
+  `stop` and `status` also exist.
+- `replay path=r.json` (`./zx replay r.json [--runs 2]`): restarts from the
+  reset or snapshot, re-applies each input state at its exact position
+  (`zxh-run at=F:T`, then `zxh-input-set`), hashes every frame and compares.
+  The result has `ok`, `compared`, `mismatches` and `first_mismatch`. With
+  `--runs N`, the N hash sequences must also be identical.
+
+Frames are compared from the first whole frame. The frame the recording
+started in was partly drawn before it, and that part can't be redone.
+Window recordings replay exactly too: the input is logged where the core
+saw it, and the 20 ms housekeeping doesn't affect what the program sees.
+The test suite records a window session with keys typed through ZEsarUX's
+host-keyboard path and with agent keys, then replays it headless. Every
+frame hash matches.
+
+Determinism of loads: `load`, hard `reset` and fresh emulators start from a
+defined state (RAM zeroed, registers, MEMPTR and FLASH phase fixed; see
+`zxh-sync`). Two emulators with different histories therefore produce
+identical frames after loading the same program.
+
+**Checkpoint replays** (the older, lighter form): every input change since
+`load` is logged with its exact position (frames
 since load, T-state in the frame): `input_log`. `checkpoint(label)` stores
 the screen hash at the current point; `save_replay(path)` writes program,
 machine, joystick type, the input log, the checkpoints and a final
@@ -155,7 +199,9 @@ not logged.
 
 **Snapshots** resume a test from a point: `save_state` / `load_state` with
 `.zsf` (ZEsarUX's own format, complete: all machines incl. the Next), `.z80`
-and `.sna` (48K/128K). ZEsarUX has no `.szx` writer, and can't write `.sna`
+and `.sna` (48K/128K). None of them stores the position inside the frame;
+`save_state` writes it to `<file>.beam` and `load_state` restores it, so a
+resumed run stays in step with the original. ZEsarUX has no `.szx` writer, and can't write `.sna`
 or `.z80` for the Next (the wrapper refuses instead of letting ZEsarUX block on
 an error dialog). A load restores state but doesn't re-render the display:
 compare screens one frame after `load_state`. `screen_hash(layer)` gives an
@@ -192,9 +238,10 @@ ZEsarUX's own debugger does the work; we add symbols and a simple API.
   loaded file. C symbols have a leading underscore; lookups accept either.
 - **Registers** (`regs`): AF BC DE HL, the alternates AF' BC' DE' HL', IX IY
   SP PC I R, IM, IFF, flags, MEMPTR, and the Next MMU string.
-- **Where and why it stopped:** every run records `last_stop` (reason
-  `frames`/`log`/`break`/`at`, PC, symbol, the condition that fired, frame,
-  T-state); `status` reports it.
+- **Where and why it stopped:** every run and step records `last_stop`;
+  `status` reports it. `why` is one of `breakpoint`, `watchpoint`, `step`,
+  `frame_limit`, `log_match` or `position`, with the PC, symbol, the condition
+  that fired, the frame and the T-state.
 - **Memory banks:** `read_mem addr=0 length=256 bank=3` reads 16K RAM bank 3
   on a 128K/+2/+3/Next whether it is paged in or not; `page=N` reads an 8K
   Next page; `write_mem` takes the same. `memory_map` lists what is paged in
@@ -241,6 +288,10 @@ layer even where another one covers it:
 
 | layer | |
 |---|---|
+The composited screen includes everything the Next shows: border, ULA,
+tilemap, Layer 2 and sprites. hellonext has all of them, and
+test_features checks each one in a single frame.
+
 | `ula` | 256x192 from the bitmap + attributes (bank 5, or 7 when the 128K shadow screen is shown); matches the displayed paper pixel for pixel |
 | `layer2` | Next Layer 2 in its mode (256x192, 320x256 or 640x256), bank from NextReg 0x12, palette and offset; transparent pixels magenta |
 | `sprites` | the Next's 320x256 sprite plane (RGBA): visibility, 8/4-bit patterns, palette offset, mirror, rotate, 2/4/8x scaling, relative (composite) sprites |

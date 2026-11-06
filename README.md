@@ -157,7 +157,7 @@ build("mygame") → emu_boot("mygame") → emu_run_until("mygame: ready")
 ```
 
 `emu_boot(p, window=True)` opens a window the user can watch and play;
-`emu_attach()` joins one started with `./zx run`. All 54 tools are listed by
+`emu_attach()` joins one started with `./zx run`. All 56 tools are listed by
 `emu_cmd("help")` and in [CLAUDE.md](CLAUDE.md).
 
 ## Writing programs

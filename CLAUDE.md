@@ -14,7 +14,8 @@ we can script deterministically.
 ./zx shot <project> -o out.png --until "ready" [--press Q@400] [--no-border] [--scale 2] [--layer ula|layer2|sprites]
 ./zx video <project> -o out.gif|.mp4 --until "ready" --frames 150
 ./zx log <project> --press Q@200 --hold W@250 --release ALL@300 --type "hi@320" --record r.json
-./zx replay r.json          # re-run the input log, PASS/FAIL per screen-hash checkpoint
+./zx record <project> -o r.json --press Q@200   # input recorder (all sources) + per-frame hashes
+./zx replay r.json --runs 2 # re-run it twice: every frame hash must match, both runs identical
 ./zx run <project>          # window for the human (free-running; registered session)
 ./zx serve <project>        # headless paused session (prints ports)
 ./zx ctl <cmd> key=value    # remote-control the newest session (./zx ctl help)
@@ -37,8 +38,9 @@ user-visible, free-running; `emu_attach()` = join `./zx run X`. Also `emu_run(fr
 `emu_load`, `emu_machine`, `emu_save_state`/`emu_load_state`, `emu_screenshot(path, layer)`.
 Restart: `emu_reset(hard)`, `emu_reload`, `emu_power_cycle`, `emu_reboot` (wedged session).
 Screens: `emu_look(layer="screen"|"ula"|"layer2"|"sprites")`, `emu_record_video(path.gif|.mp4)`,
-`emu_screen_hash`. Replay: `emu_checkpoint`, `emu_save_replay(path)`, `emu_replay(path)`,
-`emu_input_log`, `emu_position`, `emu_run_to(frame, tstates)`.
+`emu_screen_hash`, `emu_record_gif`. Recording: `emu_record_input("start"|"stop"|"save", path,
+from_reset)` (captures your input AND the user's in the window) + `emu_replay(path)` (per-frame
+hash check). Also `emu_checkpoint`, `emu_save_replay`, `emu_input_log`, `emu_position`, `emu_run_to`.
 
 Debugging: `emu_break("func")` or `emu_break(condition="A=5 AND PC=32768")`, then
 `emu_continue(max_frames)`; `emu_watch("global", 2, "w")`, `emu_stepi`, `emu_step_over`,
@@ -95,11 +97,27 @@ Details: docs/emulator-harness.md.
 - ZEsarUX's hard reset does not clear RAM (the ROM does, once it runs); use
   `power_cycle` for a really fresh machine.
 - ZEsarUX doesn't emulate NextReg 0xB0/0xB1 (Next extended keys); the patch does.
+- ZEsarUX's hard reset does almost nothing on a plain Spectrum (RAM, most registers,
+  MEMPTR and the FLASH phase survive), so boots depended on history; `load`/`reset`
+  now go through `zxh-sync ram` + fixed registers. Keep it that way.
+- Snapshots (.zsf too) don't store the T-state within the frame; save_state writes
+  `<file>.beam`. A snapshot taken while a tape loads misses the tape state: record from
+  reset (`from_reset=True`, which `./zx record` uses) for programs still loading.
+- A free-running frame right after the CPU is released can be frame-skipped; anything that
+  hashes or screenshots frames must force rendering (zxh_force_render does while hashing).
+- In a window, `run`/`run_until` fast-forward on the main thread (host input live) and
+  stop a few frames late; paused sessions stop on the exact instruction.
+- Loading a .tap/.sna/.z80 in a Next session switches it to 48K (tapes don't autoload on
+  the TBBlue boot); pass machine= to override.
+- ZRCP ports come from 20000-29999 (not the OS ephemeral range) and the host checks the
+  emulator PID in zxh-status before using a port. The intermittent "did not open ZRCP"
+  was never reproduced (40 parallel starts at load 22 all fine); see PROGRESS.md.
+- Docker images that no container uses get pruned on this machine: a stopped
+  `zx-dev-toolchain-keep` container pins ours, and bin/zx-make rebuilds a missing image.
 - Memory zones: 128K RAM bank N is zone 0 offset N*16384; the Next's RAM page N is
   zone 0 offset 0x40000 + N*8192 (ROMs sit below). Palettes come back as 9-bit RGB333.
 - Sinclair 2 is keys 1-5 = left, right, down, up, fire (not 5-1).
-- The Docker VM (Rancher Desktop) can lose images when it restarts; `./zx doctor`
-  notices and `scripts/build-toolchain-image.sh` rebuilds (seconds with the cache).
+
 
 ## Layout
 

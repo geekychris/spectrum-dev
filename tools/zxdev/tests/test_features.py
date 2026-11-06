@@ -34,6 +34,10 @@ def check(name, ok, detail=""):
         failures.append(name)
 
 
+def kv_pid(e):
+    return int(e.raw("zxh-status").split("pid=")[1].split()[0])
+
+
 def section(t):
     print(f"\n== {t}")
 
@@ -258,6 +262,19 @@ def test_restart():
                                ("48k", H48, "hello48: ready")):
             e.set_machine(m)
             check(f"machine switch to {m}", e.status()["machine"] == m and boot(e, prog, ready))
+
+    # a port collision with another emulator is detected and retried, never driven
+    import zxdev.emu as E
+    with Emulator() as a:
+        orig, ports = E.free_port, [a.port]
+        E.free_port = lambda: ports.pop(0) if ports else orig()
+        try:
+            with Emulator() as b:
+                ok = b.port != a.port and kv_pid(b) == b.proc.pid
+        finally:
+            E.free_port = orig
+        check("ZRCP port collision: detected by PID, retried, other emulator untouched",
+              ok and a.alive and a.run(3)["frames"] == 3)
 
     # a session whose emulator is stuck inside a long command
     c = SessionClient.spawn(str(H48))

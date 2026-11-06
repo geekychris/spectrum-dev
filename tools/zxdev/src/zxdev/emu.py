@@ -70,10 +70,27 @@ def machine_id(name: str) -> str:
     return n
 
 
+_handed_out: set[int] = set()
+
+
 def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    """A free TCP port for ZRCP, from 20000-29999: outside the OS's ephemeral
+    range (49152+ on macOS), which every outgoing connection draws from, and
+    never one this process handed out before."""
+    import random
+    for _ in range(500):
+        port = random.randrange(20000, 30000)
+        if port in _handed_out:
+            continue
+        try:
+            for host in ("127.0.0.1", "0.0.0.0"):
+                with socket.socket() as s:
+                    s.bind((host, port))
+        except OSError:
+            continue
+        _handed_out.add(port)
+        return port
+    raise EmulatorError("no free TCP port in 20000-29999")
 
 
 class EmulatorError(RuntimeError):
@@ -149,6 +166,15 @@ class Emulator:
             self._stop_process()
             raise EmulatorError(f"ZEsarUX did not open ZRCP on :{self.port} ({ex}; "
                                 f"exit code {code}). Log tail:\n{tail}") from None
+        # make sure the ZRCP we reached belongs to our process (a port race with
+        # another emulator would otherwise let us drive the wrong one)
+        other = kv(self.z.cmd("zxh-status", check=False)).get("pid")
+        if other != str(self.proc.pid):
+            self.z.close()            # never send exit-emulator to someone else's emulator
+            self.z = None
+            self.proc.kill()
+            self.proc.wait(timeout=5)
+            raise EmulatorError(f"port {self.port} answered for pid {other}, not our emulator {self.proc.pid}")
         if self.paused:
             self._enter_step()
             # same starting state every time, whatever ran before we got the CPU

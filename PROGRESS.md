@@ -60,6 +60,34 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
 - [x] Logging: zx_log, run_until (stops in the logging routine), frame
       counting, run_to exact frame/T-state.
 
+## Phase 1c (2026-11-06): review follow-ups
+
+- [x] Repo private on GitHub, `main` pushed at each milestone; install.sh points at it.
+- [x] Input recorder in the patch (`zxh-rec`): all input sources, including the user's
+      keyboard/joystick in the window, at the instruction boundary where the core sees
+      them; per-frame screen hashes (`zxh-hash`). `record_input` start/stop/save (from a
+      snapshot or from reset), `replay` with per-frame verification, `./zx record`,
+      `./zx replay --runs 2`, MCP `emu_record_input` / `emu_replay` / `emu_record_gif`.
+      Tests: 48K + Next, from reset + from snapshot, replays after different histories
+      give identical sequences equal to the recording, a time-shifted log is caught, a
+      window session with user + agent keys replays headless frame for frame.
+- [x] Deterministic loads: ZEsarUX's hard reset kept RAM/registers/MEMPTR/FLASH phase;
+      `zxh-sync ram` + fixed registers (tested: identical frames whatever ran before).
+- [x] Snapshot resume keeps the beam position (`.beam` sidecar, `zxh-tstates`).
+- [x] Window fast-forward keeps host input live (turbo on the main thread, 1 in 8 frames
+      presented, ~770 fps); typing during fast-forward is tested.
+- [x] Halt reasons: `last_stop.why` = breakpoint / watchpoint / step / frame_limit /
+      log_match / position, tested for each.
+- [x] Next composite test covers border + ULA + tilemap + Layer 2 + hardware sprites.
+- [x] "did not open ZRCP": not reproduced (60+ sequential, 40 parallel starts under load
+      22). Ruled out: TIME_WAIT (ZEsarUX sets SO_REUSEADDR), outgoing connections on the
+      port (tested, no effect), duplicate probe ports (macOS allocates sequentially).
+      Hardened anyway: ports from 20000-29999, the host checks the emulator PID via
+      zxh-status (a collision is detected and retried; tested), 3 start attempts, and
+      the error now includes the emulator's log tail.
+- [x] Toolchain image survives `docker image prune -a` (placeholder container);
+      bin/zx-make rebuilds a missing image.
+
 ### Known limitations
 
 - No GDB stub; the debugger is ZEsarUX's (via the session API). DeZog
@@ -71,7 +99,9 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   ULA, Layer 2 and sprites; not the Next tilemap, LoRes or Timex modes, and
   unified (non-composite) relative sprites use their own transform.
 - No .szx snapshots (ZEsarUX can't write them); the Next only as .zsf.
-- Replays log injected input only, not what a user types into a window.
+- Recordings that start from a snapshot need the program to be running (no tape state in
+  snapshots); use from_reset for programs still loading.
+- In a window, fast-forward stops a few frames after its condition (exact in paused sessions).
 - No SD card/NextZXOS setup: .nex programs that use esxDOS/NextZXOS file
   APIs need `--mmc-file` with an SD image.
 - Only tested on macOS arm64. The Linux path (scripts, configure flags) is

@@ -7,6 +7,7 @@
  * ZRCP commands added (all answer on one line unless noted):
  *
  *   zxh-status                 frames=N tstates=T log=END nowait=0|1 step=0|1 pc=XXXX
+ *                              menu=0|1 brk=0|1 pid=PID
  *   zxh-run frames=N [until=HEX] [since=OFF] [at=FRAME:TSTATE]
  *                              cpu-step mode only. Runs up to N complete frames
  *                              as fast as possible, deterministically. Stops
@@ -551,10 +552,10 @@ void zxh_remote_command(int sock, char *command, char *params)
     remote_parse_commands_argvc(params, &argc, argv);
 
     if (!strcmp(command, "zxh-status")) {
-        escribir_socket_format(sock, "frames=%lu tstates=%d log=%lu nowait=%d step=%d pc=%04X menu=%d brk=%d",
+        escribir_socket_format(sock, "frames=%lu tstates=%d log=%lu nowait=%d step=%d pc=%04X menu=%d brk=%d pid=%d",
                                zxh_frames, t_estados, zxh_log_end(), zxh_nowait,
                                menu_event_remote_protocol_enterstep.v, (unsigned)reg_pc,
-                               menu_abierto, menu_breakpoint_exception.v);
+                               menu_abierto, menu_breakpoint_exception.v, (int)getpid());
     }
     else if (!strcmp(command, "zxh-run")) zxh_cmd_run(sock, argc, argv);
     else if (!strcmp(command, "zxh-log")) zxh_cmd_log(sock, argc, argv);
