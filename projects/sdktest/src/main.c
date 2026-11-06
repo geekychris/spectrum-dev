@@ -7,6 +7,7 @@
 #include <arch/zx.h>
 #include "zxgame.h"
 #include "zxlog.h"
+#include "fixmath.h"
 #include "zxtext.h"
 
 #define FRAMES frame_ticks       /* counted by the SDK's IM 2 handler */
@@ -35,6 +36,13 @@ int main(void)
     zx_log("sdk: atan11=%u atan-1-1=%u atan01=%u atan-10=%u isqrt=%u,%u,%u\n",
            fix_atan2(1, 1), fix_atan2(-1, -1), fix_atan2(1, 0), fix_atan2(0, -1),
            isqrt16(10000), isqrt16(65535), isqrt16(2));
+    {   /* fixmath.h: signs, shifts, square roots */
+        int32_t m1 = mul16(-300, 1234), m2 = mul16(-32768, -32768), m3 = mul16(32767, -2);
+        int16_t q1 = mulq14(-16384, 5), q2 = mulq14(12345, 6789), q3 = mulq8(-1000, 77);
+        uint16_t s1 = isqrt32(4294967295UL), s2 = isqrt32(90000), s3 = isqrt32(2);
+        int16_t d1 = div_q14(-3, 4), d2 = div_q14(100, 100);
+        zx_log("sdk: fixmath %ld %ld %ld %d %d %d %u %u %u %d %d\n", m1, m2, m3, q1, q2, q3, s1, s2, s3, d1, d2);
+    }
     rnd_seed(1);
     {   /* sdcc evaluates arguments right to left: call in order first */
         uint16_t r1 = rnd16(), r2 = rnd16(), r3 = rnd16(), r4 = rnd16(), r5 = rnd_range(10);

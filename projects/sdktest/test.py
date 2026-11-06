@@ -58,6 +58,7 @@ for machine in ("48k", "128k"):
               == ("32", "160", "64", "128"))
         check("isqrt16", val(log, "isqrt") == "100,255,1")
         exp = xorshift(1, 5)
+        check("fixmath: mul16 / mulq14 / mulq8 / isqrt32 / div_q14", "fixmath -370200 1073741824 -65534 -5 5115 -301 65535 300 1 -12288 16384" in log, [l for l in log.splitlines() if "fixmath" in l])
         check("xorshift rnd matches Python", val(log, "rnd") == ",".join(map(str, exp[:4]))
               and val(log, "range") == str(exp[4] % 10), f"{val(log, 'rnd')} vs {exp}")
         check("high-score insert", "rank=1 top=ZXD,5000 second=BOT,4500 last=2000 low=-1" in log)

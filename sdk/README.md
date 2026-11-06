@@ -32,6 +32,7 @@ part). Tests: `projects/sdktest` (48K/128K) and `projects/sdktestnext`.
 | | `hiscore.c` | high-score table, the initials editor (`hs_edit_*`, any screen) |
 | | `hiscore48.c` | the table and the initials screen on the 48K screen (`hs_draw`, `hs_enter`) |
 | `modplay.h` | `modplay.c` | plays a MOD converted by `tools/mod2ay.py`: four channels routed to TurboSound chips, tone / noise / kick instruments; leaves free channels to `ay_sfx` |
+| `fixmath.h` | `fixmath.asm`, `fixmath.c` | 16-bit fixed point for physics: `mul16` (16x16 -> 32, MUL on the Z80N), `mulq14`, `mulq8`, `isqrt32`, `div_q14`; inline C on a host compiler for host tests |
 | `font5.h` | `font5.c` | a 5x7 font for drawing text yourself (Layer 2, a dot-matrix display), `font5_width` |
 | `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites (`spr_show_quad` 32x32, patterns from memory pages), palettes (`pal_load`), TurboSound chip select |
 | | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |

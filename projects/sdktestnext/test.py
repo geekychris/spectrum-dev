@@ -30,6 +30,7 @@ with Emulator(machine="next") as e:
     check("double buffer flips 9 -> 12", "front before flip=9" in log and "front after flip=12 back=9" in log)
     check("palette write/read", "l2 palette[1]=03" in log)
     check("TurboSound chip 1 registers", "ts chip1 r0=144" in log)
+    check("fixmath: mul16 / mulq14 / mulq8 / isqrt32 / div_q14", "fixmath -370200 1073741824 -65534 -5 5115 -301 65535 300 1 -12288 16384" in log, [l for l in log.splitlines() if "fixmath" in l])
     check("rnd + fix maths on the Next", "rnd=33153,24609 fix_div=384 sin32=181" in log)
     check("frame timer at 28 MHz", "frames=25" in log)
     # chip 1 A: period 300 (low byte 44), volume 12, tone on; chip 0 B: noise at 8

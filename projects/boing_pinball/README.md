@@ -34,7 +34,7 @@ far too slow at 120 steps a second. So:
   (capsule and circle collisions, the flipper's surface velocity w x r,
   one-way gates, slingshot and bumper kicks, spinners, the saucer, the ramp,
   substeps so nothing tunnels) in 16-bit units: 1/16 mm, 1/4 mm/s, Q14 unit
-  vectors. Multiplies use the Z80N's MUL (`src/zmath.asm`).
+  vectors. Multiplies use the Z80N's MUL (the SDK's `fixmath.h`).
 - **Rules** (`src/pb_rules.c`): the original's code, changed only where it
   touches physics units (marked `port:`).
 - `tools/host_sim.c` and `tools/orig_sim.c` play bot games with this port
@@ -66,4 +66,4 @@ original's `pb_bot`, with the keys: plunges, flips at balls coming down onto
 the flippers. It scores (bumpers, targets, the ramp), drains three balls,
 enters BOT in the high-score table and returns to the title; the game is
 recorded and replayed twice with every frame hash checked. On the host:
-`cc -Isrc -o host_sim tools/host_sim.c src/pb_phys.c src/pb_rules.c src/zmath.c src/sin_tab.c src/table_0.c`.
+`cc -Isrc -I../../sdk/include -o host_sim tools/host_sim.c src/pb_phys.c src/pb_rules.c src/zmath.c src/sin_tab.c src/table_0.c`.

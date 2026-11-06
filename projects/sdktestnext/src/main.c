@@ -8,6 +8,7 @@
 #include "zxgame.h"
 #include "nextgfx.h"
 #include "zxlog.h"
+#include "fixmath.h"
 #include "modplay.h"
 
 static uint8_t ball[256];
@@ -87,6 +88,13 @@ int main(void)
         z80_outp(0xFFFD, 7); a7 = z80_inp(0xFFFD);
         zx_log("sdk: modplay c1a=%u,%u mix1=%02x c0b=%u mix0=%02x\n", r0, r8, r7, b9, a7);
         modplay_stop();
+    }
+    {   /* fixmath.h: signs, shifts, square roots */
+        int32_t m1 = mul16(-300, 1234), m2 = mul16(-32768, -32768), m3 = mul16(32767, -2);
+        int16_t q1 = mulq14(-16384, 5), q2 = mulq14(12345, 6789), q3 = mulq8(-1000, 77);
+        uint16_t s1 = isqrt32(4294967295UL), s2 = isqrt32(90000), s3 = isqrt32(2);
+        int16_t d1 = div_q14(-3, 4), d2 = div_q14(100, 100);
+        zx_log("sdk: fixmath %ld %ld %ld %d %d %d %u %u %u %d %d\n", m1, m2, m3, q1, q2, q3, s1, s2, s3, d1, d2);
     }
     rnd_seed(1);
     {

@@ -210,12 +210,8 @@ void pb_bot(const Game *g, PbInput *in, Bot *bot);
 
 uint32_t a3_rand(uint32_t *state);      /* the original's 15-bit LCG */
 
-/* ---------- maths (zmath.c / zmath.asm) ---------- */
-int32_t mul16(int16_t a, int16_t b);                 /* a * b */
-int16_t mulq14(int16_t a, int16_t b);                /* (a * b) >> 14 */
-int16_t mulq8(int16_t a, int16_t b);                 /* (a * b) >> 8 */
-uint16_t isqrt32(uint32_t v);
-int16_t div_q14(int16_t a, int16_t d);               /* (a << 14) / d, |a| <= |d| */
+/* ---------- maths: the SDK's fixmath.h, and zmath.c ---------- */
+#include "fixmath.h"
 int16_t sin_q14(int16_t a);                          /* A -> Q14 */
 #define cos_q14(a) sin_q14((int16_t)((a) + 6434))     /* + pi/2 */
 

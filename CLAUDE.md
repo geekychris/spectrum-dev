@@ -66,7 +66,8 @@ Details: docs/emulator-harness.md.
 - zsdcc (z88dk 2.3): no `--opt-code-speed` (it miscompiled text_num); 2D/struct array
   indexing and `*` become multiply calls, so walk pointers in hot code; compound
   bit-sets like `a[i] |= m` in loops have miscompiled; printf evaluates arguments right
-  to left (store rnd16() results first). Profile with breakpoints + `get-tstates-partial`
+  to left (store rnd16() results first); for the 48K, `((int32_t)a << 14) / d`
+  came out wrong (fixmath.c writes it as a multiply). Profile with breakpoints + `get-tstates-partial`
   before guessing, and move real hot loops to asm.
 - Game loops: fixed timestep (`ticks = frame_wait()`, logic `ticks` times, draw once),
   so game speed stays the original's when drawing is slow. A tap shorter than a slow
