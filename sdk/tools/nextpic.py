@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """Pictures for the Spectrum Next: Layer 2 screens and sprite patterns.
 
 As a library (import nextpic) or a command:
@@ -15,6 +16,17 @@ As a library (import nextpic) or a command:
       or alpha 0
 
 RGB pictures are reduced to the Next's 9-bit colours (at most 256 of them).
+
+Helpers for programs that make their pictures in Python (import nextpic):
+
+  quantize(colours, n)      median cut of an (N, 3) RGB array to at most n
+                            colours, snapped to RGB333 steps
+  nearest(rgb, pal)         index of the nearest palette colour per pixel
+  rle_columns(idx, opaque)  column RLE for l2rle.h's l2w_blit_rle (no header)
+  piece(idx, opaque)        the same with its w, h header
+  group_patterns(idx)       any size of image as 16 x 16 patterns, pattern
+                            after pattern, for nextspr.h's sprite groups:
+                            returns (bytes, cols, rows)
 """
 import argparse
 import os
@@ -118,6 +130,95 @@ def patterns(img, quad=False):
 def quad_patterns(pix32):
     """a 32 x 32 list of indices -> four 16 x 16 patterns: TL TR BL BR"""
     return [[pix32[(qy + y) * 32 + qx + x] for y in range(16) for x in range(16)] for qy in (0, 16) for qx in (0, 16)]
+
+
+
+# ---- for programs that make their pictures in Python
+
+def to333(rgb):
+    """8-bit RGB -> RGB333 components (0..7)"""
+    import numpy as np
+    return np.clip((np.asarray(rgb).astype(np.int32) * 7 + 127) // 255, 0, 7)
+
+
+def from333(c):
+    import numpy as np
+    return (np.asarray(c) * 255 + 3) // 7
+
+
+def quantize(colours, n):
+    import numpy as np
+    colours = np.asarray(colours, np.uint8).reshape(-1, 3)
+    if len(colours) == 0:
+        return np.zeros((1, 3), np.int32)
+    side = int(np.ceil(np.sqrt(len(colours))))
+    pad = np.zeros((side * side, 3), np.uint8)
+    pad[:len(colours)] = colours
+    pad[len(colours):] = colours[0]
+    q = Image.fromarray(pad.reshape(side, side, 3), "RGB").quantize(colors=n, method=Image.Quantize.MEDIANCUT)
+    pal = np.array(q.getpalette()[:3 * n], np.int32).reshape(-1, 3)
+    return np.unique(from333(to333(pal)), axis=0)
+
+
+def nearest(rgb, pal):
+    import numpy as np
+    rgb = np.asarray(rgb)
+    flat = rgb.reshape(-1, 3).astype(np.int32)
+    pal = np.asarray(pal, np.int32)
+    out = np.empty(len(flat), np.int32)
+    w = np.array([3, 4, 2])
+    for i in range(0, len(flat), 4096):
+        d = (((flat[i:i + 4096, None, :] - pal[None, :, :]) ** 2) * w).sum(-1)
+        out[i:i + 4096] = d.argmin(1)
+    return out.reshape(rgb.shape[:-1])
+
+
+
+
+def rle_columns(idx, opaque):
+    import numpy as np
+    idx = np.asarray(idx)
+    opaque = np.asarray(opaque, bool)
+    h, w = idx.shape
+    out = bytearray()
+    for x in range(w):
+        col = opaque[:, x]
+        y = 0
+        while True:
+            start = y
+            while y < h and not col[y]:
+                y += 1
+            if y >= h:
+                out.append(0xFF)
+                break
+            skip = y - start
+            ln = 0
+            while y < h and col[y] and ln < 254:
+                y += 1
+                ln += 1
+            out += bytes([skip, ln]) + bytes(int(v) for v in idx[y - ln:y, x])
+    return bytes(out)
+
+
+def piece(idx, opaque):
+    import numpy as np
+    h, w = np.asarray(idx).shape
+    assert w < 256 and h < 256
+    return bytes([w, h]) + rle_columns(idx, opaque)
+
+
+def group_patterns(idx, fill=TRANSPARENT):
+    import numpy as np
+    idx = np.asarray(idx)
+    h, w = idx.shape
+    cols, rows = (w + 15) // 16, (h + 15) // 16
+    big = np.full((rows * 16, cols * 16), fill, np.uint8)
+    big[:h, :w] = idx
+    out = bytearray()
+    for r in range(rows):
+        for c in range(cols):
+            out += big[r * 16:(r + 1) * 16, c * 16:(c + 1) * 16].tobytes()
+    return bytes(out), cols, rows
 
 
 def main():

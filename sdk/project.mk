@@ -126,6 +126,9 @@ $(OBJDIR)/sdk/%.asm.o: $(SDK_DIR)/src/%.asm | $(OBJDIR)/sdk
 $(OBJDIR)/sdk/next/%.c.o: $(SDK_DIR)/src/next/%.c $(HDRS) | $(OBJDIR)/sdk/next
 	zcc $(CFLAGS) -c $< -o $@
 
+$(OBJDIR)/sdk/next/%.asm.o: $(SDK_DIR)/src/next/%.asm | $(OBJDIR)/sdk/next
+	zcc $(CFLAGS) -c $< -o $@
+
 clean:
 	rm -rf $(BUILD)
 

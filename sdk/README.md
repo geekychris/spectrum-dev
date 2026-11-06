@@ -14,14 +14,15 @@
 | | |
 |---|---|
 | `tools/mod2ay.py` | ProTracker MOD -> a `modplay` song: channel routing, instruments, pitch from each sample's waveform (`--help`) |
-| `tools/nextpic.py` | pictures -> Layer 2 banks (320 or 256 mode) + the `BANK_n` asm + a palette, sprite sheets -> patterns (16x16 or 32x32 quads); also a Python module (`rgb9`, `l2_bytes`, `write_banks`, `quad_patterns`; boing_pinball's gen_gfx.py uses it) |
+| `tools/nextpic.py` | pictures -> Layer 2 banks (320 or 256 mode) + the `BANK_n` asm + a palette, sprite sheets -> patterns (16x16 or 32x32 quads); also a Python module (`rgb9`, `l2_bytes`, `write_banks`, `quad_patterns`; for pictures made in Python: `quantize`, `nearest`, `piece` / `rle_columns` (column RLE), `group_patterns`; boing_pinball's and spectral_keep's gen_gfx.py use it) |
+| `tools/aystream.py` | AY register streams for `aystream.h`: an `Ay` you set tones/noise on frame by frame, `encode` keeps only the changes and runs of quiet frames |
 | `tools/test_tools.py` | their tests (`./zx selftest` runs them) |
 
 ## Game layer
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
 (one object per file, so files are split where a game might want only
-part). Tests: `projects/sdktest` (48K/128K) and `projects/sdktestnext`.
+part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext` and `projects/nextlibtest`.
 
 | header | module (src/) | what |
 |---|---|---|
@@ -39,8 +40,15 @@ part). Tests: `projects/sdktest` (48K/128K) and `projects/sdktestnext`.
 | `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites (`spr_show_quad` 32x32, patterns from memory pages), palettes (`pal_load`), TurboSound chip select |
 | | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |
 | | `next/nextl2.c` | Layer 2 256x192 double buffered: clear (DMA), fill, rect, blit, ROM-font text, `l2_copy_to_back` (a screen kept in other banks, by DMA) |
-| | `next/dma.c` | zxnDMA: `dma_copy`, `dma_fill`, whole banks (`dma_copy_banks`, `dma_fill_banks`) at ~2 T-states a byte |
+| | `next/dma.c` | zxnDMA: `dma_copy`, `dma_fill`, whole banks (`dma_copy_banks`, `dma_fill_banks`) at ~2 T-states a byte; `dma_to_port` (memory -> sprite patterns 0x5B, attributes 0x57) |
 | | `next/l2text5.c` | `l2_text5`, `l2_text5_center`: the 5x7 font on Layer 2 |
+| `l2rle.h` | `next/l2rle.c`, `next/l2rle_blit.asm` | Layer 2 320x256 extras: column-RLE "pieces" (`nextpic.piece`) blitted through a colour table (asm), `l2w_span` (and/or a row: shadows with a half-bright upper palette), `l2w_clear` (DMA), `l2w_plot` |
+| `nextspr.h` | `next/nextspr.c` | sprite groups: cols x rows 16x16 patterns uploaded by DMA, shown as one object; `sprg_mask_rle` hides the parts behind a Layer 2 piece (isometric occlusion) |
+| `nextcopper.h` | `next/nextcopper.c` | copper lists (`copper_wait`, `copper_move`, `copper_end`): per-line register writes, e.g. palette switches and gradients. The copper restarts at the vertical blank, line 248 |
+| `nexttile.h` | `next/nexttile.c` | the tilemap as a 40x32 text/HUD layer over everything: 1-bit fonts -> 4-bit tiles, 2x glyphs with a drop shadow, print / fill, a palette offset per cell |
+| `palfx.h` | `next/palfx.c` | palettes loaded with an effect (`palfx_load_fx`: c * mul / 8 + add, i.e. darken, half-bright copies, flashes, fades), second palettes, `palfx_active` |
+| `aystream.h` | `next/aystream.c` | TurboSound register-stream player: music and effects made on the host (`tools/aystream.py`), one stream a chip, banked, looping, attenuation (ducking) |
+| `isosort.h` | `isosort.c` | isometric draw order for boxes (separating axis + depth key, then a depth-first sort); `iso_behind` for "is this scenery in front of the sprite" |
 
 `zxlog` and `zxtext` are linked into every z88dk project.
 

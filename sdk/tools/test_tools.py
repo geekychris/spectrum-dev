@@ -1,4 +1,4 @@
-"""Tests for the SDK's tools (run by ./zx selftest): mod2ay.py and nextpic.py."""
+"""Tests for the SDK's tools (run by ./zx selftest): mod2ay.py, nextpic.py, aystream.py."""
 import os
 import subprocess
 import sys
@@ -59,6 +59,60 @@ with tempfile.TemporaryDirectory() as tmp:
           pats[0][0] == 0xE3 and pats[1][4] != 0xE3 and all(v == 0xE3 for v in pats[2]))
     check("nextpic: quad_patterns matches patterns' order",
           nextpic.quad_patterns(list(range(1024))) [1][0] == 16 and nextpic.quad_patterns(list(range(1024)))[2][0] == 512)
+
+
+# ---- picture helpers for programs (nextpic.quantize ... group_patterns) and
+# ---- TurboSound streams (aystream.py); the picture ones need numpy
+try:
+    import numpy as np
+except ImportError:
+    np = None
+from aystream import Ay, decode, encode, period  # noqa: E402
+
+if np is None:
+    print("  (numpy missing: nextpic's quantize / RLE helpers not tested)")
+else:
+    idx = np.arange(5 * 3).reshape(5, 3) + 1
+    opaque = np.array([[0, 1, 1], [1, 1, 0], [1, 0, 0], [0, 0, 1], [1, 1, 1]], bool)
+    data = nextpic.rle_columns(idx, opaque)
+    img = np.zeros((5, 3), int)
+    o = 0
+    for x in range(3):
+        y = 0
+        while data[o] != 0xFF:
+            y += data[o]
+            n = data[o + 1]
+            img[y:y + n, x] = list(data[o + 2:o + 2 + n])
+            o += 2 + n
+            y += n
+        o += 1
+    check("nextpic rle_columns round trip", (img == np.where(opaque, idx, 0)).all() and o == len(data))
+    check("nextpic piece header", nextpic.piece(idx, opaque)[:2] == bytes([3, 5]))
+    im = np.arange(20 * 33).reshape(33, 20) % 200
+    b, cols, rows = nextpic.group_patterns(im)
+    check("nextpic group_patterns size", (cols, rows) == (2, 3) and len(b) == 6 * 256)
+    x, y = 17, 21
+    check("nextpic group_patterns layout", b[((y // 16) * cols + x // 16) * 256 + (y % 16) * 16 + x % 16] == im[y, x])
+    check("nextpic group_patterns fill", b[256 + 15] == 0xE3)
+    q = nextpic.quantize(np.random.default_rng(1).integers(0, 256, (500, 3)), 16)
+    check("nextpic quantize: <= n colours in RGB333 steps",
+          len(q) <= 16 and all(v in [(k * 255 + 3) // 7 for k in range(8)] for v in q.reshape(-1)))
+
+ay = Ay()
+ay.tone(0, period(440), 15)
+for _ in range(11):
+    ay.frame()
+ay.loop_here()
+ay.tone(1, 300, 9)
+ay.frame()
+ay.off(1)
+ay.frame()
+s = encode(ay)
+check("aystream round trip", decode(s) == ay.frames)
+check("aystream: 10 unchanged frames are one wait byte", len(s) <= 41, str(len(s)))
+loop = s[0] | s[1] << 8
+check("aystream loop point writes every register", loop != 0xFFFF and s[loop + 1] & 0x3F == 0x3F)
+check("aystream period(440) at 1.75 MHz", period(440) == 249)
 
 print(f"{'FAIL' if failures else 'PASS'}: sdk tools")
 sys.exit(1 if failures else 0)
