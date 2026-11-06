@@ -5,22 +5,25 @@
 #include "nexttile.h"
 
 #define MAP  ((uint8_t *)0x4000)            /* bank 5 offset 0, in slot 2 */
-#define DEFS ((uint8_t *)0x4A00)            /* offset 0x0A00 (into slot 3 past 0x6000) */
+#define DEFS 0x0A00                         /* the definitions' offset in bank 5 */
 
-static uint8_t s2, s3;
+static uint8_t s2;
 
+/* only slot 2 is used, so strings and data anywhere else stay readable */
 static void map_in(void)
 {
     s2 = ZXN_READ_REG(0x52);
-    s3 = ZXN_READ_REG(0x53);
     ZXN_WRITE_REG(0x52, 10);
-    ZXN_WRITE_REG(0x53, 11);
 }
 
-static void map_out(void)
+static void map_out(void) { ZXN_WRITE_REG(0x52, s2); }
+
+/* tile t's definition, mapped into slot 2 (a tile never crosses an 8K page) */
+static uint8_t *def_ptr(uint16_t t)
 {
-    ZXN_WRITE_REG(0x52, s2);
-    ZXN_WRITE_REG(0x53, s3);
+    uint16_t off = DEFS + (t << 5);
+    ZXN_WRITE_REG(0x52, 10 + (off >> 13));
+    return (uint8_t *)0x4000 + (off & 0x1FFF);
 }
 
 void tm_init(void)
@@ -49,23 +52,30 @@ void tm_scroll(uint16_t x, uint8_t y)
 
 void tm_def(uint8_t tile, const uint8_t *defs, uint8_t n)
 {
-    map_in();
-    memcpy(DEFS + ((uint16_t)tile << 5), defs, (uint16_t)n << 5);
-    map_out();
+    static uint8_t t[32];
+    for (; n; n--, tile++, defs += 32) {
+        memcpy(t, defs, 32);                /* defs may be in slot 2 too */
+        map_in();
+        memcpy(def_ptr(tile), t, 32);
+        map_out();
+    }
 }
 
 void tm_font(uint8_t tile, const uint8_t *font, uint8_t n, uint8_t fg, uint8_t bg)
 {
+    static uint8_t t[32];
     uint8_t *d, r, k, bits;
-    map_in();
-    d = DEFS + ((uint16_t)tile << 5);
-    for (; n; n--)
+    for (; n; n--, tile++) {
+        d = t;
         for (r = 0; r < 8; r++) {
             bits = *font++;
             for (k = 0; k < 4; k++, bits <<= 2)
                 *d++ = ((bits & 0x80) ? fg : bg) << 4 | ((bits & 0x40) ? fg : bg);
         }
-    map_out();
+        map_in();
+        memcpy(def_ptr(tile), t, 32);
+        map_out();
+    }
 }
 
 void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow)
@@ -79,14 +89,16 @@ void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow)
                 if (shadow && x < 14 && y < 14 && !px[y + 2][x + 2]) px[y + 2][x + 2] = shadow;
                 px[y][x] = fg;
             }
-    map_in();
-    d = DEFS + ((uint16_t)tile << 5);
     for (t = 0; t < 4; t++) {
+        static uint8_t def[32];
         uint8_t ox = (t & 1) << 3, oy = (t & 2) << 2;
+        d = def;
         for (y = 0; y < 8; y++)
             for (x = 0; x < 8; x += 2) *d++ = px[oy + y][ox + x] << 4 | px[oy + y][ox + x + 1];
+        map_in();
+        memcpy(def_ptr(tile + t), def, 32);
+        map_out();
     }
-    map_out();
 }
 
 void tm_put(uint8_t col, uint8_t row, uint8_t tile, uint8_t pal)
@@ -104,7 +116,7 @@ void tm_print(uint8_t col, uint8_t row, const char *s, uint8_t first, uint8_t pa
 {
     uint8_t *p;
     if (row >= TM_ROWS) return;
-    map_in();
+    map_in();                                /* (s must not be in slot 2) */
     p = MAP + ((uint16_t)row * TM_COLS + col) * 2;
     for (; *s && col < TM_COLS; s++, col++) {
         uint8_t c = (uint8_t)*s;

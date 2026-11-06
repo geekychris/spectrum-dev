@@ -135,6 +135,15 @@ int main(void)
     sprg_mask_rle(img, 2, 2, 0, 0, piece);
     sprg_mask_rect(img, 2, 2, 20, 20, 40, 40);  /* bottom-right 12 x 12 */
     zx_log("lib: mask %u %u %u %u %u\n", img[16], img[0], img[3], img[3 * 256 + 4 * 16 + 4], img[3 * 256 + 3 * 16 + 3]);
+    {
+        /* a 1 x 2 group: the piece at (-1, 13) clips at the left and crosses
+           into the pattern below; piece column 1 (rows 0-5) -> group column 0, rows 13..18; column 3
+           (rows 0 and 4-5) -> group column 2, rows 13 and 17-18 */
+        static uint8_t g[512];
+        memset(g, 2, sizeof(g));
+        sprg_mask_rle(g, 1, 2, -1, 13, piece);
+        zx_log("lib: mask2 %u %u %u %u %u %u\n", g[13 * 16], g[14 * 16], g[15 * 16 + 0], g[256 + 2 * 16], g[256 + 3 * 16], g[13 * 16 + 2]);
+    }
     sprg_upload(0, img, 4);
     zx_log("lib: next sprite=%u\n", sprg_show(0, 200, 100, 2, 2, 0, 0));
     sprg_hide_from(4);

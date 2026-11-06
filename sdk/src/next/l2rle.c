@@ -20,9 +20,11 @@ void l2w_plot(int16_t x, uint8_t y, uint8_t c)
     l2w_done();
 }
 
+extern void l2w_span_core(uint8_t *p, uint16_t n, uint16_t and_or);   /* l2rle_span.asm */
+
 void l2w_span(int16_t x, uint8_t y, uint8_t len, uint8_t and_mask, uint8_t or_mask)
 {
-    uint8_t *p = 0;
+    uint8_t n;
     if (x < 0) {
         if (-x >= len) return;
         len += (uint8_t)x;
@@ -30,10 +32,12 @@ void l2w_span(int16_t x, uint8_t y, uint8_t len, uint8_t and_mask, uint8_t or_ma
     }
     if (x >= 320) return;
     if (x + len > 320) len = (uint8_t)(320 - x);
-    for (; len; len--, x++) {
-        if (!p || (x & 31) == 0) p = l2w_column(x) + y;
-        *p = (*p & and_mask) | or_mask;
-        p += 256;
+    while (len) {                       /* a piece per 8K page (32 columns) */
+        n = 32 - (x & 31);
+        if (n > len) n = len;
+        l2w_span_core(l2w_column(x) + y, n, (uint16_t)or_mask << 8 | and_mask);
+        x += n;
+        len -= n;
     }
     l2w_done();
 }

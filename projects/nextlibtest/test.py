@@ -45,6 +45,9 @@ with Emulator(machine="next") as e:
     check("copper waits fire on their lines (restart at line 248)",
           len(cops) == 3 and all(abs(int(l) - want[v]) <= 1 for v, l in cops), str(cops))
     check("sprite group masks (piece + rect)", "mask 227 2 227 227 2" in log, line("mask"))
+    # piece column 1 (rows 0-5) lands on group column 0, rows 13..18 (row 19 untouched); column 3's
+    # first run on group column 2, row 13; column 0 (rows 1-2) is off the left
+    check("sprite mask clipped, across a pattern row", "mask2 227 227 227 227 2 227" in log, line("mask2"))
     check("sprite group uses 4 sprites", "next sprite=4" in log)
     check("TurboSound stream: registers", "ay r0=35 r1=1 r8=12 busy=1" in log, line("ay r0"))
     check("TurboSound stream: attenuation", "ay atten r8=8" in log, line("ay atten"))

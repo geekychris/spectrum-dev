@@ -8,7 +8,8 @@
  * Memory: in 16K bank 5 (the ULA screen's bank; the ULA is switched off):
  * the map (40 x 32 x 2 bytes: tile, attribute) at offset 0, the tile
  * definitions (32 bytes each, 256 tiles) at offset 0x0A00. Writes map bank
- * 5's pages into MMU slots 2 and 3 and put them back.
+ * 5's pages into MMU slot 2 only and put it back, so the strings and data
+ * you pass can be anywhere but 0x4000-0x5FFF.
  *
  *   tm_init()                    ULA off, tilemap on (40 x 32, attributes),
  *                                every cell tile 0 (define it blank)
