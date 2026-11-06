@@ -119,7 +119,7 @@ def test_debugging():
         r = e.continue_(3000)
         check("breakpoint by symbol (z88dk .map)", r["stopped"] and r["pc"] == main, str(r)[:200])
         st = e.status()["last_stop"]
-        check("status says where and why it halted", st["reason"] == "break" and st["pc"] == main
+        check("status says where and why it halted (breakpoint)", st["why"] == "breakpoint" and st["pc"] == main
               and st["symbol"] == "_main" and "PC=" in (st["break"] or ""), str(st))
         regs = r["regs"]
         check("registers incl. alternates, IX/IY, I/R, IM, IFF",
@@ -128,6 +128,7 @@ def test_debugging():
         e.delete()
         r = e.continue_(25)
         check("continue with a frame limit", not r["stopped"] and r["frames"] == 25, str(r))
+        check("status: halted on the frame limit", e.status()["last_stop"]["why"] == "frame_limit")
 
         pa = e.symbols.lookup("zx_print_at")
         e.break_at(f"${pa:04X}")
@@ -146,6 +147,7 @@ def test_debugging():
         pc0 = e.regs()["PC"]
         s1 = e.stepi(1)
         check("stepi advances one instruction", s1["regs"]["PC"] != pc0)
+        check("status: halted after a step", e.status()["last_stop"]["why"] == "step")
         for _ in range(200):
             nxt = e.disasm("pc", 1)[-1]
             if "CALL" in nxt:
@@ -159,6 +161,7 @@ def test_debugging():
         e.watch("frames", 2, "w")
         r = e.continue_(5)
         check("write watchpoint", r["stopped"] and "Write" in r.get("break", ""), str(r)[:200])
+        check("status: halted on a watchpoint", e.status()["last_stop"]["why"] == "watchpoint")
         e.delete()
         e.watch("bx", 1, "r")
         r = e.continue_(5)
@@ -223,6 +226,13 @@ def test_screens():
         check("sprite visible in the composite", cc[0] > 200 and cc[1] < 60, str(cc))
         ula = e.screenshot(layer="ula")
         check("Next ULA layer has the text", len(ula.crop((8, 8, 240, 16)).getcolors(1 << 16)) >= 2)
+        # tilemap row 30 (bottom border): odd tiles solid yellow, even tiles transparent
+        ty = 2 * (240 + 24) + 4
+        tiles = [full.getpixel((2 * (i * 8 + 16) + 4, ty)) for i in range(4)]
+        check("tilemap in the composite (border stripes)", tiles[1][0] > 200 and tiles[1][1] > 200 and tiles[1][2] < 60
+              and tiles[0] != tiles[1], str(tiles))
+        check("border, Layer 2, sprites, ULA and tilemap all in one frame",
+              full.getpixel((4, 4)) == (0, 0, 0) and len(full.getcolors(1 << 16)) > 100)
 
 
 # ---------------------------------------------------------------- restart
@@ -278,8 +288,67 @@ def test_restart():
 
 # ---------------------------------------------------------------- replay + snapshots
 
+def test_recorder():
+    section("input recorder + per-frame hash replay")
+    for m, prog, ready, keys in (("48k", H48, "hello48: ready", ["Q", "CAPS+H", "SYM+P"]),
+                                 ("next", NEXT, "hellonext: ready", ["X", "EDIT", "CURSOR_LEFT"])):
+        for from_reset in (False, True):
+            how = "from reset" if from_reset else "from a snapshot"
+            path = TMP / f"rec_{m}_{from_reset}.json"
+            with Emulator(machine=m) as e:
+                boot(e, prog, ready)
+                e.record_input("start", from_reset=from_reset)
+                if from_reset:
+                    e.run_until(ready, 3000)
+                for k in keys:
+                    e.press(k)
+                    e.run(9)
+                e.joystick("Sinclair 1")
+                e.hold("RIGHT+FIRE")
+                e.run(7)
+                e.release()
+                e.joystick("Kempston")
+                e.run(20)
+                info = e.record_input("save", path)
+            check(f"{m} {how}: recording has input changes + a hash per frame",
+                  info["events"] >= 2 * len(keys) and info["hashes"] >= info["frames"] - 1, str(info))
+            seqs = []
+            for i in range(2):
+                with Emulator(machine=m) as e:
+                    e.run(13 * i)        # different history before the replay
+                    r = e.replay(path)
+                    seqs.append([h for _, h in r["hashes"]])
+                    check(f"{m} {how}: replay {i + 1} matches every recorded frame hash",
+                          r["ok"] and r["compared"] == info["hashes"], json.dumps({k: r[k] for k in r if k != "hashes"}))
+            check(f"{m} {how}: two replays give identical hash sequences", seqs[0] == seqs[1] and len(seqs[0]) > 0)
+    bad = json.loads((TMP / "rec_48k_True.json").read_text())
+    for ev in bad["events"][1:]:
+        ev["f"] += 3                      # same keys, 3 frames later
+    with Emulator() as e:
+        r = e.replay(bad)
+        check("a shifted input log is caught (hash mismatch)", not r["ok"] and r["mismatches"] > 0)
+    with Emulator() as a, Emulator() as b:
+        b.run(37)
+        b.press("Q")
+        a.load(H48)
+        b.load(H48)
+        same = True
+        for _ in range(150):
+            a.run(1)
+            b.run(1)
+            same = same and a.raw("zxh-hash now") == b.raw("zxh-hash now") and a.regs() == b.regs()
+        check("loads are identical whatever ran before (RAM, registers, FLASH phase)", same)
+    zx = str(ROOT / ".venv" / "bin" / "zxdev")
+    rp = TMP / "cli.json"
+    r1 = subprocess.run([zx, "record", str(H48), "-o", str(rp), "--frames", "300", "--press", "Q@200",
+                         "--type", "Hi@230"], capture_output=True, text=True)
+    r2 = subprocess.run([zx, "replay", str(rp), "--runs", "2"], capture_output=True, text=True)
+    check("./zx record + ./zx replay --runs 2", r1.returncode == 0 and r2.returncode == 0
+          and "identical hash sequences" in r2.stdout, r1.stdout + r1.stderr + r2.stdout + r2.stderr)
+
+
 def test_replay():
-    section("replay + snapshots")
+    section("replay (checkpoints) + snapshots")
     rec_path = TMP / "rec.json"
     with Emulator() as e:
         boot(e, H48, "hello48: ready")
@@ -367,7 +436,7 @@ def main():
         if not f.exists():
             print(f"build first: {f} missing")
             return 2
-    for t in (test_input, test_debugging, test_screens, test_restart, test_replay, test_logging):
+    for t in (test_input, test_debugging, test_screens, test_restart, test_recorder, test_replay, test_logging):
         t()
     print(f"\n{'FAIL: ' + str(len(failures)) + ' failure(s)' if failures else 'PASS'}")
     for f in failures:

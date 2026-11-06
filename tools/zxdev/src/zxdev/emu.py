@@ -238,12 +238,21 @@ class Emulator:
 
     def load(self, path, machine: str | None = None):
         """Reset and load a .tap/.tzx/.sna/.z80/.zsf/.nex (ZEsarUX smartload; tapes
-        autoload through the ROM's LOAD ""). .nex selects the Next. Symbols are
+        autoload through the ROM's LOAD ""). .nex selects the Next; anything else
+        but .zsf moves a Next session back to the 48K. Symbols are
         read from a .map (z88dk) or .sym (sjasmplus) next to the file."""
         p = Path(path).resolve()
         if not p.exists():
             raise EmulatorError(f"{p} not found")
-        want = machine_id(machine) if machine else ("next" if p.suffix.lower() in (".nex", ".snx") else None)
+        ext = p.suffix.lower()
+        if machine:
+            want = machine_id(machine)
+        elif ext in (".nex", ".snx"):
+            want = "next"
+        elif self.machine == "next" and ext not in (".zsf",):
+            want = "48k"      # tapes/.sna/.z80 don't autoload on the Next's TBBlue boot
+        else:
+            want = None
         with self.held():
             if want and want != self.machine:
                 self.set_machine(want)
@@ -778,20 +787,21 @@ class Emulator:
         """Record every input change (agent-injected AND the user's keyboard/joystick
         in the window) with frame + T-state, plus a hash of every frame.
 
-        start: from the current point (a .zsf snapshot is taken to replay from), or
+        start: from the current point (a .zsf snapshot is taken to replay from; the
+               program must be running: snapshots don't hold tape/loader state), or
                from_reset=True: reload the program first and replay from the load.
         stop:  stop recording.
         save:  write the recording (JSON + snapshot next to it); stops if needed.
         status: counts."""
         if action == "start":
-            if from_reset:
-                if not self.program:
-                    raise EmulatorError("from_reset needs a loaded program")
-                self.reload()
-                snap = None
-            else:
-                snap = self.save_state(self._tmp / f"rec-start-{time.monotonic_ns()}.zsf")
-            with self.held():
+            if from_reset and not self.program:
+                raise EmulatorError("from_reset needs a loaded program")
+            with self.held():          # snapshot and start at the same instruction
+                if from_reset:
+                    self.reload()
+                    snap = None
+                else:
+                    snap = self.save_state(self._tmp / f"rec-start-{time.monotonic_ns()}.zsf")
                 pos = self.position()
                 self._cmd("zxh-hash clear")
                 self._cmd("zxh-hash on")
@@ -812,7 +822,10 @@ class Emulator:
                 self._cmd("zxh-rec stop")
                 self._cmd("zxh-hash off")
                 rec["events"] = self._rec_events()
-                rec["hashes"] = self._hashes(rec["frame"])
+                # the frame the recording started in was partly drawn before it
+                # (and a replay can't redo that part): compare whole frames only
+                rec["hashes"] = [h for h in self._hashes(rec["frame"])
+                                 if h[0] > 1 or rec["tstates"] == 0]
                 rec["end"] = {"f": pos["frame"] - rec["frame"], "t": pos["tstates"]}
             rec["done"] = True
         if action == "stop":
@@ -830,6 +843,7 @@ class Emulator:
             if rec["snapshot"]:
                 snap = p.with_suffix(".zsf")
                 shutil.copy(rec["snapshot"], snap)
+                shutil.copy(rec["snapshot"] + ".beam", str(snap) + ".beam")
                 out["start"]["snapshot"] = snap.name
             p.write_text(json.dumps(out, indent=None, separators=(",", ":")))
             return {"path": str(p), "events": len(out["events"]), "frames": rec["end"]["f"],
@@ -1168,10 +1182,13 @@ class Emulator:
         tmp = self._tmp / f"state{p.suffix}" if " " in str(p) else p
         with self.held():
             self._cmd(f"snapshot-save {tmp}")
+            beam = self._cmd("zxh-tstates").strip()
         if tmp != p:
             shutil.move(tmp, p)
         if not p.exists():
             raise EmulatorError(f"snapshot not written: {p}")
+        # snapshots don't hold the position inside the frame: keep it beside
+        Path(str(p) + ".beam").write_text(beam + "\n")
         return str(p)
 
     def load_state(self, path) -> dict:
@@ -1181,10 +1198,13 @@ class Emulator:
         p = p.resolve()
         if not p.exists():
             raise EmulatorError(f"{p} not found")
+        beam = Path(str(p) + ".beam")         # position in the frame (save_state writes it)
         if " " in str(p):
             shutil.copy(p, self._tmp / f"state{p.suffix}")
             p = self._tmp / f"state{p.suffix}"
         with self.held():
             self._cmd(f"snapshot-load {p}")
+            if beam.exists():
+                self._cmd(f"zxh-tstates {beam.read_text().strip()}")
         self.machine = _MACHINE_NAMES.get(self._cmd("get-current-machine").strip(), self.machine)
         return self.status()

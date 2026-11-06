@@ -131,8 +131,41 @@ def cmd_video(a) -> int:
     return 0
 
 
+def cmd_record(a) -> int:
+    """Record a scripted run from the load (agent input) as a v2 recording."""
+    prog = resolve_program(a.program)
+    with Emulator(machine=_machine_for(prog, a.machine)) as emu:
+        emu.load(prog)
+        # from the reset: a snapshot taken while a tape is loading misses the tape state
+        emu.record_input("start", from_reset=True)
+        _drive(emu, a.frames, _timed(a))
+        r = emu.record_input("save", a.output)
+    print(f"{r['path']}: {r['events']} input changes, {r['frames']} frames, {r['hashes']} frame hashes")
+    return 0
+
+
 def cmd_replay(a) -> int:
     rec = json.loads(Path(a.file).read_text())
+    if rec.get("version") == 2:
+        digests = []
+        ok = True
+        for i in range(a.runs):
+            with Emulator(machine=rec.get("machine") or "48k") as emu:
+                r = emu.replay(a.file, verify=True)
+                if a.output and i == 0:
+                    emu.screenshot(a.output)
+            seq = [h for _, h in r["hashes"]]
+            digests.append(seq)
+            print(f"  {'PASS' if r['ok'] else 'FAIL'} run {i + 1}: {r.get('compared', 0)} frame hashes compared, "
+                  f"{r.get('mismatches', 0)} mismatches"
+                  + (f" (first at frame {r['first_mismatch']})" if r.get("first_mismatch") is not None else ""))
+            ok = ok and r["ok"]
+        if a.runs > 1:
+            same = all(d == digests[0] for d in digests)
+            print(f"  {'PASS' if same else 'FAIL'} {a.runs} replays give identical hash sequences ({len(digests[0])} frames)")
+            ok = ok and same
+        print(f"{'PASS' if ok else 'FAIL'}: replay of {Path(rec['program']).name}, {len(rec['events'])} input changes")
+        return 0 if ok else 1
     with Emulator(machine=rec.get("machine") or "48k") as emu:
         r = emu.replay(rec, verify=True)
         if a.output:
@@ -251,6 +284,18 @@ def main(argv=None) -> int:
     p = sub.add_parser("replay")
     p.add_argument("file")
     p.add_argument("-o", "--output", help="screenshot at the end")
+    p.add_argument("--runs", type=int, default=1, help="replay N times and require identical hash sequences")
+
+    p = sub.add_parser("record")
+    p.add_argument("program")
+    p.add_argument("-o", "--output", default="recording.json")
+    p.add_argument("--machine")
+    p.add_argument("--frames", type=int, default=500)
+    p.add_argument("--press", action="append", metavar="KEYS@FRAME")
+    p.add_argument("--hold", action="append", metavar="KEYS@FRAME")
+    p.add_argument("--release", action="append", metavar="KEYS@FRAME")
+    p.add_argument("--type", action="append", metavar="TEXT@FRAME")
+    p.add_argument("--script")
 
     p = sub.add_parser("ctl")
     p.add_argument("--port", type=int)
@@ -284,7 +329,7 @@ def main(argv=None) -> int:
         devbench(a.port, a.host, a.open)
         return 0
     return {"test": cmd_test, "log": cmd_log, "shot": cmd_shot, "ctl": cmd_ctl,
-            "video": cmd_video, "replay": cmd_replay,
+            "video": cmd_video, "replay": cmd_replay, "record": cmd_record,
             "sessions": cmd_sessions, "symbols": cmd_symbols}[a.cmd](a)
 
 

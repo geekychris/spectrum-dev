@@ -109,7 +109,7 @@ index a8f5c69..1aa8169 100644
          fflush(stdout);
      break;
 diff --git a/src/video/screen.c b/src/video/screen.c
-index 8d26e74..c41cbb9 100644
+index 8d26e74..1514e1d 100644
 --- a/src/video/screen.c
 +++ b/src/video/screen.c
 @@ -67,6 +67,7 @@
@@ -134,7 +134,7 @@ index 8d26e74..c41cbb9 100644
              top_speed_real_frames=1;
              debug_printf (VERBOSE_DEBUG,"Refreshing screen on top speed");
 -            scr_refresca_pantalla();
-+            if (zxh_host_io_allowed()) scr_refresca_pantalla(); //zxh: window only from the main thread
++            if (zxh_window_refresh()) scr_refresca_pantalla(); //zxh: window only from the main thread (1 in 8 in turbo)
              frameskip_counter=frameskip;
              stats_frames_total_drawn++;
  
@@ -143,7 +143,7 @@ index 8d26e74..c41cbb9 100644
      if (screen_if_refresh() ) {
          //printf ("refrescando\n");
 -        scr_refresca_pantalla();
-+        if (zxh_host_io_allowed()) scr_refresca_pantalla(); //zxh: window only from the main thread
++        if (zxh_window_refresh()) scr_refresca_pantalla(); //zxh: window only from the main thread (1 in 8 in turbo)
          frameskip_counter=frameskip;
          stats_frames_total_drawn++;
      }

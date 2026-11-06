@@ -29,7 +29,8 @@ extern void zxh_end_frame(void);
    passed" tick comes from emulated frames, not the host clock. */
 extern int zxh_timer_tick(int host_tick);
 
-/* screen.c: nonzero = render this frame (no frameskip). */
+/* screen.c: nonzero = render this frame (no frameskip): in nowait mode and
+   while frames are hashed. */
 extern int zxh_force_render(void);
 
 /* core_spectrum.c, screen.c: nonzero on the main thread. Host keyboard,
@@ -38,6 +39,9 @@ extern int zxh_force_render(void);
    main thread (macOS aborts otherwise). The rendered frame (rainbow buffer,
    used by screenshots) is unaffected. */
 extern int zxh_host_io_allowed(void);
+
+/* screen.c: present this frame in the window (main thread; 1 in 8 in turbo). */
+extern int zxh_window_refresh(void);
 
 /* tbblue.c: value of NextReg 0xB0 / 0xB1 (extended keys), set by zxh-nextkeys. */
 extern int zxh_next_extkeys(unsigned char reg);

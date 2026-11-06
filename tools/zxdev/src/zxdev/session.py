@@ -87,7 +87,12 @@ class Session:
                                           "events": len(e.input_log())},
                             "save_replay(path): input log + checkpoints since load -> JSON"),
             "replay": (lambda path, verify=True: e.replay(self._rel(path), verify),
-                       "replay(path, verify=true): reload, re-apply inputs, compare screen hashes"),
+                       "replay(path, verify=true): restart from the recording's reset/snapshot, re-apply "
+                       "inputs, compare per-frame screen hashes"),
+            "record_input": (lambda action="start", path=None, from_reset=False:
+                             e.record_input(action, self._rel(path) if path else None, from_reset),
+                             "record_input(action=start|stop|save|status, path?, from_reset=false): "
+                             "record agent + window input and per-frame hashes"),
             "screen_hash": (lambda layer="screen": {"md5": e.screen_hash(layer)}, "screen_hash(layer=screen)"),
             "record_video": (lambda path, frames=100, every=1, scale=1, layer="screen":
                              e.record_video(self._rel(path), frames, every, scale, layer),

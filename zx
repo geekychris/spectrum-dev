@@ -11,7 +11,7 @@
 #   ./zx log <project> [--frames N] [--press KEYS@FRAME]   guest log (zx_log) dump
 #   ./zx shot <project> -o out.png [--until TEXT] [--press KEYS@FRAME] [--layer ula|layer2|sprites]
 #   ./zx video <project> -o out.gif|.mp4 [--until TEXT] [--frames N]
-#   ./zx log <project> --press Q@200 --record r.json ; ./zx replay r.json   deterministic replay
+#   ./zx record <project> -o r.json --press Q@200 ; ./zx replay r.json --runs 2   deterministic replay
 #   ./zx ctl [--port N] <cmd> [key=value ...]               remote-control a session (ctl help)
 #   ./zx sessions                running sessions
 #   ./zx symbols <project> [regex]
@@ -47,7 +47,7 @@ case "$cmd" in
   devbench|ctl|sessions)
            need_zxdev; exec "$ZXDEV" "$cmd" "$@" ;;
   replay)  need_zxdev; need_emu; exec "$ZXDEV" replay "$@" ;;
-  run|serve|log|shot|symbols|video)
+  run|serve|log|shot|symbols|video|record)
            need_zxdev; need_emu
            if [ $# -ge 1 ] && [ -f "$ROOT/projects/$1/Makefile" ]; then
              # rebuild projects so you always run what you just edited

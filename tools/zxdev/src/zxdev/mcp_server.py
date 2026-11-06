@@ -278,9 +278,18 @@ def emu_screenshot(path: str, border: bool = True, scale: int = 1, layer: str = 
 @server.tool()
 def emu_record_video(path: str, frames: int = 100, every: int = 1, scale: int = 1,
                      layer: str = "screen") -> str:
-    """Record frames to .gif, .mp4 (ffmpeg) or a directory of PNGs. Paused sessions
-    advance `frames` frames deterministically while recording."""
+    """Record frames to .gif, .mp4 or a directory of PNGs. MP4 needs ffmpeg on PATH (not
+    installed by us; you get an error otherwise). Paused sessions advance `frames` frames
+    deterministically while recording."""
     return _j(_call("record_video", path=path, frames=frames, every=every, scale=scale, layer=layer))
+
+
+@server.tool()
+def emu_record_gif(path: str, frames: int = 100, every: int = 2, scale: int = 1) -> str:
+    """Record N frames as an animated GIF (every = keep one frame in `every`)."""
+    if not path.lower().endswith(".gif"):
+        path += ".gif"
+    return _j(_call("record_video", path=path, frames=frames, every=every, scale=scale))
 
 
 @server.tool()
@@ -311,10 +320,26 @@ def emu_save_replay(path: str) -> str:
 
 
 @server.tool()
+def emu_record_input(action: str = "start", path: str = "", from_reset: bool = False) -> str:
+    """Record every input change - yours AND the user's keyboard/joystick in the window -
+    with its frame + T-state, plus a hash of every frame.
+    action: start (from now: a snapshot is taken to replay from; from_reset=True reloads
+    the program and records from the load), stop, save (path: JSON + .zsf beside it), status."""
+    return _j(_call("record_input", action=action, path=path or None, from_reset=from_reset))
+
+
+@server.tool()
 def emu_replay(path: str, verify: bool = True) -> str:
-    """Reload the replay's program and re-apply its inputs at the same frames and
-    T-states; report whether every checkpoint's screen hash matches."""
-    return _j(_call("replay", path=path, verify=verify))
+    """Replay a recording (emu_record_input save, or emu_save_replay): restart from its
+    reset/snapshot, re-apply the inputs at the same frames/T-states, and check the screen
+    hashes (every frame for emu_record_input recordings). Result has ok, compared, mismatches,
+    first_mismatch; per-frame hashes are summarised."""
+    r = _call("replay", path=path, verify=verify)
+    if isinstance(r.get("hashes"), list):
+        hs = r.pop("hashes")
+        r["hash_count"] = len(hs)
+        r["hash_digest"] = __import__("hashlib").md5("".join(h for _, h in hs).encode()).hexdigest()
+    return _j(r)
 
 
 @server.tool()

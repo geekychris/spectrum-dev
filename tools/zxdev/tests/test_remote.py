@@ -6,6 +6,7 @@ Needs projects/hello48 and projects/hellonext built.
 import asyncio
 import json
 import os
+import threading
 import socket
 import subprocess
 import sys
@@ -18,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools" / "zxdev" / "src"))
 
 from zxdev.control import ProtocolError, SessionClient, list_sessions  # noqa: E402
+from zxdev.zrcp import Zrcp  # noqa: E402
 
 TAP = ROOT / "projects" / "hello48" / "build" / "hello48.tap"
 NEX = ROOT / "projects" / "hellonext" / "build" / "hellonext.nex"
@@ -171,6 +173,17 @@ def test_mcp():
                 check("MCP record + replay", '"ok": true' in res.content[0].text, res.content[0].text[:300])
                 res = await call("emu_record_video", path=str(ROOT / "build" / "mcp.gif"), frames=10)
                 check("MCP emu_record_video", '"frames": 10' in res.content[0].text, res.content[0].text[:200])
+                res = await call("emu_record_gif", path=str(ROOT / "build" / "mcp2.gif"), frames=20, every=2)
+                check("MCP emu_record_gif", '"frames": 10' in res.content[0].text, res.content[0].text[:200])
+                await call("emu_record_input", action="start")
+                await call("emu_press", keys="CAPS+SYM")
+                await call("emu_run", frames=20)
+                rp2 = str(ROOT / "build" / "mcp-rec.json")
+                res = await call("emu_record_input", action="save", path=rp2)
+                check("MCP emu_record_input start/save", '"hashes": 25' in res.content[0].text, res.content[0].text[:300])
+                res = await call("emu_replay", path=rp2)
+                check("MCP emu_replay (per-frame hashes)", '"ok": true' in res.content[0].text
+                      and '"mismatches": 0' in res.content[0].text, res.content[0].text[:300])
                 res = await call("emu_machine", name="128k")
                 res = await call("emu_read_mem", addr="0", length=4, bank=5)
                 check("MCP banked read (128K)", res.content[0].text.startswith("0000"), res.content[0].text)
@@ -276,8 +289,46 @@ def test_window():
         c.call("press", keys="EDIT", hold_frames=5)
         time.sleep(0.3)
         check("window: Next extra key EDIT", "b1=40" in c.call("log")["text"])
+        # recording in the window: the user's keys (ZEsarUX's host-keyboard path via
+        # send-keys-event) and agent keys, replayed headless must match every frame
+        c.call("load", path=str(TAP))
+        c.call("run_until", text="hello48: ready", max_frames=3000)
+        time.sleep(1)
+        host = Zrcp(next(s for s in list_sessions() if s["pid"] == c.info["pid"])["zrcp_port"])
+
+        def hostkey(ch):
+            host.cmd(f"send-keys-event {ord(ch)} 1")
+            time.sleep(0.12)
+            host.cmd(f"send-keys-event {ord(ch)} 0")
+            time.sleep(0.12)
+        c.call("log")
+        c.call("record_input", action="start")
+        hostkey("w")
+        c.call("press", keys="E", hold_frames=5)
+        hostkey("r")
+        time.sleep(0.4)
+        rec = c.call("record_input", action="save", path=str(ROOT / "build" / "win-rec.json"))
+        t = c.call("log")["text"]
+        check("window: user keys and agent keys reach the program", all(f"key {k}" in t for k in "wer"), t)
+        from zxdev.emu import Emulator
+        with Emulator() as e:
+            r = e.replay(ROOT / "build" / "win-rec.json")
+        check("window recording (user + agent input) replays headless, every frame hash equal",
+              r["ok"] and r["compared"] == rec["hashes"], json.dumps({k: r[k] for k in r if k != "hashes"}))
+        # typing in the window while it fast-forwards
+        c.call("log")
+        out = {}
+        th = threading.Thread(target=lambda: out.update(c.call("run", frames=1500)))
+        th.start()
+        time.sleep(0.4)
+        hostkey("t")
+        th.join(60)
+        t = c.call("log")["text"]
+        check("window: keys typed during fast-forward reach the program", "key t" in t and out.get("frames", 0) >= 1500,
+              t + str(out))
+        host.close()
         check("registry follows the restart", next(s for s in list_sessions()
-                                                    if s["pid"] == c.info["pid"])["machine"] == "next")
+                                                    if s["pid"] == c.info["pid"])["machine"] == "48k")
     finally:
         c.close(stop=True)
 

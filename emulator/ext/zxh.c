@@ -32,6 +32,8 @@
  *                              NextReg 0xB0/0xB1) from any source, as
  *                              "FRAME TSTATE HEX24" lines (log)
  *   zxh-input-set HEX24        set that whole state (replay)
+ *   zxh-tstates [T L D]        get/set the beam position (T-state, scanline, draw
+ *                              line); snapshots don't store it
  *   zxh-sync [ram]             reset the FLASH phase and (ram) zero RAM, which
  *                              ZEsarUX's hard reset leaves alone, so a load is
  *                              the same whatever ran before it
@@ -138,7 +140,12 @@ int zxh_timer_tick(int host_tick)
     return t;
 }
 
-int zxh_force_render(void) { return zxh_nowait; }
+static int zxh_hash_on;
+
+/* every frame rendered into the frame buffer (no frameskip) while running
+   without pacing or while hashing frames: hashes/screenshots never see a
+   skipped frame */
+int zxh_force_render(void) { return zxh_nowait || zxh_hash_on; }
 
 #ifdef USE_PTHREADS
 static pthread_t zxh_main_thread;
@@ -158,6 +165,13 @@ int zxh_host_io_allowed(void)
 #else
 int zxh_host_io_allowed(void) { return 1; }
 #endif
+
+/* present the frame in the window: main thread only, and in turbo only one
+   frame in 8 (window presentation would otherwise cap fast-forward speed) */
+int zxh_window_refresh(void)
+{
+    return zxh_host_io_allowed() && (!zxh_nowait || (zxh_frames & 7) == 0);
+}
 
 /* ---- Spectrum Next extended keys (NextReg 0xB0/0xB1), injected by zxh-nextkeys.
    ZEsarUX does not emulate these registers; bits are 1 while a key is held:
@@ -232,7 +246,6 @@ void zxh_input_poll(void)
 /* ---- per-frame screen hashes (FNV-1a over the rendered frame) ---- */
 
 #define ZXH_HASH_MAX 500000
-static int zxh_hash_on = 0;
 static unsigned long *zxh_hash_frame = NULL;
 static unsigned int *zxh_hash_val = NULL;
 static long zxh_hash_len = 0, zxh_hash_cap = 0;
@@ -582,6 +595,17 @@ void zxh_remote_command(int sock, char *command, char *params)
         }
         escribir_socket_format(sock, "ok cleared=%d", cleared);
     }
+    else if (!strcmp(command, "zxh-tstates")) {
+        /* the beam position inside the frame. Snapshots (even .zsf) don't store
+           it and a load restarts the frame at T-state 0; restoring it keeps a
+           resumed run in step with the original. */
+        if (argc >= 3) {
+            t_estados = atoi(argv[0]);
+            t_scanline = atoi(argv[1]);
+            t_scanline_draw = atoi(argv[2]);
+        }
+        escribir_socket_format(sock, "%d %d %d", t_estados, t_scanline, t_scanline_draw);
+    }
     else if (!strcmp(command, "zxh-rec")) zxh_cmd_rec(sock, argc, argv);
     else if (!strcmp(command, "zxh-input-set")) zxh_cmd_input_set(sock, argc, argv);
     else if (!strcmp(command, "zxh-hash")) zxh_cmd_hash(sock, argc, argv);
@@ -604,6 +628,7 @@ void zxh_remote_command(int sock, char *command, char *params)
             "zxh-rec start|stop|status|log [since]\n"
             "zxh-input-set HEX24\n"
             "zxh-sync [ram]\n"
+            "zxh-tstates [T SCANLINE DRAWLINE]\n"
             "zxh-hash on|off|clear|now|status|get [since]\n");
     }
     else {
