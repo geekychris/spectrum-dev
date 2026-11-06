@@ -103,6 +103,10 @@ $(SDK_LIB): $(SDK_OBJS)
 $(OUT): $(OBJS) $(SDK_LIB) $(wildcard zpragma.inc)
 	zcc $(LDFLAGS) $(OBJS) -L$(BUILD) -lzxsdk -o $(BUILD)/$(NAME) $(APPFLAGS)
 	@rm -f $(BUILD)/$(NAME)
+	@# frame_init() puts the IM 2 table at 0xF000: code + data must end below it
+	@end=$$(awk '/^__BSS_END_tail/ {print $$3}' $(BUILD)/$(NAME).map | tr -d '$$'); \
+	 if [ -n "$$end" ] && [ $$((0x$$end)) -gt $$((0xF000)) ]; then \
+	   echo "error: $(NAME) ends at 0x$$end, above 0xF000 (frame_init's IM 2 table)"; rm -f $@; exit 1; fi
 
 # every object depends on all headers: simple and safe for small projects
 HDRS := $(wildcard $(SRC_DIR)/*.h) $(wildcard $(SDK_DIR)/include/*.h)

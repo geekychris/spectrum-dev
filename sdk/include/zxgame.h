@@ -6,8 +6,8 @@
  *   fixed point   fix8 = 8.8; fix_mul/fix_div; fix_sin/fix_cos (256 steps per
  *                 turn, table); fix_atan2; isqrt16
  *   random        rnd_seed / rnd16 / rnd_range   (xorshift, deterministic)
- *   frame timer   frame_wait(): HALT on the 50 Hz interrupt; counts frames and
- *                 overruns (missed frames)
+ *   frame timer   frame_init() installs IM 2; frame_wait(): HALT on the 50 Hz
+ *                 interrupt; counts frames and overruns (missed frames)
  *   input         input_init (detects a Kempston), input_read: keys + Kempston
  *                 + Sinclair/cursor joysticks -> IN_* bits; input_pressed: edges
  *   sound         beeper effects (blocking, short); AY (128K/+2/+3/Next) tone,
@@ -45,8 +45,14 @@ extern uint16_t rnd_range(uint16_t n);     /* 0..n-1 */
 
 /* ------------------------------------------------------------ frame timer */
 
-extern void frame_init(void);              /* enable interrupts, reset counters */
-extern void frame_wait(void);              /* wait for the next frame (HALT) */
+/* IM 2 with our own handler (the ROM's IM 1 handler needs IY = 0x5C3A, which
+   compiled C does not keep). Uses 0xF000-0xF1F3: keep the program below 0xF000. */
+extern void frame_init(void);              /* install IM 2, enable interrupts, reset counters */
+/* wait for the next frame (HALT); returns how many frames passed since the last
+   call (1 = on time). Fixed-timestep games run their logic that many times. */
+extern uint8_t frame_wait(void);
+extern volatile uint8_t frame_ticks;       /* incremented by the interrupt */
+extern void (*frame_hook)(void);           /* called from the interrupt each frame if set */
 extern uint16_t frame_count;               /* frames since frame_init (waits) */
 extern uint16_t frame_overruns;            /* frames the game took too long for */
 
@@ -112,6 +118,7 @@ extern void spr_clear(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8
 /* clear / fill pixel lines y..y+h-1 between byte columns c0..c0+wc-1 */
 extern void gfx_clear_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h);
 extern void gfx_fill_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h, uint8_t pattern);
+extern const uint8_t gfx_bit[8];           /* 0x80 >> n */
 extern void gfx_plot(uint8_t x, uint8_t y);
 extern void gfx_unplot(uint8_t x, uint8_t y);
 extern uint8_t gfx_point(uint8_t x, uint8_t y);

@@ -40,8 +40,8 @@ void hs_draw(uint8_t col, uint8_t row)
     char line[2] = {0, 0};
     for (i = 0; i < HS_ENTRIES; i++) {
         line[0] = '1' + i;
-        zx_print_at(col, row + i * 2, line);
-        zx_print_at(col + 2, row + i * 2, hs_table[i].name);
-        text_num(col + 7, row + i * 2, hs_table[i].score, 6);
+        zx_print_at(col, row + i, line);
+        zx_print_at(col + 2, row + i, hs_table[i].name);
+        text_num(col + 7, row + i, hs_table[i].score, 6);
     }
 }

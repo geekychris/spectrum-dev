@@ -32,20 +32,30 @@ void spr_preshift(const uint8_t *src, uint8_t w, uint8_t h, uint8_t *dst)
     }
 }
 
+/* the per-line work is spr_blit (spr_blit.asm), driven through globals */
+extern const uint8_t *spr_src;
+extern uint8_t spr_col, spr_y, spr_n, spr_lines, spr_stride, spr_mode;
+extern void spr_blit(void);
+
 /* op: 0 xor, 1 or, 2 and-not */
 static void spr_op(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h, uint8_t op)
 {
-    uint8_t col = x >> 3, n = w + 1, lines, i;
-    const uint8_t *p = pre + (uint16_t)(x & 7) * n * h;
+    uint8_t col = x >> 3, n = w + 1;
+    if (y >= 192) return;
     if (col + n > 32) n = 32 - col;                  /* clip right */
-    lines = y + h > 192 ? 192 - y : h;
-    while (lines--) {
-        uint8_t *d = zx_row[y++] + col;
-        if (op == 0) for (i = 0; i < n; i++) d[i] ^= p[i];
-        else if (op == 1) for (i = 0; i < n; i++) d[i] |= p[i];
-        else for (i = 0; i < n; i++) d[i] &= ~p[i];
-        p += w + 1;
+    {   /* pre + (x & 7) * (w + 1) * h, without a multiply */
+        uint16_t stride = (uint16_t)(w + 1) * h;
+        uint8_t k = x & 7;
+        spr_src = pre;
+        while (k--) spr_src += stride;
     }
+    spr_col = col;
+    spr_y = y;
+    spr_n = n;
+    spr_lines = y + h > 192 ? 192 - y : h;
+    spr_stride = w + 1;
+    spr_mode = op;
+    spr_blit();
 }
 
 void spr_xor(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h) { spr_op(x, y, pre, w, h, 0); }
@@ -63,19 +73,21 @@ void gfx_clear_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h)
     gfx_fill_rect(c0, y, wc, h, 0);
 }
 
+const uint8_t gfx_bit[8] = {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
+
 void gfx_plot(uint8_t x, uint8_t y)
 {
-    if (y < 192) zx_row[y][x >> 3] |= 0x80 >> (x & 7);
+    if (y < 192) zx_row[y][x >> 3] |= gfx_bit[x & 7];
 }
 
 void gfx_unplot(uint8_t x, uint8_t y)
 {
-    if (y < 192) zx_row[y][x >> 3] &= ~(0x80 >> (x & 7));
+    if (y < 192) zx_row[y][x >> 3] &= ~gfx_bit[x & 7];
 }
 
 uint8_t gfx_point(uint8_t x, uint8_t y)
 {
-    return y < 192 && (zx_row[y][x >> 3] & (0x80 >> (x & 7))) ? 1 : 0;
+    return y < 192 && (zx_row[y][x >> 3] & gfx_bit[x & 7]) ? 1 : 0;
 }
 
 void gfx_hline(uint8_t x0, uint8_t x1, uint8_t y)

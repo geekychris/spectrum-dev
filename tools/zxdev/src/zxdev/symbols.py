@@ -80,14 +80,15 @@ class Symbols:
             raise ValueError(f"unknown symbol or address: {expr!r}") from None
 
     def name_of(self, addr: int) -> str | None:
-        """Nearest symbol at or below addr, as name or name+0xN. Public symbols
-        (functions, globals) win over compiler-local labels (l_main_00116)."""
-        for public_only in (True, False):
+        """Nearest symbol at or below addr, as name or name+0xN. Named code and
+        data (public, or static C functions/variables) win over compiler-local
+        labels (l_main_00116, i_1) and linker symbols (__head)."""
+        def named(n):
+            return not (n.startswith(("l_", "i_", "__")) or n[:1].isdigit())
+        for pick in (named, lambda n: True):
             best = None
             for n, a in self.addr.items():
-                if a > addr or addr - a > 0x1000:
-                    continue
-                if public_only and self.info.get(n, {}).get("scope", "public") != "public":
+                if a > addr or addr - a > 0x1000 or not pick(n):
                     continue
                 if best is None or a > best[1] or (a == best[1] and n.startswith("_")):
                     best = (n, a)

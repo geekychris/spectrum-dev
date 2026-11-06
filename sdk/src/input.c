@@ -8,21 +8,24 @@ uint8_t input_kempston;
 uint8_t input_last;
 static uint8_t input_prev;
 
-/* a key: half-row port high byte + bit, and what it means */
+/* a key: half-row index (0 = 0xFEFE ... 7 = 0x7FFE), bit, and what it means */
 typedef struct { uint8_t row, mask, bits; } keymap;
 static const keymap keys[] = {
-    {0xDF, 0x02, IN_LEFT}, {0xDF, 0x01, IN_RIGHT},        /* O P */
-    {0xFB, 0x01, IN_UP},   {0xFD, 0x01, IN_DOWN},         /* Q A */
-    {0xEF, 0x10, IN_LEFT}, {0xEF, 0x08, IN_RIGHT},        /* Sinclair 1: 6 7 */
-    {0xEF, 0x04, IN_DOWN}, {0xEF, 0x02, IN_UP},           /*             8 9 */
-    {0xEF, 0x01, IN_FIRE},                                /*             0 */
-    {0xF7, 0x01, IN_LEFT}, {0xF7, 0x02, IN_RIGHT},        /* Sinclair 2: 1 2 */
-    {0xF7, 0x04, IN_DOWN}, {0xF7, 0x08, IN_UP},           /*             3 4 */
-    {0xF7, 0x10, IN_FIRE},                                /*             5 */
-    {0x7F, 0x01, IN_FIRE}, {0x7F, 0x04, IN_FIRE},         /* SPACE M */
-    {0xFE, 0x02, IN_FIRE2},                               /* Z */
-    {0xBF, 0x01, IN_START},                               /* ENTER */
+    {5, 0x02, IN_LEFT}, {5, 0x01, IN_RIGHT},          /* O P */
+    {2, 0x01, IN_UP},   {1, 0x01, IN_DOWN},           /* Q A */
+    {4, 0x10, IN_LEFT}, {4, 0x08, IN_RIGHT},          /* Sinclair 1: 6 7 */
+    {4, 0x04, IN_DOWN}, {4, 0x02, IN_UP},             /*             8 9 */
+    {4, 0x01, IN_FIRE},                               /*             0 */
+    {3, 0x01, IN_LEFT}, {3, 0x02, IN_RIGHT},          /* Sinclair 2: 1 2 */
+    {3, 0x04, IN_DOWN}, {3, 0x08, IN_UP},             /*             3 4 */
+    {3, 0x10, IN_FIRE},                               /*             5 */
+    {7, 0x01, IN_FIRE}, {7, 0x04, IN_FIRE},           /* SPACE M */
+    {0, 0x02, IN_FIRE2},                              /* Z */
+    {6, 0x01, IN_START},                              /* ENTER */
 };
+#define NKEYS (sizeof(keys) / sizeof(keys[0]))
+static const uint16_t row_port[8] = {0xFEFE, 0xFDFE, 0xFBFE, 0xF7FE, 0xEFFE, 0xDFFE, 0xBFFE, 0x7FFE};
+static uint8_t rows_now[8];
 
 void input_init(void)
 {
@@ -37,12 +40,12 @@ void input_init(void)
 uint8_t input_read(void)
 {
     uint8_t i, b = 0, r;
-    for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-        r = z80_inp(((uint16_t)keys[i].row << 8) | 0xFE);
-        if (!(r & keys[i].mask)) b |= keys[i].bits;
-    }
+    const keymap *k = keys;
+    for (i = 0; i < 8; i++) rows_now[i] = z80_inp(row_port[i]);
+    for (i = 0; i < NKEYS; i++, k++)
+        if (!(rows_now[k->row] & k->mask)) b |= k->bits;
     /* BREAK = CAPS SHIFT + SPACE: not a fire */
-    if (!(z80_inp(0xFEFE) & 0x01) && !(z80_inp(0x7FFE) & 0x01)) b = (b & ~IN_FIRE) | IN_QUIT;
+    if (!(rows_now[0] & 0x01) && !(rows_now[7] & 0x01)) b = (b & ~IN_FIRE) | IN_QUIT;
     if (input_kempston) {
         r = z80_inp(0x001F);
         if (r & 0x01) b |= IN_RIGHT;

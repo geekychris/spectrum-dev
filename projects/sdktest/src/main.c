@@ -9,7 +9,7 @@
 #include "zxlog.h"
 #include "zxtext.h"
 
-#define FRAMES (*(volatile uint8_t *)23672)
+#define FRAMES frame_ticks       /* counted by the SDK's IM 2 handler */
 
 /* a 16x4 test sprite: a bar with a notch */
 static const uint8_t bar[8] = {0xFF, 0xFF, 0x81, 0x81, 0x81, 0x81, 0xFF, 0xFF};

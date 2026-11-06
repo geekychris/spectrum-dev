@@ -82,7 +82,8 @@ def cmd_test(a) -> int:
     prog = resolve_program(a.program)
     with Emulator(machine=_machine_for(prog, a.machine)) as emu:
         emu.load(prog)
-        emu.run_until("ZX:", a.frames)
+        if emu.run_until("ZX:", a.frames):
+            emu.run(2)                    # let it finish the line ("ZX:DONE")
         text = emu.log(0)
     print(text, end="" if text.endswith("\n") else "\n")
     if "ZX:FAIL" in text:

@@ -1,0 +1,187 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Chris Collins <chris@hitorro.com>
+
+#ifndef GAME_H
+#define GAME_H
+
+#include "amiga_types.h"
+
+/* Screen (ZX Spectrum port: 256x192; positions scaled from 320x256 and
+   rows aligned to 8-pixel character rows so attribute colours never clash) */
+#define SCREEN_W 256
+#define SCREEN_H 192
+#define SCREEN_DEPTH 4
+
+/* Alien swarm: staggered rows, odd rows shifted half a cell right */
+#define ALIEN_COLS 8
+#define ALIEN_ROWS 6
+#define ALIEN_W 14
+#define ALIEN_H 8
+#define ALIEN_CELL_W 22
+#define ALIEN_CELL_H 8       /* port: one character row per alien row; drops to the
+                               shields/player as in the original (9 / 12 drops) */
+#define ALIEN_ROW_SHIFT(r) (((r) & 1) ? ALIEN_CELL_W / 2 : 0)
+#define ALIEN_GRID_W (ALIEN_COLS * ALIEN_CELL_W + ALIEN_CELL_W / 2)
+#define ALIEN_START_X ((SCREEN_W - ALIEN_GRID_W) / 2)
+#define ALIEN_START_Y 24
+/* port (speed, same values): offsets from tables instead of multiplies */
+extern const WORD alien_col_off[2][8];    /* [row & 1][c] = c * ALIEN_CELL_W + ALIEN_ROW_SHIFT(row) */
+extern const WORD alien_row_off[6];       /* r * ALIEN_CELL_H */
+#define ALIEN_X(gs, r, c) ((gs)->swarm.grid_x + alien_col_off[(r) & 1][c])
+#define ALIEN_Y(gs, r)    ((gs)->swarm.grid_y + alien_row_off[r])
+
+/* Alien types by row pair (top to bottom) */
+#define ALIEN_TYPE_C 0  /* Rows 0-1: eye pods - 30 pts */
+#define ALIEN_TYPE_B 1  /* Rows 2-3: rays - 20 pts */
+#define ALIEN_TYPE_A 2  /* Rows 4-5: spore crawlers - 10 pts */
+
+/* Shields: three crystal hexagons (pixel value 1 = crystal, 2 = facet) */
+#define SHIELD_COUNT 3
+#define SHIELD_W 24
+#define SHIELD_H 12
+#define SHIELD_Y 144
+
+/* Player */
+#define PLAYER_W 15
+#define PLAYER_H 8
+#define PLAYER_Y 168
+#define PLAYER_SPEED 2
+#define PLAYER_MIN_X 8
+#define PLAYER_MAX_X (SCREEN_W - 8 - PLAYER_W)
+
+/* Bullets */
+#define MAX_ALIEN_BULLETS 3
+#define PLAYER_BULLET_SPEED 6
+#define ALIEN_BULLET_SPEED 2
+
+/* UFO */
+#define UFO_Y 9
+#define UFO_W 16
+#define UFO_H 7  /* the comet: bonus target crossing the top */
+#define UFO_SPEED 1
+
+/* Game states */
+#define STATE_TITLE    0
+#define STATE_PLAYING  1
+#define STATE_DYING    2
+#define STATE_GAMEOVER 3
+#define STATE_WAVE_CLEAR 4
+
+/* Explosions */
+#define MAX_EXPLOSIONS 8
+
+/* Colors */
+#define COL_BG       0
+#define COL_WHITE    1
+#define COL_GREEN    2
+#define COL_DKGREEN  3
+#define COL_RED      4
+#define COL_ORANGE   5
+#define COL_CYAN     6
+#define COL_MAGENTA  7
+#define COL_YELLOW   8
+#define COL_BLUE     9
+#define COL_LTBLUE   10
+#define COL_LTRED    11
+#define COL_BRGREEN  12
+#define COL_GRAY     13
+#define COL_DKORANGE 14
+#define COL_LTGRAY   15
+
+typedef struct {
+    WORD x, y;
+    BOOL active;
+} Bullet;
+
+typedef struct {
+    BOOL alive[ALIEN_ROWS][ALIEN_COLS];
+    WORD grid_x, grid_y;
+    WORD dir;               /* 1=right, -1=left */
+    WORD move_timer;
+    WORD move_delay;        /* frames between steps */
+    WORD anim_frame;        /* 0 or 1 */
+    WORD alive_count;
+    WORD fire_timer;
+    WORD fire_delay;
+} AlienSwarm;
+
+typedef struct {
+    WORD x;
+    WORD dir;
+    BOOL active;
+    WORD timer;
+    WORD score_val;
+} UFO;
+
+typedef struct {
+    UBYTE pixels[SHIELD_H][SHIELD_W];
+    WORD x, y;
+} Shield;
+
+typedef struct {
+    WORD x, y;
+    WORD timer;
+    BOOL active;
+    UBYTE color;
+} Explosion;
+
+typedef struct {
+    /* Player */
+    WORD player_x;
+    WORD lives;
+    LONG score;
+    LONG hiscore;
+    WORD wave;
+
+    /* State */
+    WORD state;
+    WORD state_timer;
+    WORD title_blink;
+
+    /* Aliens */
+    AlienSwarm swarm;
+
+    /* Bullets */
+    Bullet player_bullet;
+    Bullet alien_bullets[MAX_ALIEN_BULLETS];
+
+    /* UFO */
+    UFO ufo;
+
+    /* Shields */
+    Shield shields[SHIELD_COUNT];
+
+    /* Explosions */
+    Explosion explosions[MAX_EXPLOSIONS];
+
+    /* Sound events (checked by main loop) */
+    BOOL ev_shoot;
+    BOOL ev_alien_hit;
+    BOOL ev_player_hit;
+    BOOL ev_ufo_hit;
+    BOOL ev_march;
+
+    /* March note index */
+    WORD march_note;
+} GameState;
+
+typedef struct {
+    BOOL left, right, fire;
+    BOOL fire_pressed;  /* edge-triggered */
+    BOOL quit;
+    WORD mouse_dx;
+} InputState;
+
+/* Game functions */
+void game_init(GameState *gs);
+void game_init_wave(GameState *gs);
+void game_update(GameState *gs, InputState *input);
+
+/* port: per shield, a bit per pixel row that changed (the renderer redraws those) */
+extern UWORD shield_dirty[SHIELD_COUNT];
+
+/* RNG */
+UWORD game_rand(void);
+void game_srand(ULONG seed);
+
+#endif
