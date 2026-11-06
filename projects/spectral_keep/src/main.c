@@ -3,11 +3,12 @@
  * 50 Hz loop (the original's main_os4.c).
  *
  *                  while the logic runs     while drawing
- *   0x0000-0x3FFF  bank 39: room.c, game.c   bank 40: scene.c, hud.c
+ *   0x0000-0x3FFF  bank 39: room.c, game.c   bank 40: scene.c
  *   0x4000-0x5FFF  a window: sprite frames, Layer 2 columns, sound streams,
  *                  the stage, the tilemap (bank 5, page 10 between uses)
  *   0x6000-0x7FFF  page 82: world.c, probe.c the room's blob (palette,
- *                                           pieces, draw list)
+ *                                           pieces, draw list); page 84:
+ *                                           hud.c while it draws
  *   0x8000-0xEFFF  this, the SDK, the level data, the variables;
  *                  0xF000- the IM 2 table, the stack
  *   banks 9-13     Layer 2 (320 x 256); 16..33 the pictures, 36..38 the
@@ -39,6 +40,7 @@
 
 #define LOGIC() do { ZXN_WRITE_MMU0(78); ZXN_WRITE_MMU1(79); ZXN_WRITE_MMU3(82); } while (0)
 #define DRAW()  do { ZXN_WRITE_MMU0(80); ZXN_WRITE_MMU1(81); } while (0)
+#define HUD()   ZXN_WRITE_MMU3(84)
 #define PANEL_ROW  208                  /* the original's y 200: the status panel */
 
 void keep_log(const char *fmt, ...)
@@ -68,6 +70,18 @@ static void copper_setup(uint8_t panel)
         copper_move(0x43, 0x0C);                     /* Layer 2 + sprites: second palettes */
     }
     copper_end();
+}
+
+/* profiling: raster lines spent in each part of the loop (one line is ~1800
+   T-states at 28 MHz), logged every 250 frames */
+static uint16_t raster(void) { return ((uint16_t)(ZXN_READ_REG(0x1E) & 1) << 8) | ZXN_READ_REG(0x1F); }
+static uint16_t prof_t, prof[5];
+static uint8_t prof_n;
+static void lap(uint8_t k)
+{
+    uint16_t t = raster();
+    prof[k] += t >= prof_t ? t - prof_t : t + 312 - prof_t;
+    prof_t = t;
 }
 
 /* keys and Kempston -> the original's pad bits */
@@ -106,7 +120,7 @@ int main(void)
     l2w_slot = 2;
     l2w_restore = 10;
     l2w_init(9);
-    DRAW();
+    HUD();
     hud_init();
     LOGIC();
     snd_init();
@@ -119,8 +133,10 @@ int main(void)
 
     for (;;) {
         ticks = frame_wait();
+        prof_t = raster();
         DRAW();
         if (showing) scene_commit();
+        lap(0);
         {
             uint8_t want = G.clock < G.flash_until ? G.flash_ink : 0;
             if (want != flash_shown) {
@@ -146,6 +162,7 @@ int main(void)
         }
         probe_update();
         room_grounds();
+        lap(1);
         DRAW();
         if (G.room_changed) {
             G.room_changed = 0;
@@ -153,19 +170,31 @@ int main(void)
             scene_hide();
             scene_room();
             copper_panel = 0xFF;
+            HUD();
             hud_reset();
             frame_wait();                            /* the time it took isn't caught up */
             keep_log("room drawn %s overflow=%u\n", R.room->id, scene_overflow);
         }
+        lap(2);
         copper_setup(G.state != GS_TITLE || G.tour);
         if (G.state == GS_GAMEOVER || G.state == GS_VICTORY) {
             if (showing) scene_hide();               /* before the HUD blacks the picture */
             showing = 0;
+            HUD();
             hud_update();
         } else {
+            HUD();
             hud_update();
+            lap(3);
             scene_prepare(G.state != GS_DYING);
             showing = 1;
+            lap(4);
+        }
+        if (++prof_n == 250) {
+            keep_log("perf lines/250: commit=%u logic=%u room=%u hud=%u prepare=%u overruns=%u\n",
+                     prof[0], prof[1], prof[2], prof[3], prof[4], frame_overruns);
+            prof[0] = prof[1] = prof[2] = prof[3] = prof[4] = 0;
+            prof_n = 0;
         }
     }
     return 0;

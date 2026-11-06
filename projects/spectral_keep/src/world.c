@@ -84,6 +84,13 @@ void w_remove(Body *b)
         if (w_body[i].ground == b) w_body[i].ground = 0;
 }
 
+/* port: inline in the loops below (a call per body was a tenth of the time) */
+#define BODY_BOX(b, o) do { \
+    (o)->x0 = (b)->px - ((b)->sx >> 1); (o)->x1 = (o)->x0 + (b)->sx; \
+    (o)->y0 = (b)->py;                  (o)->y1 = (b)->py + (b)->sy; \
+    (o)->z0 = (b)->pz - ((b)->sz >> 1); (o)->z1 = (o)->z0 + (b)->sz; \
+} while (0)
+
 void body_box(const Body *b, Box *o)
 {
     o->x0 = b->px - (b->sx >> 1); o->x1 = o->x0 + b->sx;
@@ -126,17 +133,23 @@ static uint8_t gather(const Box *r, const Body *self, uint8_t skip_npcbar)
 {
     uint8_t i, n = 0;
     int8_t x, y, z, x0, x1, y0, y1, z0, z1;
-    for (i = 0; i < w_nbody && n < MAXCAND; i++) {
-        Body *o = &w_body[i];
+    fix rx0 = r->x0, rx1 = r->x1, rz0 = r->z0, rz1 = r->z1;
+    Body *o = w_body;
+    for (i = 0; i < w_nbody && n < MAXCAND; i++, o++) {
         Box *c;
+        fix bx0, bz0;
         if (!o->used || o == self || !o->solid || (o->npcbar && skip_npcbar)) continue;
         /* monsters are deadly to touch, so they must be able to touch you
          * (in the Unity game they block each other and only ghosts kill) */
         if (self && ((self->player && o->harm) || (self->harm && o->player))) continue;
+        /* port: x and z first, cheaply: most bodies are elsewhere */
+        bx0 = o->px - (o->sx >> 1);
+        if (bx0 > rx1 || bx0 + o->sx < rx0) continue;
+        bz0 = o->pz - (o->sz >> 1);
+        if (bz0 > rz1 || bz0 + o->sz < rz0) continue;
         c = &cand_box[n];
-        body_box(o, c);
-        if (c->x0 > r->x1 || c->x1 < r->x0 || c->y0 > r->y1 ||
-            c->y1 < r->y0 || c->z0 > r->z1 || c->z1 < r->z0) continue;
+        BODY_BOX(o, c);
+        if (c->y0 > r->y1 || c->y1 < r->y0) continue;
         cand_body[n++] = o;
     }
     x0 = ffloor(r->x0); x1 = ffloor(r->x1);
@@ -189,7 +202,7 @@ static fix move_axis(Body *b, uint8_t axis, fix d, uint8_t canpush, uint8_t dept
             Body *o = &w_body[i];
             fix gap;
             if (!o->used || o == b || !o->pushable || !o->solid) continue;
-            body_box(o, &ob);
+            BODY_BOX(o, &ob);
             if (!box_overlap(&swept, &ob, EPS) || box_overlap(&start, &ob, EPS)) continue;
             if (ob.y0 >= start.y1 - 102 || ob.y1 <= start.y0 + 102) continue;   /* above or below us (205) */
             gap = d > 0 ? lo(&ob, axis) - hi(&start, axis) : hi(&ob, axis) - lo(&start, axis);
@@ -265,7 +278,7 @@ void w_move_kinematic(Body *lift, fix dy)
     for (i = 0; i < w_nbody; i++) {
         Body *o = &w_body[i];
         if (!o->used || o == lift || !o->dynamic || !o->collides) continue;
-        body_box(o, &ob);
+        BODY_BOX(o, &ob);
         if (o->ground == lift || box_overlap(&top, &ob, EPS_GROUND)) riders[n++] = o;
     }
     if (dy > 0)
@@ -297,10 +310,13 @@ fix w_ground_below(fix x, fix y, fix z)
             best = (fix)(cy + 1) << FXS;
     for (i = 0; i < w_nbody; i++) {
         Body *o = &w_body[i];
-        Box b;
+        fix bx0, bz0;
         if (!o->used || !o->solid || o->npcbar || (o->owner >= 0 && !o->pushable)) continue;
-        body_box(o, &b);
-        if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && b.y1 <= y + 205 && b.y1 > best) best = b.y1;   /* 0.1 (410) */
+        bx0 = o->px - (o->sx >> 1);                  /* port: inline, x and z first */
+        if (x <= bx0 || x >= bx0 + o->sx) continue;
+        bz0 = o->pz - (o->sz >> 1);
+        if (z <= bz0 || z >= bz0 + o->sz) continue;
+        if (o->py + o->sy <= y + 205 && o->py + o->sy > best) best = o->py + o->sy;   /* 0.1 (410) */
     }
     return best;
 }

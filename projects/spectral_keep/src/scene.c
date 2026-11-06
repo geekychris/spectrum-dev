@@ -27,7 +27,7 @@
  * and attributes and changes the shadows, so the picture never shows half
  * an update.
  *
- * MMU: this file and hud.c are code bank 40 at 0x0000 (main.c maps it).
+ * MMU: this file is code bank 40 at 0x0000 (main.c maps it).
  * Slot 3 (0x6000) gets the room's blob, slot 2 (0x4000) is the window for
  * frames, Layer 2 (l2w_slot) and the stage, the page where masked sprites
  * are put together. The big tables are initialised data, so they live in
@@ -43,6 +43,7 @@
 #include "nextspr.h"
 #include "isosort.h"
 #include "palfx.h"
+#include "fixmath.h"
 
 #define BLOB       ((const uint8_t *)0x6000)
 #define STAGE_PAGE 83                  /* bank 41, upper half */
@@ -118,10 +119,12 @@ uint8_t scene_overflow;                /* items dropped for lack of patterns (te
 
 /* ---- projection (Q11 world -> 320 x 256 screen) ---- */
 
-static int16_t sx_of(fix x, fix z) { return ox + (int16_t)(((int32_t)(x - z) * ISO_X) >> FXS); }
+/* mul16: the Z80N's MUL (fixmath.h); the same numbers as the original's
+   ((x - z) * 14) >> 12 in Q12 */
+static int16_t sx_of(fix x, fix z) { return ox + (int16_t)(mul16(x - z, ISO_X) >> FXS); }
 static int16_t sy_of(fix x, fix y, fix z)
 {
-    return oy - (int16_t)(((int32_t)y * ISO_Y + ((int32_t)x + z) * ISO_Z) >> FXS);
+    return oy - (int16_t)((mul16(y, ISO_Y) + mul16(x, ISO_Z) + mul16(z, ISO_Z)) >> FXS);
 }
 
 static void set_box(IsoBox *b, fix x0, fix y0, fix z0, fix x1, fix y1, fix z1)
@@ -230,6 +233,8 @@ static Item *add_item(void)
     return &item[nitem++];
 }
 
+static uint8_t bob_t, spin_t;
+
 static void gather(uint8_t show_player)
 {
     uint8_t i;
@@ -249,13 +254,18 @@ static void gather(uint8_t show_player)
         it->x = sx_of(bd->px, bd->pz);
         it->y = sy_of(bd->px, bd->py, bd->pz);
     }
+    /* Pickup.Animate: bob sin(3t + phase) * 0.08, spin 140 t + 30 phase degrees;
+       the clock's part once a frame, the rest is small numbers */
+    if (R.npk) {
+        bob_t = (uint8_t)(R.clock * 2444 / 1000);
+        spin_t = (uint8_t)(R.clock * 1244 / 10000);
+    }
     for (i = 0; i < R.npk; i++) {
         const Pickup *p = &R.pk[i];
         fix x = ((fix)p->x << FXS) + FX / 2, y = (fix)p->y << FXS, z = ((fix)p->z << FXS) + FX / 2;
-        /* Pickup.Animate: bob sin(3t + phase) * 0.08, spin 140 t + 30 phase degrees */
-        int32_t ph = 693L * p->x / 10 + 407L * p->z / 10 + 55;
-        int16_t bob = (int16_t)(((int32_t)isin256((uint8_t)(R.clock * 2444 / 1000 + ph)) * 22) >> 14);
-        uint8_t f = (uint8_t)((R.clock * 1244 / 10000 + 227L * p->x / 100 + 133L * p->z / 100 + 2) & 15);
+        uint8_t ph = (uint8_t)((int16_t)(693 * p->x) / 10 + (int16_t)(407 * p->z) / 10 + 55);
+        int16_t bob = (int16_t)(mul16(isin256((uint8_t)(bob_t + ph)), 22) >> 14);
+        uint8_t f = (uint8_t)(spin_t + (int16_t)(227 * p->x) / 100 + (int16_t)(133 * p->z) / 100 + 2) & 15;
         if (!(it = add_item())) return;
         set_box(&ibox[nitem - 1], p->box.x0, p->box.y0, p->box.z0, p->box.x1, p->box.y1, p->box.z1);
         it->fr[it->nfr++] = p->kind == 'R' ? FR_RELIC + f : p->kind == 'K' ? FR_KEY + f : FR_POTION;
@@ -297,8 +307,12 @@ static void find_front(uint8_t i)
 {
     uint8_t k;
     nfront = 0;
-    for (k = 0; k < nocc; k++)
-        if (iso_rects_meet(&ibox[i], &occ[k].b) && (occ[k].arch || iso_order(&ibox[i], &occ[k].b, EPS) > 0))
+    const IsoBox *b = &ibox[i];
+    int16_t x0 = b->sx0, x1 = b->sx1, y0 = b->sy0, y1 = b->sy1;
+    const Occ *o = occ;
+    for (k = 0; k < nocc; k++, o++)
+        if (o->b.sx0 <= x1 && x0 <= o->b.sx1 && o->b.sy0 <= y1 && y0 <= o->b.sy1 &&
+            (o->arch || iso_order(b, &o->b, EPS) > 0))
             front[nfront++] = k;
 }
 
@@ -355,8 +369,22 @@ static void shadow(uint8_t i)
     uint8_t *px = SM->shadow_px;
     const Item *it = &item[i];
     int16_t gx = it->shx - SHADOW_AX, gy = it->shy - SHADOW_AY;
-    uint8_t r, k, x;
-    memset(px, SPRG_TRANSPARENT, sizeof(px));
+    uint8_t r, k, x, covered = 0;
+    for (k = 0; k < nfront && !covered; k++) {
+        const Occ *o = &occ[front[k]];
+        covered = o->b.sx0 < gx + SHADOW_W && gx <= o->b.sx1 && o->b.sy0 < gy + SHADOW_H && gy <= o->b.sy1;
+    }
+    if (!covered) {                          /* the plain ellipse: a span a row */
+        for (r = 0; r < SHADOW_H && nspan_new < MAXSPAN; r++)
+            if (shadow_rows[r][1]) {
+                Span *sp = &span_new[nspan_new++];
+                sp->x = gx + shadow_rows[r][0];
+                sp->y = (uint8_t)(gy + r);
+                sp->len = shadow_rows[r][1];
+            }
+        return;
+    }
+    memset(px, SPRG_TRANSPARENT, 256);
     for (r = 0; r < SHADOW_H; r++) memset(px + r * 16 + shadow_rows[r][0], 1, shadow_rows[r][1]);
     for (k = 0; k < nfront; k++) {
         const Occ *o = &occ[front[k]];
@@ -408,6 +436,32 @@ void scene_prepare(uint8_t show_player)
     }
 }
 
+static uint8_t same_span(const Span *a, const Span *b) { return a->x == b->x && a->y == b->y && a->len == b->len; }
+
+/* shadows: take off last frame's spans that changed, put on this frame's
+   that changed, and any unchanged one that an old one overlapped */
+static void shadows(void)
+{
+    uint8_t i, k, nundone = 0;
+    static uint8_t undone[MAXSPAN];
+    for (i = 0; i < nspan_old; i++)
+        if (i >= nspan_new || !same_span(&span_old[i], &span_new[i])) {
+            l2w_span(span_old[i].x, span_old[i].y, span_old[i].len, 0x7F, 0);
+            undone[nundone++] = i;
+        }
+    for (i = 0; i < nspan_new; i++) {
+        const Span *sp = &span_new[i];
+        uint8_t draw = i >= nspan_old || !same_span(&span_old[i], sp);
+        for (k = 0; !draw && k < nundone; k++) {
+            const Span *o = &span_old[undone[k]];
+            draw = o->y == sp->y && o->x < sp->x + sp->len && sp->x < o->x + o->len;
+        }
+        if (draw) l2w_span(sp->x, sp->y, sp->len, 0xFF, 0x80);
+    }
+    memcpy(span_old, span_new, nspan_new * sizeof(Span));
+    nspan_old = nspan_new;
+}
+
 void scene_commit(void)
 {
     uint8_t i, n = 0;
@@ -420,11 +474,7 @@ void scene_commit(void)
     ZXN_WRITE_REG(0x52, WIN_PAGE);
     for (i = 0, s = show; i < nshow; i++, s++) n = sprg_show(n, s->x, s->y, s->cols, s->rows, s->slot, 0);
     sprg_hide_from(n);
-    /* shadows: last frame's off, this frame's on */
-    for (i = 0; i < nspan_old; i++) l2w_span(span_old[i].x, span_old[i].y, span_old[i].len, 0x7F, 0);
-    for (i = 0; i < nspan_new; i++) l2w_span(span_new[i].x, span_new[i].y, span_new[i].len, 0xFF, 0x80);
-    memcpy(span_old, span_new, nspan_new * sizeof(Span));
-    nspan_old = nspan_new;
+    shadows();
     njob = 0;
 }
 

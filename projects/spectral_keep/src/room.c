@@ -7,6 +7,7 @@
  */
 #include "keep.h"
 #include "zxrle.h"
+#include "fixmath.h"                 /* isqrt32: the original isqrt, in asm on the Z80 */
 
 #define WALK_SPEED   127           /* 3.1 u/s (254) */
 #define JUMP_SPEED   303           /* 7.4 u/s (606) */
@@ -19,30 +20,18 @@ RoomState R;
 
 /* ---- small maths ---- */
 
-static uint16_t isqrt(uint32_t v)
-{
-    uint32_t r = 0, b = 1UL << 30;
-    while (b > v) b >>= 2;
-    while (b) {
-        if (v >= r + b) { v -= r + b; r = (r >> 1) + b; }
-        else r >>= 1;
-        b >>= 2;
-    }
-    return (uint16_t)r;
-}
-
 /* |(x, z)|: Q11 positions or speeds in, the same out (exact to 4 units, as the original) */
 static int16_t flat_len(int16_t x, int16_t z)
 {
     int32_t a = x >> 2, b = z >> 2;
-    return (int16_t)(isqrt((uint32_t)(a * a + b * b)) << 2);
+    return (int16_t)(isqrt32((uint32_t)(a * a + b * b)) << 2);
 }
 
 /* the same for Q12 directions and speeds (u/s) that may exceed 16 bits */
 static int32_t flat_len32(int32_t x, int32_t z)
 {
     int32_t a = x >> 2, b = z >> 2;
-    return (int32_t)isqrt((uint32_t)(a * a + b * b)) << 2;
+    return (int32_t)isqrt32((uint32_t)(a * a + b * b)) << 2;
 }
 
 static uint8_t octant(int32_t vx, int32_t vz)
@@ -539,10 +528,9 @@ void room_tick(int16_t mx, int16_t mz, uint8_t jump)
 void room_grounds(void)
 {
     uint8_t i;
-    for (i = 0; i < R.nact; i++) {
-        const Body *b = R.act[i].body;
-        R.act[i].ground = w_ground_below(b->px, b->py, b->pz);
-    }
+    Actor *a = R.act;
+    for (i = 0; i < R.nact; i++, a++)
+        if (a->kind != K_CRATE) a->ground = w_ground_below(a->body->px, a->body->py, a->body->pz);
 }
 
 /* where the player appears entering `to` through a side, given where they

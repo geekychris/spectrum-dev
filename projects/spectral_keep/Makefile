@@ -6,8 +6,10 @@ include $(ZX_SDK)/project.mk
 # memory map: see src/main.c; the link addresses are in zpragma.inc
 # the rules (room.c, game.c): 16K bank 39 at 0x0000 while the logic runs
 $(OBJDIR)/room.c.o $(OBJDIR)/game.c.o: EXTRA_CFLAGS += --codesegBANK_39 --constsegBANK_39 --datasegBANK_39
-# the scene and the HUD: 16K bank 40 at 0x0000 while drawing
-$(OBJDIR)/scene.c.o $(OBJDIR)/hud.c.o: EXTRA_CFLAGS += --codesegBANK_40 --constsegBANK_40 --datasegBANK_40
+# the scene: 16K bank 40 at 0x0000 while drawing
+$(OBJDIR)/scene.c.o: EXTRA_CFLAGS += --codesegBANK_40 --constsegBANK_40 --datasegBANK_40
+# the HUD: 8K page 84 at 0x6000 while it draws
+$(OBJDIR)/hud.c.o: EXTRA_CFLAGS += --codesegPAGE_84 --constsegPAGE_84 --datasegPAGE_84
 # the physics and the test probe: 8K page 82 at 0x6000 while the logic runs
 $(OBJDIR)/world.c.o $(OBJDIR)/probe.c.o: EXTRA_CFLAGS += --codesegPAGE_82 --constsegPAGE_82 --datasegPAGE_82
 
