@@ -13,7 +13,8 @@ $(OBJDIR)/hud.c.o: EXTRA_CFLAGS += --codesegPAGE_84 --constsegPAGE_84 --datasegP
 # the physics and the test probe: 8K page 82 at 0x6000 while the logic runs
 $(OBJDIR)/world.c.o $(OBJDIR)/probe.c.o: EXTRA_CFLAGS += --codesegPAGE_82 --constsegPAGE_82 --datasegPAGE_82
 
-# the pictures, the sound and the level data are made on the host: tools/make_assets.sh
+# the pictures, the sound and the level data are made on the host (checked in):
+#   sh tools/make_assets.sh
 
 # bank 40 keeps scene.c's tables above its code (SCENE_MEM in scene.c)
 all: banks-check

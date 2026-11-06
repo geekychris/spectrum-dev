@@ -24,7 +24,9 @@ transparent), as a group of 16 x 16 patterns (nextspr.h, one DMA upload),
 packed into 8K pages without straddling.
 
 Outputs:
-  gfx/bank_NN.bin      16K banks for data.asm
+  gfx/bank_NN.bin      16K banks for gfx_data.asm
+  gfx/expected_gate_l2.png  the gate room as the Next should draw it (test.py
+                       checks Layer 2 against it; black = not the room)
   src/gfx_data.c/.h    directories (frames, rooms), the sprite palette,
                        the shadow shape
   build/host/next_<l>_<r>.png   the room as the Next will draw it, next to
@@ -243,6 +245,16 @@ def main(host):
         both[:, :320] = out
         both[8:248, 320:] = rgb15_to_rgb(ref)
         Image.fromarray(both).save(os.path.join(host, f"next_{lr}.png"))
+        if lr == "0_0":                  # the test compares the Next's Layer 2 with this
+            ref_l2 = out.copy()
+            room = np.zeros((256, 320), bool)
+            for p, kind, x, y, cx, cy, cz in ops:
+                ys, xs = np.nonzero(pieces[p]["px"] != 0)
+                X, Y = xs + x, ys + y + 8
+                ok = (X >= 0) & (X < 320) & (Y >= 0) & (Y < 256)
+                room[Y[ok], X[ok]] = True
+            ref_l2[~room] = 0
+            Image.fromarray(ref_l2).save(os.path.join(ROOT, "gfx", "expected_gate_l2.png"))
         print(f"room {lr}: {len(rpal)} colours, {len(bases)} pieces, {len(luts)} tables, {nops} ops, {len(blob)} bytes")
 
     # ---------------------------------------------------------------- out

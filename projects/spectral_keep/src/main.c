@@ -190,9 +190,12 @@ int main(void)
             showing = 1;
             lap(4);
         }
-        if (++prof_n == 250) {
-            keep_log("perf lines/250: commit=%u logic=%u room=%u hud=%u prepare=%u overruns=%u\n",
+        if (++prof_n == 100) {
+            keep_log("perf lines/100: commit=%u logic=%u room=%u hud=%u prepare=%u overruns=%u\n",
                      prof[0], prof[1], prof[2], prof[3], prof[4], frame_overruns);
+            /* the music's chips: mixer and channel A's volume (the test checks they play) */
+            keep_log("ay mix0=%u vol0=%u mix1=%u vol1=%u\n", snd_reg(0, 7), snd_reg(0, 8) & 15, snd_reg(1, 7),
+                     snd_reg(1, 8) & 15);
             prof[0] = prof[1] = prof[2] = prof[3] = prof[4] = 0;
             prof_n = 0;
         }

@@ -7,6 +7,7 @@
 #include "sound.h"
 #include "sound_data.h"
 #include "aystream.h"
+#include <z80.h>
 
 static uint8_t track = T_NONE, enabled = 1;
 static int16_t duck;
@@ -57,4 +58,16 @@ void snd_tick(void)
         as_atten(0, 0);
         as_atten(1, 0);
     }
+}
+
+/* what an AY chip plays now (the test checks the music and effects through
+   this): register r of chip c, read back through port 0xFFFD */
+uint8_t snd_reg(uint8_t c, uint8_t r)
+{
+    uint8_t v;
+    z80_outp(0xFFFD, 0xFF - c);
+    z80_outp(0xFFFD, r);
+    v = z80_inp(0xFFFD);
+    z80_outp(0xFFFD, 0xFF);
+    return v;
 }

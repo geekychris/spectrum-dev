@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "tools" / "zxdev" / "src"))
 sys.path.insert(0, str(HERE / "tools"))
 
 from zxdev.emu import Emulator  # noqa: E402
+from PIL import Image  # noqa: E402
 from bot import B_A, B_DOWN, B_LEFT, B_RIGHT, B_UP, PROBE_SIZE, Bot, decode  # noqa: E402
 
 NEX = HERE / "build" / "spectral_keep.nex"
@@ -76,6 +77,43 @@ with Emulator(machine="next") as e:
     check("boots to the title", e.run_until("keep: room drawn gate", 600))
     e.run(60)
     e.screenshot(SHOTS / "title.png")
+    # the room drawn on the Next = the host's prediction from the same pieces
+    # (rows above the title's bar; shadows aside)
+    got = e.screenshot(layer="layer2").convert("RGB")
+    want = Image.open(HERE / "gfx" / "expected_gate_l2.png").convert("RGB")
+    same = total = 0
+    for y in range(0, 160, 2):
+        for x in range(0, 320, 2):
+            w = want.getpixel((x, y))
+            if sum(w) == 0:
+                continue
+            g = got.getpixel((x, y))
+            total += 1
+            same += sum(abs(p - q) for p, q in zip(g, w)) <= 24
+    check("the gate room's Layer 2 picture matches the host's", total > 2000 and same / total > 0.98,
+          f"{same}/{total}")
+
+    def ay(since):
+        """the last 'ay' line logged after `since` (every 100 frames): mix0 vol0 mix1 vol1"""
+        e.run(110)
+        m = re.findall(r"ay mix0=(\d+) vol0=(\d+) mix1=(\d+) vol1=(\d+)", e.log(0)[since:])
+        return [int(v) for v in m[-1]] if m else None
+
+    mark = len(e.log(0))
+    a = ay(mark)
+    check("title music plays on two TurboSound chips (tones on, volumes up)",
+          a and (a[0] & 7) != 7 and (a[2] & 7) != 7 and a[1] + a[3] > 0, str(a))
+    e.press("T")
+    mark = len(e.log(0))
+    a = ay(mark)
+    check("T turns the music off", a and a[1] == 0 and a[3] == 0, str(a))
+    e.press("T")
+    # Kempston (the emulator's joystick): down picks The Crypt, up The Gatehouse again
+    e.press("DOWN")
+    check("Kempston down: The Crypt's first room", e.run_until("keep: room drawn stairs", 100))
+    e.press("UP")
+    check("Kempston up: back to The Gatehouse", e.run_until("keep: room drawn gate", 100))
+    e.run(30)
     e.record_input("start", from_reset=True)
     log, bot = play(e)
     full = e.log(0)
