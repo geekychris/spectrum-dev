@@ -80,19 +80,28 @@ PRAGMAS = $(if $(wildcard zpragma.inc),-pragma-include:zpragma.inc)
 LDFLAGS = +$(TARGET) -vn -clib=$(CLIB) -startup=$(STARTUP) -zorg=$(ORG) $(PRAGMAS) -m $(EXTRA_LDFLAGS)
 
 SRCS := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/*.asm)
+# The SDK goes into a library, so a program links only the modules it uses.
+# sdk/src/next/ is only for the Next.
 SDK_SRCS := $(wildcard $(SDK_DIR)/src/*.c) $(wildcard $(SDK_DIR)/src/*.asm)
-OBJS := $(patsubst $(SRC_DIR)/%,$(OBJDIR)/%.o,$(SRCS)) \
-        $(patsubst $(SDK_DIR)/src/%,$(OBJDIR)/sdk/%.o,$(SDK_SRCS)) $(EXTRA_OBJS)
+ifeq ($(TARGET),zxn)
+SDK_SRCS += $(wildcard $(SDK_DIR)/src/next/*.c) $(wildcard $(SDK_DIR)/src/next/*.asm)
+endif
+OBJS := $(patsubst $(SRC_DIR)/%,$(OBJDIR)/%.o,$(SRCS)) $(EXTRA_OBJS)
+SDK_OBJS := $(patsubst $(SDK_DIR)/src/%,$(OBJDIR)/sdk/%.o,$(SDK_SRCS))
+SDK_LIB := $(BUILD)/zxsdk.lib
 
 .DEFAULT_GOAL := all
 all: $(OUT)
 	@echo "built $(OUT)"
 
-$(OBJDIR) $(OBJDIR)/sdk:
+$(OBJDIR) $(OBJDIR)/sdk $(OBJDIR)/sdk/next:
 	mkdir -p $@
 
-$(OUT): $(OBJS) $(wildcard zpragma.inc)
-	zcc $(LDFLAGS) $(OBJS) -o $(BUILD)/$(NAME) $(APPFLAGS)
+$(SDK_LIB): $(SDK_OBJS)
+	z88dk-z80asm $(if $(filter zxn,$(TARGET)),-mz80n) -x$(BUILD)/zxsdk $(SDK_OBJS)
+
+$(OUT): $(OBJS) $(SDK_LIB) $(wildcard zpragma.inc)
+	zcc $(LDFLAGS) $(OBJS) -L$(BUILD) -lzxsdk -o $(BUILD)/$(NAME) $(APPFLAGS)
 	@rm -f $(BUILD)/$(NAME)
 
 # every object depends on all headers: simple and safe for small projects
@@ -108,6 +117,9 @@ $(OBJDIR)/sdk/%.c.o: $(SDK_DIR)/src/%.c $(HDRS) | $(OBJDIR)/sdk
 	zcc $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/sdk/%.asm.o: $(SDK_DIR)/src/%.asm | $(OBJDIR)/sdk
+	zcc $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/sdk/next/%.c.o: $(SDK_DIR)/src/next/%.c $(HDRS) | $(OBJDIR)/sdk/next
 	zcc $(CFLAGS) -c $< -o $@
 
 clean:
