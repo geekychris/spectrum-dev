@@ -87,6 +87,12 @@ case "$cmd" in
              fi
              "$0" test "$p" || fails=$((fails+1))
            done
+           step "only our own processes are ever stopped"
+           if grep -rnE "\b(pkill|killall)\b" "$ROOT/tools/zxdev/src" "$ROOT/scripts" "$ROOT/bin" "$ROOT/zx" | grep -v "kill-guard"; then  # kill-guard
+             warn "a name-based kill (other agents' and the user's emulators share this machine)"; fails=$((fails+1))
+           else
+             ok "sessions stop their own PID only"
+           fi
            step "sdk tools (mod2ay, nextpic)"
            if "$PY" "$ROOT/sdk/tools/test_tools.py" >"$ROOT/build/selftest-sdktools.log" 2>&1; then
              ok "sdk tools ($(grep -c '  PASS' "$ROOT/build/selftest-sdktools.log") checks)"

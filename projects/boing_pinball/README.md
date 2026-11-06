@@ -49,7 +49,10 @@ far too slow at 120 steps a second. So:
   ball), flippers (8 angles, the right one mirrored) and the plunger are
   hardware sprites. Lamps, drop targets, bumper and sling flashes and the
   spinner each own a palette entry. The dot-matrix display is drawn into
-  Layer 2 when its text changes.
+  Layer 2 a pixel column at a time, only the columns that change, at most 16
+  a frame right after the frame's interrupt (before the beam reaches it), so
+  it is never seen half drawn; a new message wipes in over a few frames, a
+  score change redraws a few digits. Its flashing is a palette change.
 - **Memory**: the rules run from bank 20 mapped over the ROM, the table data
   and the front end from 8K pages at 0x4000 / 0x6000 (see `src/main.c`).
 - 28 MHz; the simulation runs 120 steps a second against the 50 Hz frame

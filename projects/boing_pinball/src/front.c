@@ -51,27 +51,110 @@ struct {
 
 /* ------------------------------------------------------------ the display */
 
-static char shown_big[24], shown_small[40];
-static uint8_t shown_col;
+/* The original's draw_dmd (one big line, or a big and a small one), drawn
+   a pixel column at a time: each column's dots are compared with what it
+   shows, only changed columns are drawn, at most DMD_BUDGET a frame, right
+   after the frame's interrupt (the beam is above the display then). A
+   score change redraws a few digits; a new message wipes in over a few
+   frames instead of being seen half drawn. Flashing is the palette. */
+#define DMD_BUDGET 16                   /* ~4.4K T-states a column: done before the beam reaches row 58 */
 
-/* the original's draw_dmd: one big line, or a big and a small one */
+typedef struct { const char *s; int16_t x0; uint8_t n, sx, y, sy; } dmd_line;
+static char shown_big[24], shown_small[40];
+static dmd_line lines[2];
+static uint8_t dmd_layout = 0xFF, dmd_cursor = DMD_W, dmd_flash;
+/* what each column shows and should show: line 0's dots | line 1's << 7
+   (initialised, so in the front end's page: Makefile) */
+static uint16_t col_sig[DMD_W] = {0xFFFF}, col_want[DMD_W] = {0};
+
+static void dmd_columns(const dmd_line *l, uint8_t shift);
+
+static void dmd_set_line(dmd_line *l, const char *s, uint8_t sx, uint8_t y, uint8_t sy)
+{
+    l->s = s;
+    l->n = (uint8_t)strlen(s);
+    l->sx = sx;
+    l->x0 = (DMD_W - (int16_t)text_w(s, sx)) / 2;
+    l->y = y;
+    l->sy = sy;
+}
+
 static void dmd(const char *big, const char *small, uint8_t flash)
 {
-    uint8_t col = flash ? P_DMD_MID : P_DMD_ON, sx;
+    uint8_t sx, layout;
     if (!small) small = "";
-    if (col == shown_col && !strcmp(big, shown_big) && !strcmp(small, shown_small)) return;
+    if (flash != dmd_flash) {
+        dmd_flash = flash;
+        pal_set(1, P_DMD_ON, l2_pal_0[flash ? P_DMD_MID : P_DMD_ON]);
+    }
+    if (!strcmp(big, shown_big) && !strcmp(small, shown_small)) return;
     strncpy(shown_big, big, sizeof shown_big - 1);
     strncpy(shown_small, small, sizeof shown_small - 1);
-    shown_col = col;
-    l2rect(DMD_X, DMD_Y, DMD_W, DMD_H, P_DMD_BG);
     if (!small[0]) {
         sx = text_w(big, 3) <= DMD_W ? 3 : text_w(big, 2) <= DMD_W ? 2 : 1;
-        l2text(DMD_X + (DMD_W - text_w(big, sx)) / 2, DMD_Y + (DMD_H - 7 * (sx + 1)) / 2, big, col, sx, sx + 1, 1);
+        dmd_set_line(&lines[0], shown_big, sx, (DMD_H - 7 * (sx + 1)) / 2, sx + 1);
+        lines[1].n = 0;
+        layout = sx;
     } else {
         sx = text_w(big, 2) <= DMD_W ? 2 : 1;
-        l2text(DMD_X + (DMD_W - text_w(big, sx)) / 2, DMD_Y + 5, big, col, sx, 3, 1);
-        l2text(DMD_X + (DMD_W - text_w(small, 1)) / 2, DMD_Y + 31, small, col, 1, 2, 1);
+        dmd_set_line(&lines[0], shown_big, sx, 5, 3);
+        dmd_set_line(&lines[1], shown_small, 1, 31, 2);
+        layout = 4 + sx;
     }
+    if (layout != dmd_layout) {                 /* the dots move: every column is new */
+        uint8_t x;
+        dmd_layout = layout;
+        for (x = 0; x < DMD_W; x++) col_sig[x] = 0xFFFF;
+    }
+    memset(col_want, 0, sizeof col_want);
+    dmd_columns(&lines[0], 0);
+    if (lines[1].n) dmd_columns(&lines[1], 7);
+    dmd_cursor = 0;
+}
+
+/* a line's dots into col_want, column by column (no divisions) */
+static void dmd_columns(const dmd_line *l, uint8_t shift)
+{
+    int16_t x = l->x0;
+    uint8_t k, c, r, j;
+    for (k = 0; k < l->n; k++) {
+        const uint8_t *g = font5_glyph(l->s[k]);
+        for (c = 0; c < 6; c++) {
+            uint16_t bits = 0;
+            if (g && c < 5)
+                for (r = 0; r < 7; r++)
+                    if (g[r] & (0x80 >> c)) bits |= 1 << r;
+            bits <<= shift;
+            for (j = 0; j < l->sx; j++, x++)
+                if (x >= 0 && x < DMD_W) col_want[x] |= bits;
+        }
+    }
+}
+
+static void dots(uint8_t *p, uint8_t bits, uint8_t sy)
+{
+    for (; bits; bits >>= 1, p += sy)
+        if (bits & 1) memset(p, P_DMD_ON, sy - 1);
+}
+
+static void dmd_update(void)
+{
+    uint8_t n = 0;
+    while (dmd_cursor < DMD_W && n < DMD_BUDGET) {
+        uint8_t x = dmd_cursor++, a, b;
+        uint16_t sig = col_want[x];
+        uint8_t *p;
+        if (sig == col_sig[x]) continue;
+        a = sig & 0x7F;
+        b = sig >> 7;
+        col_sig[x] = sig;
+        n++;
+        p = l2w_column(DMD_X + x) + DMD_Y;
+        memset(p, P_DMD_BG, DMD_H);
+        if (a) dots(p + lines[0].y, a, lines[0].sy);
+        if (b) dots(p + lines[1].y, b, lines[1].sy);
+    }
+    if (n) l2w_done();
 }
 
 /* ------------------------------------------------------------ setup */
@@ -248,6 +331,7 @@ static void enter_name(int8_t place)
         }
         if (r & HS_EDIT_TAKEN) ay_sfx(2, 120, 12, 3, 0);
         frame_wait();
+        dmd_update();
         sound_tick();
         input_read();
         r = hs_edit_step(&ed);
@@ -380,10 +464,11 @@ void front_main(void)
         else {
             Dmd d;
             pb_dmd(&g, &d);
-            dmd(d.big, d.small, d.flash && (frame & 4));
+            dmd(d.big, d.small, d.flash && (frame & 4));     /* (drawn after the frame's interrupt) */
         }
         update_probe();
         ticks = frame_wait();
+        dmd_update();                           /* first: the beam is above the display */
         draw_balls();
         draw_flippers();
         draw_plunger();

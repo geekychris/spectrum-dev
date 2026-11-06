@@ -133,6 +133,9 @@ Details: docs/emulator-harness.md.
   `zx-dev-toolchain-keep` container pins ours, and bin/zx-make rebuilds a missing image.
 - Memory zones: 128K RAM bank N is zone 0 offset N*16384; the Next's RAM page N is
   zone 0 offset 0x40000 + N*8192 (ROMs sit below). Palettes come back as 9-bit RGB333.
+- Stop only our own emulators: the harness kills its own Popen (and checks the ZRCP
+  port answers with its pid before using it); never pkill/killall by name, other
+  agents and the user run ZEsarUX on the same machine (`./zx selftest` checks).
 - Sinclair 2 is keys 1-5 = left, right, down, up, fire (not 5-1).
 
 
