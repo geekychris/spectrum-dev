@@ -24,6 +24,7 @@ loop.
 - [Everyday commands](#everyday-commands)
 - [Working with Claude Code (MCP)](#working-with-claude-code-mcp)
 - [Writing programs](#writing-programs)
+- [Games](#games)
 - [Repository layout](#repository-layout)
 - [Documentation](#documentation)
 - [Licensing and credits](#licensing-and-credits)
@@ -176,6 +177,25 @@ SDK reference: [sdk/README.md](sdk/README.md). Examples: `projects/hello48`
 (48K, attributes, keys), `projects/hellonext` (Next registers, 28 MHz,
 Layer 2 through an MMU slot), `projects/asm48` (sjasmplus `.sna`).
 
+## Games
+
+Ports of games from `amiga_mcp/examples`, keeping each game's rules, levels,
+scoring and feel, with graphics redrawn for the machine. Each one has a
+`test.py` in which a bot plays a whole game through the harness (start, score,
+lose, game over, high-score entry, title), followed by a replay-determinism check.
+They are part of `./zx selftest`.
+
+| | | |
+|---|---|---|
+| [Nova Defense](projects/nova_defense/README.md) | 48K `.tap` | ![](docs/images/nova_defense.gif) |
+| [Frank the Frog](projects/frank_the_frog/README.md) | 48K `.tap` | ![](docs/images/frank_the_frog.gif) |
+| [StakAttack](projects/stakattack/README.md) | Next `.nex`: Layer 2, hardware sprites, TurboSound music | ![](docs/images/stakattack.gif) |
+
+The shared game layer is in `sdk/include/zxgame.h` (8.8 fixed point, trig,
+random numbers, IM 2 frame timer, latched input with Kempston support,
+beeper/AY sound and music, 48K sprites/text, high scores) and
+`sdk/include/nextgfx.h` (Layer 2, sprites, palettes, TurboSound).
+
 ## Repository layout
 
 | | |
@@ -185,8 +205,8 @@ Layer 2 through an MMU slot), `projects/asm48` (sjasmplus `.sna`).
 | `docker/Dockerfile` | toolchain image (z88dk + sjasmplus) |
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
-| `sdk/` | `project.mk`, `zx_log`, `zx_print_at`, template |
-| `projects/` | `hello48`, `hellonext` (Layer 2 + sprites), `inputtest`, `asm48`, each with a `test.py` |
+| `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `stakattack`), examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktestnext`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 

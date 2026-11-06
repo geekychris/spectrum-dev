@@ -108,7 +108,36 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   written but not run.
 - The repo is private, so the one-line installer only works for people with access.
 
-## Phase 2 (next): game ports
+## Phase 2 (2026-11-06): SDK game layer + ports
+
+- SDK game layer (`sdk/include/zxgame.h`, `nextgfx.h`; tests `sdktest`, `sdktestnext`):
+  8.8 fixed point, trig table, atan2, isqrt, xorshift RNG, IM 2 frame timer with a
+  hook, keys/Sinclair/Kempston input with interrupt latching, beeper effects, AY
+  effects and a small music player, 48K screen tables, pre-shifted sprite blits
+  (xor/or/clear/store), text, attributes, high-score table and initials screen;
+  Next: 28 MHz, double-buffered Layer 2, hardware sprites, palettes, TurboSound.
+- **Nova Defense** (48K): renders 35-48 fps with 50 Hz logic.
+- **Frank the Frog** (48K): logic at 50 Hz, screen ~19 fps (each lane every other
+  redraw): moving objects step ~4 px. Lanes and objects in asm.
+- **StakAttack** (Next): Layer 2 well with per-buffer cell cache, sprites for
+  pieces, the original MOD converted to two AY chips, 50 Hz.
+- Every game: title, keys + Kempston, sound, high scores, bot test that plays a
+  whole game, replay x2 with frame hashes, screenshots, README, GIF in docs/images.
+  All in `./zx selftest` (about 3 minutes in all).
+
+Not done: **Boing Pinball** for the Next (stretch goal).
+
+### Known limitations (games)
+
+- Frank the Frog's ~19 fps redraw is a zsdcc cost problem; moving the per-object
+  loop of `draw_lane` and the frog's draw/erase to asm would roughly double it.
+- StakAttack: switching between the title and the game redraws a whole Layer 2
+  buffer in C (several frames). Pause/game over only draw a box.
+- Letters typed in the first frames of a high-score screen are lost (the screen is
+  still being drawn; `input_letter` reads live keys).
+
+## Game candidates (survey)
+
 
 Which existing games fit (survey of amiga_mcp/examples, atari_st_games,
 3do_dev/projects; the ST and 3DO ports reused the Amiga game logic through

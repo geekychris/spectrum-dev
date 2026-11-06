@@ -59,8 +59,22 @@ Details: docs/emulator-harness.md.
 
 ## Rules learned the hard way
 
-- **Use `-clib=sdcc_ix`** (project.mk does): it leaves IY alone for the ROM's IM 1
-  interrupt handler, so `intrinsic_ei(); intrinsic_halt();` paces at 50 Hz.
+- **Use `-clib=sdcc_ix`** (project.mk does). Games use the SDK's IM 2 frame timer
+  (`frame_init()`/`frame_wait()`): the ROM's IM 1 handler writes through IY, which
+  compiled code doesn't keep, and that corrupted memory. Keep programs below 0xF000
+  (vector table; project.mk checks the map).
+- zsdcc (z88dk 2.3): no `--opt-code-speed` (it miscompiled text_num); 2D/struct array
+  indexing and `*` become multiply calls, so walk pointers in hot code; compound
+  bit-sets like `a[i] |= m` in loops have miscompiled; printf evaluates arguments right
+  to left (store rnd16() results first). Profile with breakpoints + `get-tstates-partial`
+  before guessing, and move real hot loops to asm.
+- Game loops: fixed timestep (`ticks = frame_wait()`, logic `ticks` times, draw once),
+  so game speed stays the original's when drawing is slow. A tap shorter than a slow
+  frame is lost unless input is latched: `frame_hook = input_sample; input_latch(1);`
+  (presses are then edges collected by the interrupt; a press also counts as held for
+  that read, and a release a slow frame hid is not seen - see stakattack's DAS note).
+- ZEsarUX runs the Next's "28 MHz" at about 14 MHz (`get-cpu-frequency`): budget
+  ~280K T-states a frame there.
 - newlib's terminal ignores ZX control codes (`printf("\x16...")` prints `?`):
   draw text with `zx_print_at()` (sdk/include/zxtext.h, ROM font). The default
   STARTUP is 31 (no terminal); STARTUP=0 brings the printf terminal back.

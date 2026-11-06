@@ -91,6 +91,8 @@ uint8_t input_read(void)
         ke = input_edge_kemp;
         input_edge_kemp = 0;
         intrinsic_ei();
+        /* a press = a key that went down since the last read, even if it is
+           down again now after a release the read didn't see */
         latched_pressed = decode(edges, 1) | kemp_bits(ke) | (b & ~input_last);
     }
     input_prev = input_last;

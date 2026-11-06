@@ -90,6 +90,7 @@ with Emulator() as e:
         if "hiscore rank" in more or "nova: title" in more:
             break
     if "hiscore rank" in more:
+        e.run(20)                                  # the entry screen is up
         e.screenshot(SHOTS / "hiscore.png")
         e.type("BOT")
         e.run(10)
