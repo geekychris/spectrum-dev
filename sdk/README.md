@@ -18,6 +18,7 @@
 | `tools/mod2ay.py` | ProTracker MOD -> a `modplay` song: channel routing, instruments, pitch from each sample's waveform (`--help`) |
 | `tools/nextpic.py` | pictures -> Layer 2 banks (320 or 256 mode) + the `BANK_n` asm + a palette, sprite sheets -> patterns (16x16 or 32x32 quads); also a Python module (`rgb9`, `l2_bytes`, `write_banks`, `quad_patterns`; for pictures made in Python: `quantize`, `nearest`, `piece` / `rle_columns` (column RLE), `group_patterns`; boing_pinball's and spectral_keep's gen_gfx.py use it) |
 | `tools/aystream.py` | AY register streams for `aystream.h`: an `Ay` you set tones/noise on frame by frame, `encode` keeps only the changes and runs of quiet frames |
+| `tools/levelpack.py` | ASCII rooms (a `size`, a `legend` of character -> tile id, `room NAME` + rows) -> zxrle-packed C maps, names and a header for `tmap_load`; `parse` / `pack_rooms` as a module (`--help`) |
 | `tools/zxrle.py` | `pack` / `unpack` for `zxrle.h` (PackBits-style runs and literals) |
 | `tools/fatimg.py` | SD card images: read a FAT12/16 image (with or without an MBR) into a tree, change it (`drop`, `put`), write a FAT16 image with an MBR (8.3 + long names, reproducible); `ls` / `cat` from the command line |
 | `tools/nextbasic.py` | text -> tokenised (Next)BASIC (as NextZXOS stores it, dot commands kept as text), +3DOS headers for programs and code (`plus3dos_basic`, `plus3dos_code`) |
@@ -35,8 +36,8 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | | `rnd.c` | xorshift16 random numbers (deterministic) |
 | | `frame.c`, `frame_isr.asm` | IM 2 frame timer, `frame_wait()` returns the frames passed (fixed-timestep loops), `frame_hook` |
 | | `frame_exit.c` | `frame_exit()`: back to IM 1 (I = 0x3F) before code returns to BASIC |
-| | `input.c`, `input_isr.asm` | keys (QAOP, cursor, Sinclair 1/2) + Kempston -> `IN_*` bits; presses latched in the interrupt (`input_latch`); `input_letter_pressed()` for typing |
-| | `input_fast.c` | `input_fast()`: optional table decode of the keys (same bits, ~9,000 T-states less a read, ~300 bytes) |
+| | `input.c`, `input_read.asm`, `input_isr.asm` | keys (QAOP, cursor, Sinclair 1/2) + Kempston -> `IN_*` bits; presses latched in the interrupt (`input_latch`); `input_letter_pressed()` for typing; `input_read` is asm |
+| | `input_fast.c`, `input_fast_dec.asm` | `input_fast()`: optional table decode of the keys (same bits, ~300 bytes); with it `input_read` takes ~5,500 T-states |
 | | `beep.asm`, `sound.c`, `ay_notes.c` | beeper effects; AY tone/noise, decaying effects, a small note-list music player |
 | | `gfx48.c`, `spr_blit.asm` | 48K screen: row table, pre-shifted sprites (xor/or/clear/store), rects, tiles, attributes, big text, numbers |
 | | `hiscore.c` | high-score table, the initials editor (`hs_edit_*`, any screen) |
@@ -72,6 +73,9 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | `input2.h` | `input2.c` | input for two players: each reads only their own key sets (QAOP, WASD, IJKL, cursor), Sinclair 1/2 and Kempston 1/2 (`in2_scan` once a frame, `in2_update(&pad)`: held + pressed); 48K and Next |
 | `nextsplit.h` | `next/nextsplit.c` | split screens with the copper: horizontal panes with their own clip windows (sprites, Layer 2, tilemap) and `split_row` for register moves before a given row; a list can be rebuilt every frame and uploaded in the vertical blank |
 | `zxrle.h` | `zxrle.c` | run-length unpacking (`rle_unpack`) of data packed by `tools/zxrle.py`: level maps and other data with long runs |
+| `tmap.h` | `tmap.c` | one tile map with a row table: `tmap_load` (a `tools/levelpack.py` stream), `TMAP(c, r)`, `tmap_at` (bounds-checked), `tmap_find`, `tmap_count`, `tmap_replace`; builds on the host too |
+| `plat.h` | `plat.c`, `plat_kind.asm` | platformer movement against tmap: `plat_move_x` / `plat_move_y` (move X then Y, test the box's corners, snap to the tile edge, gravity, max fall, `on_ground`), `plat_kind_at` / `plat_solid_at`; tile and body size and a solid table are parameters. It is Miner Meteor's original code, snaps included; builds on the host too |
+| `cellspr48.h` | `cellspr48.c`, `cellspr48_spr.asm`, `cellspr48_out.asm`, `cellspr48_ref.asm` | 48K tile room + sprites composed per character cell (tile, then each sprite ORed in from a pre-shifted copy, written once: no flicker; a sprite inks the cells it covers). `cs_update` redraws only the cells that changed (moved sprites, `cs_set`, `cs_mark`); `cs_refresh` rewrites a few lines of animated tiles (belts) without a compose. Tests: projects/sdktestroom |
 | `isosort.h` | `isosort.c` | isometric draw order for boxes (separating axis + depth key, then a depth-first sort); `iso_behind` for "is this scenery in front of the sprite" |
 
 `zxlog` and `zxtext` are linked into every z88dk project.

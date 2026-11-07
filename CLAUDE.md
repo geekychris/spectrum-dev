@@ -208,6 +208,17 @@ Details: docs/emulator-harness.md.
 - Fixed-timestep loops: cap the catch-up ticks (a level's first frame can take seconds), but high enough
   (Uranus: 6) that a slow frame doesn't lose game time; count ticks vs frames in a perf log and test it.
 
+- zsdcc through a pointer to a struct (`s->x` in a loop) is several times the code
+  of the same work on a static copy (`memcpy(&cur, s, n)`, `cur.x`): cellspr48's
+  first sprite loop took 17,000 T-states doing nothing. Measure a function with
+  a breakpoint at its entry and one at its return address (Miner Meteor's
+  `tools/timefn.py`), or sample PCs (`tools/profile.py`); estimates were 2-5x low.
+- `run_until(text)` stops on the instruction that wrote the text: the rest of the
+  log line isn't written yet (run a frame, or match the whole line).
+- A bot that must feed exact keys per logic tick: read the keys before each tick
+  and set the next tick's keys at a breakpoint on the tick function; set them at
+  the frame boundary instead and a slow frame (two ticks) or the interrupt's
+  latch (`input_latch`) gives a tick the wrong keys (miner_meteor/test.py).
 
 ## Layout
 

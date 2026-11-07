@@ -710,8 +710,9 @@ int main(void)
             title_loop();
         }
         update_probe();
-        if ((miner_probe.frames & 255) == 0 && gs.mode == GM_PLAYING)
-            zx_log("miner: perf frames=%u ticks=%u overruns=%u cells=%u\n", miner_probe.frames,
-                   miner_probe.ticks, miner_probe.overruns, cs_last_cells);
+        /* speed: frames drawn and logic ticks so far (fps = 50 * frames / ticks) */
+        if ((miner_probe.frames & 127) == 0 && gs.mode == GM_PLAYING)
+            zx_log("miner: perf frames=%u ticks=%u overruns=%u level=%u\n", miner_probe.frames,
+                   miner_probe.ticks, miner_probe.overruns, gs.level_index + 1);
     }
 }

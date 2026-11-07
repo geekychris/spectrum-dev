@@ -98,11 +98,18 @@ def follow_route(e, level, max_ticks=3000):
 
 
 def fps_of(log):
-    m = re.findall(r"perf frames=(\d+) ticks=(\d+) overruns=(\d+)", log)
+    """overall fps and overruns, and fps per cavern (between perf lines in it)"""
+    m = [tuple(map(int, x)) for x in re.findall(r"perf frames=(\d+) ticks=(\d+) overruns=(\d+) level=(\d+)", log)]
+    m = list(dict.fromkeys(m))
     if not m:
         return None
-    f, t, o = map(int, m[-1])
-    return 50.0 * f / t, o
+    per = {}
+    for (f0, t0, _, l0), (f1, t1, _, l1) in zip(m, m[1:]):
+        if l0 == l1:
+            f, t = per.get(l1, (0, 0))
+            per[l1] = (f + f1 - f0, t + t1 - t0)
+    f, t, o, _ = m[-1]
+    return 50.0 * f / t, o, {lv: 50.0 * a / b for lv, (a, b) in sorted(per.items())}
 
 
 # ------------------------------------------------------------ 1. the bot's game (recorded)
@@ -206,6 +213,7 @@ with Emulator() as e:
     fps = fps_of(log)
     if fps:
         print(f"  speed: {fps[0]:.1f} fps drawn, logic 50 ticks/s, {fps[1]} overrun frames in the demo")
+        print("  per cavern: " + ", ".join(f"{lv}: {v:.1f}" for lv, v in fps[2].items()))
         check("draws at least 45 frames a second", fps[0] >= 45, f"{fps[0]:.1f}")
     else:
         check("perf lines logged", False)

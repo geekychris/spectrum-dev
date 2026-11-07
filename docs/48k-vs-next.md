@@ -15,7 +15,7 @@ the games in `projects/`:
 
 ## What the games did on each
 
-**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander, Sky Knights): every pixel is drawn by the CPU, and
+**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander, Sky Knights, Miner Meteor): every pixel is drawn by the CPU, and
 the CPU is slow, so the work goes into drawing less:
 
 - sprites pre-shifted into 8 copies so a draw is byte moves, written in
@@ -33,14 +33,22 @@ the CPU is slow, so the work goes into drawing less:
 - Sky Knights keeps the original's 320 x 256 world and 16-bit fixed point
   and only scales the drawing; its every-frame loops are assembly that
   calls the original C for rare events, checked against the C tick for tick
+- tile rooms (Miner Meteor, sdk `cellspr48`): the room is tile ids and a
+  frame composes only the character cells something changed in: the tile,
+  then each sprite ORed in, written once, so sprites don't flicker and each
+  colours its own cells. Tiles are one cell each, so every tile keeps its
+  colours (the cavern is drawn at half size to make that so)
+- zsdcc's code through pointers to structs is many times the size of the
+  same code on a static copy; the hot loops are asm, and `tools/profile.py`
+  / `tools/timefn.py` in Miner Meteor show where a frame's time goes
 - tables built at start-up can go in the RAM below the program
   (0x5D00-0x7FFF once the BASIC loader is done), as Rock Blaster's and Sky
   Knights' do; it is contended, so code stays out of it (Sky Knights' C ran
   ~40% slower there)
 - the game logic runs at a fixed 50 Hz while the screen updates when it can
   (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40, Uranus Lander ~26,
-  Sky Knights 50 down to 15 with eight enemies), so the games play at the
-  original speed
+  Sky Knights 50 down to 15 with eight enemies, Miner Meteor 33-50), so the
+  games play at the original speed
 - sound on the beeper (which stops the CPU), or on the AY on a 128K (Rock
   Blaster plays the original's MOD there through `modplay`)
 - Uranus Lander draws its terrain once per level from a heightmap, renders
