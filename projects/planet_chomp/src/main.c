@@ -27,6 +27,7 @@
 #include <arch/zxn.h>
 #include "zxgame.h"
 #include "nextgfx.h"
+#include "nextcopper.h"
 #include "l2poly.h"
 #include "zxlog.h"
 #include "pc.h"
@@ -58,6 +59,24 @@ void dr_end(void) { l2p_end(); }
 void dr_poly(const int16_t *xy, uint8_t n, uint8_t colour) { l2p_poly(xy, n, colour); }
 void dr_rect(int16_t y0, int16_t y1, int16_t x0, int16_t x1, uint8_t colour) { l2p_rect(y0, y1, x0, x1, colour); }
 
+
+/* port: the 3D view is drawn 96 rows high and shown 192: every other line
+   the copper moves Layer 2's Y scroll (NextReg 0x17) back a row, so each row
+   shows twice (half the rows to fill: the polygons' cost is mostly per row).
+   The sprites and the tilemap are full height. */
+static void copper_doubling(void)
+{
+    uint16_t l;
+    copper_begin();
+    copper_move(0x17, 0);                            /* (the list starts in the top border) */
+    for (l = 2; l < RD_H; l += 2) {
+        copper_wait(l - 1, 50);                      /* the end of the line before */
+        copper_move(0x17, (uint8_t)(192 - l / 2));
+    }
+    copper_wait(RD_H - 1, 50);
+    copper_move(0x17, 0);
+    copper_end();
+}
 
 /* profiling: raster lines spent in each part of the loop (one line is ~1800
    T-states at 28 MHz), on a clock of frames (the interrupt) and lines */
@@ -131,6 +150,7 @@ int main(void)
     frame_init();
     frame_hook = on_frame;
     input_latch(1);
+    copper_doubling();
     DRAW();
     rd_init();
     HUD();

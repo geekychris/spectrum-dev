@@ -30,7 +30,7 @@ CN_BASE equ 0x4000
 NCORNERS equ 488
 NEAR_Z equ 153                  ; Q8(0.6)
 CX equ 128
-CY equ 96
+CY equ 48                       ; port: rows drawn half height, the copper doubles them
 
 ; ---------------------------------------------------------------- the rows
 
@@ -248,6 +248,8 @@ xc_loop:
     add hl,de                   ; ty
     ld de,(st)
     call pmul
+    sra h
+    rr l                        ; half height
     call neg_hl
     ld de,CY
     add hl,de
@@ -257,6 +259,8 @@ xc_loop:
     pop hl
     ld de,(sb)
     call pmul
+    sra h
+    rr l                        ; half height
     call neg_hl
     ld de,CY
     add hl,de

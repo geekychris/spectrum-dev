@@ -108,10 +108,10 @@ void xf_corners(void)
         if (b[2] < NEAR_Z || t[2] < NEAR_Z) continue;
         s = scale_at(b[2]);
         c->bx = clampc(RD_CX + pmul(b[0], s));
-        c->by = clampc(RD_CY - pmul(b[1], s));
+        c->by = clampc(RD_CY / 2 - (pmul(b[1], s) >> 1));   /* port: half height */
         s = scale_at(t[2]);
         c->tx = clampc(RD_CX + pmul(t[0], s));
-        c->ty = clampc(RD_CY - pmul(t[1], s));
+        c->ty = clampc(RD_CY / 2 - (pmul(t[1], s) >> 1));
         c->z = b[2];
         c->vis = 1;
     }
@@ -179,6 +179,7 @@ static void disc_points(void)
         p.y = centre.y + mulq14(e1.y, mulq14(rr, cs[i][0])) + mulq14(e2.y, mulq14(rr, cs[i][1]));
         p.z = centre.z + mulq14(e1.z, mulq14(rr, cs[i][0])) + mulq14(e2.z, mulq14(rr, cs[i][1]));
         if (!rd_project(&p, &disc_xy[i * 2], &disc_xy[i * 2 + 1], &z)) { disc_h = -2; return; }
+        disc_xy[i * 2 + 1] >>= 1;                    /* port: drawn half height */
     }
 }
 
@@ -274,7 +275,7 @@ static void add_wall(int16_t e)
     qy = row8(xf_m8[1], ed->side);
     qz = row8(xf_m8[2], ed->side);
     ox = (int16_t)((int32_t)qx * t >> 14);                    /* 1/16 px */
-    oy = (int16_t)(-(int32_t)qy * t >> 14);
+    oy = (int16_t)(-(int32_t)qy * t >> 15);                   /* (half height) */
     face = (int32_t)ox * (ca->bx - ca->tx + cb->bx - cb->tx) + (int32_t)oy * (ca->by - ca->ty + cb->by - cb->ty);
     if (face < 0) { ox = -ox; oy = -oy; }
     it_a[n] = (int16_t)ed->a;
@@ -309,7 +310,7 @@ static void add_crumb(int16_t c)
     r = tsize(z);                                         /* 1/16 px */
     if (r < 8) r = 8;
     it_a[n] = (x - r) >> 4;                  /* left, top, size */
-    it_b[n] = (y - r) >> 4;
+    it_b[n] = (y - r / 2) >> 4;
     r = (2 * r + 8) >> 4;
     it_ox[n] = (int8_t)(r < 1 ? 1 : r > 8 ? 8 : r);
     it_col[n] = C_CRUMB;
@@ -329,6 +330,7 @@ static void draw_nest(void)
     if (rd_horizon(&mz_spot[4]) < PLANET_R - Q8(1.25)) return;
     for (i = 0; i < 8; i++)
         if (!rd_project(&rd_nest_rim[i], &nest_xy[i * 2], &nest_xy[i * 2 + 1], &z)) return;
+        nest_xy[i * 2 + 1] >>= 1;                    /* port: drawn half height */
     dr_poly(nest_xy, 8, C_NEST);
 }
 

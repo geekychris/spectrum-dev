@@ -59,11 +59,12 @@ def stars():
         r = (r * 1103515245 + 12345) & 0xFFFFFFFF
         b = 110 + (r >> 16) % 146
         tex[y][x] = C_STAR1 + min(3, (b - 110) * 4 // 146)
-    # 160 x 120 at 2x on the 320 x 240 frame = 256 x 192 here (x 1.6, nearest)
+    # 160 x 120 at 2x on the 320 x 240 frame = 256 x 192 here (x 1.6, nearest),
+    # drawn 96 rows high (the copper shows each row twice: main.c)
     out = bytearray(256 * 192)
-    for y in range(192):
+    for y in range(96):
         for x in range(256):
-            out[y * 256 + x] = tex[y * 120 // 192][x * 160 // 256]
+            out[y * 256 + x] = tex[y * 120 // 96][x * 160 // 256]
     return out
 
 

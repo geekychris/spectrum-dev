@@ -8,6 +8,7 @@
 #define RD_H   192
 #define RD_CX  128
 #define RD_CY  96
+#define RD_ROWS 96                  /* port: Layer 2 rows drawn; the copper shows each twice */
 
 /* Layer 2 palette indices (gen_gfx.py makes the palette) */
 enum {

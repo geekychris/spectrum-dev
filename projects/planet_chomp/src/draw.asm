@@ -26,6 +26,7 @@ EXTERN l_z80n_muls_32_16x16
 C_NEST equ 6
 C_CRUMB equ 7
 C_WALL_TOP equ 8
+RD_ROWS equ 96                  ; port: the view is drawn 96 rows high, shown doubled (main.c's copper)
 MAX_ITEMS equ 360
 JT_LO equ 0x3A00                ; the last 1.5K of bank 18 (the Makefile keeps it free):
 JT_HI equ 0x3B00                ; the span jump table, low and high bytes
@@ -237,6 +238,7 @@ cr_r:
     or a
     jp nz,cr_next               ; left < -8 or left > 247
     ld a,(cr_r16)
+    srl a                       ; (half height)
     ld e,a
     ld d,0
     ld hl,(s_by)
@@ -250,7 +252,7 @@ cr_r:
     or a
     jp nz,cr_next
     ld a,l
-    cp 200
+    cp 104
     jp nc,cr_next               ; top > 191
     ld hl,(s_z)
     call new_item
@@ -451,6 +453,8 @@ wl_loop:
     ld hl,(w_qy)
     call qmul_t
     call neg_hl
+    sra h
+    rr l                        ; half height
     ld (w_oy),hl
     ; toward the ground points: face = ox (bA - tA + bB - tB).x + oy (...).y
     ld iy,(w_a)
@@ -595,7 +599,7 @@ oc_2:
     or 4
     jr oc_4
 oc_3:
-    ld de,-200
+    ld de,-104
     add hl,de
     jr nc,oc_4
     or 8
@@ -743,7 +747,10 @@ dw_done:
 draw_crumb:
     ld a,(ix+2)
     ld (pcol),a
-    ld b,(ix+3)                 ; size
+    ld a,(ix+3)                 ; size: rows half of it (half height)
+    inc a
+    srl a
+    ld b,a
     ld e,(ix+7)
     ld d,(ix+8)                 ; top
 dc_row:
@@ -751,7 +758,7 @@ dc_row:
     or a
     jr nz,dc_skip               ; above (or far below) the screen
     ld a,e
-    cp 192
+    cp RD_ROWS
     jr nc,dc_skip
     push bc
     push de
@@ -972,7 +979,7 @@ poly4:
     ; wholly on the screen (every x 0..255, every y 0..191): the 8-bit path
     ld hl,qv
     ld b,4
-    ld c,192                    ; ymin
+    ld c,RD_ROWS                ; ymin
     ld d,0                      ; ymax
 pf_chk:
     inc hl
@@ -988,7 +995,7 @@ pf_chk:
     or a
     jr nz,p4_general
     ld a,e
-    cp 192
+    cp RD_ROWS
     jr nc,p4_general
     cp c
     jr nc,pf_1
@@ -1078,9 +1085,9 @@ p4_b4:
     or l
     ret z                       ; ymax = 0
     ld hl,(pymn)
-    ld de,192
+    ld de,RD_ROWS
     call cmp_hl_de_s
-    ret nc                      ; ymin >= 192
+    ret nc                      ; ymin >= the last row
     ld hl,(pxmax)
     bit 7,h
     ret nz                      ; xmax < 0
@@ -1090,7 +1097,7 @@ p4_b4:
     jr z,p4_x1
     ret p                       ; xmin > 255
 p4_x1:
-    ; the rows: ys = max(ymin, 0), ye = min(ymax, 192)
+    ; the rows: ys = max(ymin, 0), ye = min(ymax, RD_ROWS)
     ld hl,(pymn)
     bit 7,h
     jr z,p4_y1
@@ -1099,7 +1106,7 @@ p4_y1:
     ld a,l
     ld (pymin),a
     ld hl,(pymx)
-    ld de,192
+    ld de,RD_ROWS
     call cmp_hl_de_s
     jr c,p4_y2
     ex de,hl
@@ -1416,10 +1423,10 @@ ed_dir:
     call ld_de_hl
     ld (e_xb),de
     call ld_de_hl               ; DE = y bottom
-    ; rows: ys = max(yt, 0), ye = min(yb, 192), none if ys >= ye
-    ld hl,192
+    ; rows: ys = max(yt, 0), ye = min(yb, RD_ROWS), none if ys >= ye
+    ld hl,RD_ROWS
     ex de,hl
-    call cmp_hl_de_s            ; yb < 192 ?
+    call cmp_hl_de_s            ; yb < the rows ?
     jr c,ed_ye
     ex de,hl
 ed_ye:
@@ -1437,7 +1444,7 @@ ed_ys:
     or a
     sbc hl,de
     ld a,l
-    ld (e_rows),a               ; 1..192
+    ld (e_rows),a               ; 1..RD_ROWS
     ; dx, dy
     ld hl,(e_xb)
     ld de,(e_xt)
