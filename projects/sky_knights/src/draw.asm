@@ -7,7 +7,7 @@
 ; and paint them all again (tint_pass).
 ;
 ; Layouts (main.c checks them at boot and logs "sky: layout mismatch"):
-;   Slot   {int16 x; uint8 y, on, w, h, attr; ptr img; uint8 col, row, tw, th}
+;   Slot   {int16 x; uint8 y, on, w, h, attr; ptr img; uint8 col, row, tw, th, ch}
 ;   Egg    {x, y, dy, active, timer, ...}                 14 bytes
 ;   Enemy  {x, y, dx, dy, type, active, facing, anim_frame, ...}   22 bytes
 ;   Player {x, y, dx, dy, active, alive, lives, facing, anim_frame,
@@ -36,7 +36,8 @@ DEFC S_COL = 9
 DEFC S_ROW = 10
 DEFC S_TW = 11
 DEFC S_TH = 12
-DEFC SLOT_SIZE = 13
+DEFC S_CH = 13
+DEFC SLOT_SIZE = 14
 DEFC NUM_SLOTS = 18
 
 DEFC A_EGG = 0x44               ; INK_GREEN | BRIGHT
@@ -339,6 +340,7 @@ su_cells:                       ; other cells: the colours need doing
 su_dirty:
     ld a,1
     ld (_tint_dirty),a
+    ld (ix+S_CH),a
 su_store:
     ld a,(n_on)
     ld (ix+S_ON),a
@@ -359,6 +361,7 @@ su_attr:
     jr z,su_attr_set
     ld a,1
     ld (_tint_dirty),a
+    ld (ix+S_CH),a
 su_attr_set:
     ld a,(n_attr)
     ld (ix+S_ATTR),a
@@ -383,24 +386,49 @@ cells_of_slot:
     ld (_cl_h),a
     ret
 
-; if anything moved to other cells: restore every slot's cells, then paint
-; every visible one (the last painted wins where they overlap)
+; if anything moved to other cells or changed colour: restore the cells of
+; those that did, then paint every visible object that did or that touches
+; a restored area, in slot order (the last painted wins where they overlap)
 _tint_pass:
     ld a,(_tint_dirty)
     or a
     ret z
     xor a
     ld (_tint_dirty),a
+    ld (tp_nrest),a
     push ix
     ld ix,_slots
     ld b,NUM_SLOTS
+    ld hl,tp_rest               ; the restored areas: col, last col, row, last row
 tp_restore:
     push bc
+    ld a,(ix+S_CH)
+    or a
+    jr z,tp_restore_next
     ld a,(ix+S_TH)
     or a
     jr z,tp_restore_next
+    push hl
     call cells_of_slot
     call _cells_restore
+    pop hl
+    ld a,(ix+S_COL)
+    ld (hl),a
+    inc hl
+    add a,(ix+S_TW)
+    dec a
+    ld (hl),a
+    inc hl
+    ld a,(ix+S_ROW)
+    ld (hl),a
+    inc hl
+    add a,(ix+S_TH)
+    dec a
+    ld (hl),a
+    inc hl
+    ld a,(tp_nrest)
+    inc a
+    ld (tp_nrest),a
 tp_restore_next:
     ld de,SLOT_SIZE
     add ix,de
@@ -410,13 +438,24 @@ tp_restore_next:
     ld b,NUM_SLOTS
 tp_paint:
     push bc
+    ld a,(ix+S_CH)
+    or a
+    jr nz,tp_area
+    ld a,(ix+S_TH)              ; unchanged: repaint only if it touches a restored area
+    or a
+    jp z,tp_paint_next
+    call touches_restored
+    jp nc,tp_paint_next
+    jp tp_paint_it
+tp_area:
+    ld (ix+S_CH),0
     ld (ix+S_TH),0
     ld a,(ix+S_ON)
     or a
-    jr z,tp_paint_next
+    jp z,tp_paint_next
     ld a,(ix+S_Y)
     cp 192
-    jr nc,tp_paint_next
+    jp nc,tp_paint_next
     ; x1 = x + w * 8 - 1
     ld a,(ix+S_W)
     add a,a
@@ -432,9 +471,9 @@ tp_paint:
     or a
     jr z,tp_x_pos
     inc a
-    jr nz,tp_paint_next         ; x > 255
+    jp nz,tp_paint_next         ; x > 255
     bit 7,h
-    jr nz,tp_paint_next         ; x1 < 0: all off the left
+    jp nz,tp_paint_next         ; x1 < 0: all off the left
     ld c,0                      ; C = first column
     jr tp_x1
 tp_x_pos:
@@ -480,6 +519,7 @@ tp_r1:
     sub c
     inc a
     ld (ix+S_TH),a
+tp_paint_it:
     call cells_of_slot
     ld a,(ix+S_ATTR)
     ld (_cl_attr),a
@@ -493,9 +533,57 @@ tp_paint_next:
     pop ix
     ret
 
+; carry set if the slot's cells (IX) overlap one of the restored areas
+touches_restored:
+    ld a,(tp_nrest)
+    or a
+    ret z                       ; (carry clear)
+    ld b,a
+    ld hl,tp_rest
+    ld a,(ix+S_COL)
+    ld c,a                      ; C = first column
+    add a,(ix+S_TW)
+    dec a
+    ld d,a                      ; D = last column
+    ld a,(ix+S_ROW)
+    ld e,a                      ; E = first row
+tr_loop:
+    ld a,d                      ; my first col <= its last, its first <= my last
+    cp (hl)
+    jr c,tr_no                  ; my last < its first
+    inc hl
+    ld a,(hl)
+    cp c
+    jr c,tr_no1                 ; its last < my first
+    inc hl
+    ld a,e                      ; rows: my first row + th - 1 >= its first row
+    add a,(ix+S_TH)
+    dec a
+    cp (hl)
+    jr c,tr_no2
+    inc hl
+    ld a,(hl)
+    cp e
+    jr c,tr_no3                 ; its last row < my first row
+    scf
+    ret
+tr_no:
+    inc hl
+tr_no1:
+    inc hl
+tr_no2:
+    inc hl
+tr_no3:
+    inc hl
+    djnz tr_loop
+    or a
+    ret
+
 SECTION bss_user
 n_on:   defb 0
 n_x:    defw 0
 n_y:    defb 0
 n_img:  defw 0
 n_attr: defb 0
+tp_nrest: defb 0
+tp_rest: defs 4 * NUM_SLOTS

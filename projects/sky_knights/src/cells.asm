@@ -99,3 +99,46 @@ _cl_off:      defw 0
 _cl_w:        defb 0
 _cl_h:        defb 0
 _cl_attr:     defb 0
+
+; ---------------------------------------------------------------- input
+; uint8_t isr_scan(void): the 8 keyboard half-rows into in2_rows and the
+; Kempston into in2_kemp[0] (as input2.c's in2_scan does, ~10x faster);
+; returns 1 if anything changed since the last scan
+SECTION code_user
+PUBLIC _isr_scan
+EXTERN _in2_rows, _in2_kemp, _in2_has_kemp
+
+_isr_scan:
+    ld hl,_in2_rows
+    ld bc,0xFEFE
+    ld e,0                      ; E = changed
+is_row:
+    in a,(c)
+    and 0x1F                    ; the keys (not EAR, which the beeper moves)
+    cp (hl)
+    jr z,is_same
+    ld (hl),a
+    ld e,1
+is_same:
+    inc hl
+    rlc b
+    jr c,is_row
+    ld a,(_in2_has_kemp)
+    or a
+    jr z,is_done
+    ld bc,0x001F
+    in a,(c)
+    ld d,a
+    and 0xE0                    ; bits 5-7 set: nothing there now
+    ld a,d
+    jr z,is_kemp
+    xor a
+is_kemp:
+    ld hl,_in2_kemp
+    cp (hl)
+    jr z,is_done
+    ld (hl),a
+    ld e,1
+is_done:
+    ld l,e
+    ret

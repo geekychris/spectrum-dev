@@ -85,7 +85,7 @@ static const uint8_t life_tile[8] = {0x00, 0x0C, 0x1E, 0x0C, 0x7E, 0xFC, 0x48, 0
 
 /* 8 rider frames: facing * 4 + wings up * 2 + leg frame, pre-shifted (3 x 16 x 8) */
 #define RIDER_PRE (8 * 3 * RIDER_H)
-#define pre_rider ((uint8_t (*)[RIDER_PRE])MEM_PRE_RIDER)   /* [8][RIDER_PRE] */
+static uint8_t pre_rider[8][RIDER_PRE];    /* read by every blit: uncontended RAM */
 #define pre_egg ((uint8_t *)MEM_PRE_EGG)                    /* 8 * 2 * EGG_H */
 const uint8_t *rider_ptr[8];                                /* each frame (draw.asm) */
 
@@ -198,6 +198,7 @@ typedef struct {
     uint8_t y, on, w, h, attr;
     const uint8_t *img;
     Cells t;                    /* cells painted with attr */
+    uint8_t ch;                 /* moved to other cells / new colour since the last tint_pass */
 } Slot;                         /* draw.asm knows this layout */
 
 /* cells.asm */
@@ -228,6 +229,7 @@ static void slots_reset(void)
     for (i = 0; i < NUM_SLOTS; i++, s++) {
         s->on = 0;
         s->t.h = 0;
+        s->ch = 0;
         s->w = i < MAX_EGGS ? 1 : 2;
         s->h = i < MAX_EGGS ? EGG_H : RIDER_H;
     }
@@ -249,12 +251,14 @@ static void hide_all(void)
         if (!s->on) continue;
         sprc_xor(s->x, s->y, s->img, s->w, s->h);
         s->on = 0;
+        s->ch = 1;
     }
     tint_dirty = 1;
     tint_pass();
 }
 
 static uint16_t draws;          /* screen updates in play (fps) */
+static uint8_t fps_ticks, hud_check;
 
 #if DRAW_IN_C
 /* move slot s to (x, y, img) or hide it (img = 0) */
@@ -405,7 +409,7 @@ static void print_center2(uint8_t row, const char *a, const char *b, uint8_t att
 static void big_center(uint8_t row, const char *s, uint8_t attr)
 {
     uint8_t n = strlen(s) * 2;
-    attr_fill(0, row, 32, 2, attr);
+    attr_fill((32 - n) / 2, row, n, 2, attr);
     text_big((32 - n) / 2, row, s);
 }
 
@@ -413,9 +417,11 @@ static void big_center(uint8_t row, const char *s, uint8_t attr)
 
 static void draw_wave_intro(void)
 {
-    big_center(9, "WAVE ", INK_YELLOW | BRIGHT);           /* the original: WAVE n, GET READY! */
-    text_big(18, 9, num_str(gs.wave));
-    attr_fill(0, 12, 32, 1, INK_WHITE | BRIGHT);
+    static char line[12];
+    strcpy(line, "WAVE ");
+    strcat(line, num_str(gs.wave));
+    big_center(9, line, INK_YELLOW | BRIGHT);                 /* the original: WAVE n, GET READY! */
+    attr_fill(11, 12, 10, 1, INK_WHITE | BRIGHT);
     text_center(12, "GET READY!");
     hud(1);
 }
@@ -423,6 +429,7 @@ static void draw_wave_intro(void)
 static void draw_gameover(void)
 {
     screen_clear(INK_WHITE | BRIGHT, INK_BLACK);
+    attr_fill(0, 6, 32, 2, INK_RED | BRIGHT);
     big_center(6, "GAME OVER", INK_RED | BRIGHT);
     print_center2(11, "P1 SCORE: ", num_str(gs.score[0]), INK_YELLOW | BRIGHT);
     if (gs.num_players > 1) print_center2(13, "P2 SCORE: ", num_str(gs.score[1]), INK_YELLOW | BRIGHT);
@@ -440,6 +447,7 @@ static void draw_title_menu(void)
 static void draw_title(void)
 {
     screen_clear(INK_WHITE | BRIGHT, INK_BLACK);
+    attr_fill(0, 1, 32, 2, INK_YELLOW | BRIGHT);
     big_center(1, "SKY KNIGHTS", INK_YELLOW | BRIGHT);
     attr_fill(0, 4, 32, 1, INK_WHITE | BRIGHT);
     text_center(4, "AN ARCADE CLASSIC");
@@ -544,15 +552,14 @@ static uint8_t ring_p1[8], ring_p2[8], ring_num[8];
 static volatile uint8_t isr_n;
 static uint8_t rd_n;
 
+extern uint8_t isr_scan(void);       /* cells.asm: reads the keys and stick into in2_rows/in2_kemp, 1 = changed */
+
 static void isr_work(void)
 {
-    static uint8_t last_rows[8], last_kemp = 0xFF, b1, b2;
+    static uint8_t b1, b2;
     uint8_t i = (uint8_t)(isr_n + 1) & 7;
-    in2_scan();
     /* decoding is slow in C: only when a key or the stick changed */
-    if (memcmp(last_rows, in2_rows, 8) || last_kemp != in2_kemp[0] || src_changed) {
-        memcpy(last_rows, in2_rows, 8);
-        last_kemp = in2_kemp[0];
+    if (isr_scan() || src_changed) {
         src_changed = 0;
         b1 = in2_bits(src_p1);
         b2 = src_p2 ? in2_bits(src_p2) : 0;
@@ -600,39 +607,7 @@ static void tick_input(InputState *in, uint8_t idx)
 
 /* ------------------------------------------------------------ test probe + log */
 
-/* for test bots (test.py reads it by symbol): world pixels */
-struct {
-    int16_t state, wave, num_players;
-    int16_t px[2], py[2], alive[2], lives[2];
-    int16_t ex[MAX_ENEMIES], ey[MAX_ENEMIES], eact[MAX_ENEMIES];
-    int16_t gx[MAX_EGGS], gy[MAX_EGGS], gact[MAX_EGGS];
-    int32_t score[2];
-} sky_probe;
-
-static void update_probe(void)
-{
-    uint8_t i;
-    sky_probe.state = gs.state;
-    sky_probe.wave = gs.wave;
-    sky_probe.num_players = gs.num_players;
-    for (i = 0; i < 2; i++) {
-        sky_probe.px[i] = FIX_INT(gs.players[i].x);
-        sky_probe.py[i] = FIX_INT(gs.players[i].y);
-        sky_probe.alive[i] = gs.players[i].alive;
-        sky_probe.lives[i] = gs.players[i].lives;
-        sky_probe.score[i] = gs.score[i];
-    }
-    for (i = 0; i < MAX_ENEMIES; i++) {
-        sky_probe.ex[i] = FIX_INT(gs.enemies[i].x);
-        sky_probe.ey[i] = FIX_INT(gs.enemies[i].y);
-        sky_probe.eact[i] = gs.enemies[i].active;
-    }
-    for (i = 0; i < MAX_EGGS; i++) {
-        sky_probe.gx[i] = FIX_INT(gs.eggs[i].x);
-        sky_probe.gy[i] = FIX_INT(gs.eggs[i].y);
-        sky_probe.gact[i] = gs.eggs[i].active;
-    }
-}
+/* test bots (test.py) read the game state `gs` by symbol: game.h's structs */
 
 static const char *const state_names[5] = {"title", "playing", "intro", "dying", "gameover"};
 
@@ -667,7 +642,7 @@ static void log_tick(uint8_t ev)
 #define OFS(t, f) ((uint16_t)&((t *)0)->f)
 static void layout_check(void)
 {
-    if (sizeof(Slot) != 13 || OFS(Slot, img) != 7 || OFS(Slot, t) != 9 ||
+    if (sizeof(Slot) != 14 || OFS(Slot, img) != 7 || OFS(Slot, t) != 9 ||
         sizeof(Egg) != 14 || OFS(Egg, timer) != 8 ||
         sizeof(Enemy) != 22 || OFS(Enemy, type) != 8 || OFS(Enemy, anim_frame) != 14 ||
         sizeof(Player) != 26 || OFS(Player, alive) != 10 || OFS(Player, facing) != 14 ||
@@ -722,23 +697,24 @@ int main(void)
         /* draw what the last tick left */
         if (gs.state == STATE_PLAYING) { draw_sprites(); draws++; }
         else if (gs.state == STATE_TITLE) title_anim();
-        if (gs.state == STATE_PLAYING || gs.state == STATE_WAVE_INTRO) hud(0);
+        if (hud_check) { hud(0); hud_check = 0; }
 
         while (ticks--) {
             InputState in;
             tick_input(&in, ++rd_n & 7);
             game_update(&gs, &in);
             ev |= (uint8_t)gs.ev_flags;
-            log_tick((uint8_t)gs.ev_flags);
+            if (gs.ev_flags || gs.state != prev_state) log_tick((uint8_t)gs.ev_flags);
             gs.ev_flags = 0;
-            if (gs.state == STATE_PLAYING && (gs.frame % 250) == 0) {
+            if (gs.state == STATE_PLAYING && ++fps_ticks == 250) {
+                fps_ticks = 0;
                 zx_log("sky: fps=%u overruns=%u\n", draws / 5, frame_overruns);
                 draws = 0;
             }
             if (gs.state != prev_state || (gs.state == STATE_TITLE && in.sys & INP_SELECT)) break;
         }
         if (flap_gap) flap_gap--;
-        update_probe();
+        if (ev || gs.state != prev_state) hud_check = 1;      /* scores, lives, wave */
         sound_events(ev);
 
         if (gs.state != prev_state) {
