@@ -1,0 +1,7 @@
+{
+  "title": "Dot Chase",
+  "ready": "dot: ready",
+  "description": "A ladybug in a hedge maze: gather every seed while four spiders hunt you; eat a flower to scare them and catch them for points.",
+  "controls": "Q/A/O/P or cursors, SPACE start, Kempston",
+  "picture": "screenshots/play.png"
+}

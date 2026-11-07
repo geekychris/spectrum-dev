@@ -4,6 +4,7 @@
  */
 #include <stdint.h>
 #include <z80.h>
+#include <string.h>
 #include <arch/zx.h>
 #include "zxgame.h"
 #include "zxlog.h"
@@ -13,6 +14,8 @@
 #include "vec48.h"
 #include "hit48.h"
 #include "sprclip.h"
+#include "gridmove.h"
+#include "shadow48.h"
 
 #define FRAMES frame_ticks       /* counted by the SDK's IM 2 handler */
 
@@ -95,6 +98,26 @@ static void line_tests(void)
     zx_log("sdk: 50 octagons frames=%u\n", (uint8_t)(f1 - f0));
 }
 
+/* gridmove: a 6x5 maze with a side tunnel on row 2 */
+static const char *const gmaze[5] = { "######", "#....#", "..##..", "#....#", "######" };
+static uint8_t gm_open(int16_t x, int16_t y)
+{
+    if (y < 0 || y >= 5) return 0;
+    if (x < 0 || x >= 6) return y == 2;
+    return gmaze[y][x] == '.';
+}
+
+static void gm_log(const char *what, const grid_body *b)
+{
+    zx_log("sdk: grid %s=%d,%d,%d,%d,%d,%d\n", what, b->pixel_x, b->pixel_y, b->sub_x, b->sub_y,
+           b->tile_x, b->tile_y);
+}
+
+/* shadow48: an 8x6 sprite, a box with a hole (mask: the box) */
+static const uint8_t box8[1 + 2 * 6] = {
+    6, 0xFF, 0xFF, 0xFF, 0x81, 0xFF, 0x81, 0xFF, 0x81, 0xFF, 0x81, 0xFF, 0xFF,
+};
+
 int main(void)
 {
     uint8_t i, f0;
@@ -166,6 +189,58 @@ int main(void)
     gfx_plot(200, 150);
     zx_log("sdk: gfx point=%u,%u\n", gfx_point(200, 150), gfx_point(201, 150));
     hs_draw(18, 2);
+
+    {   /* gridmove: steps stop on tile centres, the tunnel wraps, the choice */
+        grid_body b;
+        uint8_t i;
+        grid_place(&b, 1, 1);
+        for (i = 0; i < 9; i++) grid_move(&b, GRID_RIGHT, 320, 0);
+        gm_log("right", &b);
+        for (i = 0; i < 7; i++) grid_move(&b, GRID_LEFT, 288, 0);
+        gm_log("left", &b);
+        for (i = 0; i < 5; i++) grid_move(&b, GRID_DOWN, 640, 0);
+        gm_log("down", &b);
+        grid_place(&b, 0, 2);
+        for (i = 0; i < 4; i++) grid_move(&b, GRID_LEFT, 640, 48);
+        gm_log("wrap", &b);
+        grid_move(&b, GRID_NONE, 640, 48);
+        gm_log("none", &b);
+        zx_log("sdk: grid choose=%d,%d,%d,%d dist=%u\n",
+               grid_choose(1, 1, GRID_RIGHT, 4, 3, gm_open),     /* right (down ties lose) */
+               grid_choose(4, 1, GRID_RIGHT, 1, 3, gm_open),     /* down: no reversing */
+               grid_choose(1, 3, GRID_LEFT, 5, 1, gm_open),      /* up */
+               grid_choose(0, 2, GRID_LEFT, 0, 0, gm_open),      /* left, into the tunnel */
+               grid_dist2(-3, 5, 60, -20));
+    }
+
+    {   /* shadow48: save, draw on the screen, restore from the shadow; a frame */
+        static spr8_obj drawn[2], now[2];
+        shadow_save();
+        spr8_draw(SPR8_XY(37, 120), box8);                 /* on the screen */
+        spr8_attr_fill(SPR8_XY(37, 120), 8 | 6 << 8, PAPER_WHITE | INK_RED);
+        zx_log("sdk: spr8 drawn=%u,%u,%u,%u\n", gfx_point(37, 120), gfx_point(44, 120),
+               gfx_point(38, 122), gfx_point(45, 122));
+        spr8_restore(SPR8_XY(37, 120), 6);
+        spr8_attr_restore(SPR8_XY(37, 120), 8 | 6 << 8);
+        zx_log("sdk: spr8 restored=%u,%u attr=%u\n", gfx_point(37, 120), gfx_point(44, 125),
+               *(uint8_t *)(0x5800 + 15 * 32 + 4));
+        spr8_plane = SHADOW_PLANE;                          /* into the shadow, shown later */
+        spr8_draw(SPR8_XY(100, 120), box8);
+        spr8_plane = SHADOW_SCREEN;
+        zx_log("sdk: spr8 shadow=%u\n", gfx_point(100, 120));
+        shadow_show_rect(12, 120, 2, 6);
+        zx_log("sdk: spr8 shown=%u\n", gfx_point(100, 120));
+        now[0].on = 1; now[0].x = 150; now[0].y = 130; now[0].w = 8; now[0].img = box8;
+        now[0].attr = PAPER_WHITE | INK_BLUE;
+        now[1].on = 1; now[1].x = 60; now[1].y = 140; now[1].w = 8; now[1].img = box8;
+        now[1].attr = PAPER_WHITE | INK_MAGENTA;
+        spr8_frame(drawn, now, 2);
+        memcpy(drawn, now, sizeof(now));
+        now[0].x = 170;                                     /* moves; [1] stays */
+        spr8_frame(drawn, now, 2);
+        zx_log("sdk: spr8 frame=%u,%u,%u attr=%u,%u\n", gfx_point(150, 130), gfx_point(170, 130),
+               gfx_point(60, 140), *(uint8_t *)(0x5800 + 16 * 32 + 18), *(uint8_t *)(0x5800 + 16 * 32 + 21));
+    }
 
     /* beeper: ~2 * 200 * (100*26 + 40) T-states = ~15 frames */
     f0 = FRAMES;

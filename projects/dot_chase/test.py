@@ -245,5 +245,17 @@ for i in range(2):
               f"{r.get('mismatches')} mismatches, first at {r.get('first_mismatch')}")
 check("two replays give identical screens", seqs[0] == seqs[1] and len(seqs[0]) > 1000)
 
+with Emulator(machine="128k") as e:                 # the AY instead of the beeper
+    e.load(TAP)
+    check("128K: boots with the AY", e.run_until("dot: ready kempston=1 ay=1", 3000))
+    e.run(30)
+    e.press("SPACE")
+    e.run_until("state=playing", 300)
+    e.hold("O")
+    e.run(600)
+    e.release()
+    perf = re.findall(r"perf frames=\d+ drawn=(\d+) maxticks=\d+ score=(\d+)", e.log(0))
+    check("128K: plays and scores", perf and int(perf[-1][1]) > 0, str(perf))
+
 print(f"{'FAIL' if failures else 'PASS'}: dot_chase")
 sys.exit(1 if failures else 0)

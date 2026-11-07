@@ -15,7 +15,7 @@ the games in `projects/`:
 
 ## What the games did on each
 
-**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander, Sky Knights, Miner Meteor, Jump Quest): every pixel is drawn by the CPU, and
+**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander, Sky Knights, Miner Meteor, Jump Quest, Dot Chase): every pixel is drawn by the CPU, and
 the CPU is slow, so the work goes into drawing less:
 
 - sprites pre-shifted into 8 copies so a draw is byte moves, written in
@@ -45,10 +45,18 @@ the CPU is slow, so the work goes into drawing less:
   (0x5D00-0x7FFF once the BASIC loader is done), as Rock Blaster's and Sky
   Knights' do; it is contended, so code stays out of it (Sky Knights' C ran
   ~40% slower there)
+- Dot Chase keeps the maze in a shadow screen (`shadow48.h`) and, right
+  after the interrupt, puts the sprites' old places back from it and draws
+  them again top first, ahead of the beam: no flicker or tearing with
+  sprites over a detailed background; its 31-row maze is drawn in 6-pixel
+  tiles to fit 192 lines
+- zsdcc's code through pointers is several times slower than with fixed
+  addresses: Dot Chase keeps its game state at a fixed address and unrolls
+  per-spider code
 - the game logic runs at a fixed 50 Hz while the screen updates when it can
   (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40, Uranus Lander ~26,
   Sky Knights 50 down to 15 with eight enemies, Miner Meteor 33-50, Jump
-  Quest ~7: its logic alone takes ~40% of the CPU), so the games play at the
+  Quest ~7: its logic alone takes ~40% of the CPU; Dot Chase 49.5), so the games play at the
   original speed
 - scrolling: Jump Quest tried character-strip scrolling of a 32x23-cell tile
   view (cellspr48 `cs_scroll`) and measured ~130K T-states a 16-pixel step on
