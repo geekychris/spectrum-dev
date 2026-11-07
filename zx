@@ -95,7 +95,7 @@ case "$cmd" in
            else
              ok "sessions stop their own PID only"
            fi
-           step "sdk tools (mod2ay, nextpic, aystream, zxrle)"
+           step "sdk tools (mod2ay, nextpic, aystream, zxrle, fatimg, nextbasic)"
            if "$PY" "$ROOT/sdk/tools/test_tools.py" >"$ROOT/build/selftest-sdktools.log" 2>&1; then
              ok "sdk tools ($(grep -c '  PASS' "$ROOT/build/selftest-sdktools.log") checks)"
            else

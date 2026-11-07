@@ -265,6 +265,7 @@ def main(argv=None) -> int:
     p.add_argument("--port", type=int, default=0)
     p.add_argument("--zoom", type=int)
     p.add_argument("--quiet", action="store_true")
+    p.add_argument("--sd-scratch", action="store_true", help="an SD image's writes aren't saved to the file")
 
     p = sub.add_parser("run")
     p.add_argument("program", nargs="?")
@@ -344,7 +345,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.cmd == "serve":
         from .session import serve
-        serve(resolve_program(a.program), a.machine, a.window, a.mode, a.port, a.zoom, a.quiet)
+        serve(resolve_program(a.program), a.machine, a.window, a.mode, a.port, a.zoom, a.quiet, a.sd_scratch)
         return 0
     if a.cmd == "run":
         from .session import serve

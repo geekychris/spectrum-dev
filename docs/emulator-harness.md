@@ -305,6 +305,24 @@ session advances deterministically while recording.
 ZEsarUX ships the Sinclair/Amstrad ROMs (Amstrad allows their
 redistribution for emulator use), so nothing needs downloading. For the Next,
 ZEsarUX loads `.nex` files directly (no SD card image or NextZXOS boot
-needed): the harness does a hard reset and `smartload`. Programs that use
-NextZXOS/esxDOS file APIs need an SD image (`--mmc-file`, ZEsarUX ships a
-small `tbblue.mmc`); not set up in phase 1.
+needed): the harness does a hard reset and `smartload`.
+
+### SD card images and NextZXOS
+
+Programs that use NextZXOS / esxDOS (files, dot commands, BASIC) need the
+real boot from an SD card. Give the session an image and the Next boots
+NextZXOS from it (about 550 frames to `autoexec.bas`):
+
+| | |
+|---|---|
+| `./zx serve build/arcade/arcade.mmc` / `./zx run x.mmc` | a session on the card (`--sd-scratch`: the guest's writes aren't saved to the file) |
+| `Emulator(sd="x.mmc", sd_persist=True)` / `emu.load("x.mmc")` | in Python (`load` of an `.mmc` = a fresh emulator with that card) |
+| `reset(hard=True)` | boots NextZXOS again from the card |
+
+ZEsarUX writes the guest's changes back into the image (unless
+`sd_persist=False`); boot a copy to keep one as it is. The path is passed
+absolute: ZEsarUX changes directory before opening it. Make images with
+`sdk/tools/fatimg.py` (read / modify / write FAT16 images in Python) and
+`sdk/tools/nextbasic.py` (tokenised `autoexec.bas`, +3DOS headers);
+`./zx arcade` (`zxdev/arcade.py`) is the worked example, starting from the
+NextZXOS distribution in ZEsarUX's `tbblue.mmc`.

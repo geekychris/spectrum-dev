@@ -100,10 +100,12 @@ class EmulatorError(RuntimeError):
 class Emulator:
     def __init__(self, machine: str = "48k", window: bool = False, paused: bool | None = None,
                  port: int | None = None, zoom: int | None = None, audio: bool | None = None,
-                 joystick: str = "Kempston", extra_args=(), log_path=None, sd=None):
+                 joystick: str = "Kempston", extra_args=(), log_path=None, sd=None,
+                 sd_persist: bool = True):
         self.machine = machine_id(machine)
         # an SD card image (.mmc): the Next boots NextZXOS from it (see load())
         self.sd = str(Path(sd).resolve()) if sd else None
+        self.sd_persist = sd_persist     # False: the guest's writes stay in memory
         if self.sd:
             self.machine = "next"
         self.window = window
@@ -161,6 +163,8 @@ class Emulator:
         if self.sd:
             # absolute path: ZEsarUX changes directory before it opens the file
             args += ["--enable-mmc", "--enable-divmmc-ports", "--mmc-file", self.sd]
+            if not self.sd_persist:
+                args.append("--mmc-no-persistent-writes")
         args += o["extra"]
         self.proc = subprocess.Popen(args, stdout=self._out, stderr=subprocess.STDOUT,
                                      stdin=subprocess.DEVNULL, start_new_session=True)

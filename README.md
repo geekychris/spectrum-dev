@@ -25,6 +25,7 @@ loop.
 - [Working with Claude Code (MCP)](#working-with-claude-code-mcp)
 - [Writing programs](#writing-programs)
 - [Games](#games)
+- [Arcade](#arcade)
 - [Repository layout](#repository-layout)
 - [Documentation](#documentation)
 - [Licensing and credits](#licensing-and-credits)
@@ -140,10 +141,12 @@ What the harness covers (each item has checks in `./zx selftest`):
 | `./zx symbols <p> [regex]` | symbols from the map |
 | `./zx new <name> [--next]` | new project from the template |
 | `./zx devbench [--open]` | web UI + REST + MCP over HTTP on :3580 |
+| `./zx arcade [--no-build]` | every game + a menu on an SD card with NextZXOS, in a window ([Arcade](#arcade)) |
 | `./zx selftest` | build and test everything (CI entry point) |
 | `./zx doctor` | environment check with fixes |
 
-`<p>` is a project name or a `.tap/.nex/.sna/.z80/.zsf` path.
+`<p>` is a project name or a `.tap/.nex/.sna/.z80/.zsf` path, or an `.mmc` SD
+image (the Next boots NextZXOS from it).
 Remote control and debugging: [docs/emulator-harness.md](docs/emulator-harness.md).
 
 ## Working with Claude Code (MCP)
@@ -158,7 +161,8 @@ build("mygame") → emu_boot("mygame") → emu_run_until("mygame: ready")
 ```
 
 `emu_boot(p, window=True)` opens a window the user can watch and play;
-`emu_attach()` joins one started with `./zx run`. All 56 tools are listed by
+`emu_attach()` joins one started with `./zx run`; `arcade_play("stakattack")`
+boots the arcade's SD card and starts a game from its menu. All the tools are listed by
 `emu_cmd("help")` and in [CLAUDE.md](CLAUDE.md).
 
 ## Writing programs
@@ -206,6 +210,29 @@ TurboSound, DMA), the Next modules `l2rle.h` (RLE pictures), `nextspr.h`
 (tilemap text), `palfx.h`, `aystream.h` (TurboSound streams), `zxrle.h`, and
 the tools in `sdk/tools`; see [sdk/README.md](sdk/README.md).
 
+## Arcade
+
+```sh
+./zx arcade
+```
+
+builds every game and a menu into an SD card image with NextZXOS
+(`build/arcade/arcade.mmc`) and opens it in a window: the Next boots into
+the **Spectrum Arcade**, a Layer 2 menu with the list on the left and the
+selected game's picture and description on the right (sorted A-Z or by
+plays), and starts the game you pick, Next `.nex` or 48K, the way NextZXOS's
+own browser would (`.nexload`, or `SPECTRUM` for a 48K snapshot). Reset
+brings the menu back.
+
+![The arcade menu on the Next](docs/images/arcade.gif)
+
+A game joins by having a `projects/<p>/arcade.json` (title, description,
+controls, picture, the log line its title prints); the menu, the list in
+[docs/arcade.md](docs/arcade.md), DevBench's page (<http://127.0.0.1:3580/arcade>,
+a Play button per game) and the MCP tools (`arcade_games`, `arcade_play(game)`)
+all come from those files. How the card, the menu, loading and returning
+work: [projects/arcade/README.md](projects/arcade/README.md).
+
 ## Repository layout
 
 | | |
@@ -216,7 +243,7 @@ the tools in `sdk/tools`; see [sdk/README.md](sdk/README.md).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `stakattack`, `boing_pinball`, `spectral_keep`), examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktestnext`, `nextlibtest`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `stakattack`, `boing_pinball`, `spectral_keep`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktestnext`, `nextlibtest`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 
@@ -242,8 +269,9 @@ licenses and are fetched at setup, not redistributed here:
   ZEsarUX's source tree, fetched into `third_party/zesarux/src` by setup
   (`48.rom`, `128.rom`, `p3*.rom` etc.; Amstrad allows the Sinclair/Amstrad
   Spectrum ROMs to be redistributed for emulation). For the Next, ZEsarUX
-  ships its TBBlue boot ROM (`tbblue_loader.rom`) and a small SD image
-  (`tbblue.mmc`); `.nex` programs load directly without the SD image.
+  ships its TBBlue boot ROM (`tbblue_loader.rom`) and an SD image with the
+  NextZXOS distribution (`tbblue.mmc`); `.nex` programs load directly without
+  it, and `./zx arcade` builds its card from it (not redistributed here).
 - **[z88dk](https://github.com/z88dk/z88dk)** (Clarified Artistic License) and
   **[sjasmplus](https://github.com/z00m128/sjasmplus)** (BSD-3), in the
   toolchain image.

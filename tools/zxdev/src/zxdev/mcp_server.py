@@ -7,6 +7,7 @@ ZEsarUX + control port), so several clients can share one emulator.
   emu_boot(project)               private headless session, paused (you step it)
   emu_boot(project, window=True)  ... with a window the user can watch (free-running)
   emu_attach()                    drive a session someone else started (./zx run X)
+  arcade_play(game)               the game menu on an SD image with NextZXOS (./zx arcade)
 """
 from __future__ import annotations
 
@@ -116,6 +117,58 @@ def run_tests(project: str) -> str:
     """Build and run a project's headless test (projects/<p>/test.py, else wait for ZX:DONE)."""
     r = subprocess.run([str(ROOT / "zx"), "test", project], capture_output=True, text=True, timeout=1800)
     return ((r.stdout + r.stderr).strip()[-6000:] + f"\n(exit {r.returncode})")
+
+
+# ================================================================== arcade
+
+
+@server.tool()
+def arcade_games() -> str:
+    """The arcade's games (every project with an arcade.json): title, machine, controls,
+    description, the menu picture (PNG path), and whether the SD image is built."""
+    from . import arcade
+    m = arcade.manifest()
+    return _j({"image": m.get("image"), "built": bool(m.get("image")), "games": [
+        {k: g.get(k) for k in ("project", "title", "machine", "controls", "description", "ready",
+                               "image_picture", "index")} for g in m["games"]]})
+
+
+@server.tool()
+def arcade_picture(game: str) -> Image:
+    """A game's picture as the arcade menu shows it (160 x 120, Layer 2 colours)."""
+    from . import arcade
+    import io
+    g = arcade.find_game(arcade.manifest()["games"], game)
+    buf = io.BytesIO()
+    arcade.picture(g["picture"])[1].resize((320, 240)).save(buf, "PNG")
+    return Image(data=buf.getvalue(), format="png")
+
+
+@server.tool()
+def arcade_build() -> str:
+    """Build every game + the menu and make the SD image build/arcade/arcade.mmc (a few minutes)."""
+    r = subprocess.run([str(ROOT / "zx"), "arcade", "--image-only"], capture_output=True, text=True)
+    return (r.stdout + r.stderr)[-3000:] + ("" if r.returncode == 0 else f"\nexit {r.returncode}")
+
+
+@server.tool()
+def arcade_play(game: str = "", window: bool = True) -> str:
+    """Boot the arcade (NextZXOS + menu from the SD image; builds it if missing) in a new
+    session, and if `game` is given (project or title) choose it in the menu and run to its
+    title. window=True (default) opens a window for the user to play; the emu_* tools drive
+    the session too. Reset (emu_reset) returns to the menu."""
+    global _session
+    from . import arcade
+    if not (arcade.OUT / "arcade.mmc").exists():
+        out = arcade_build()
+        if not (arcade.OUT / "arcade.mmc").exists():
+            raise ValueError(f"arcade build failed: {out}")
+    if _session is not None and _session.proc is not None:
+        _session.close(stop=True)
+    _session = SessionClient.spawn(str(arcade.OUT / "arcade.mmc"), window=window)
+    if game:
+        return _j(_call("arcade_play", game=game))
+    return _j(_call("status"))
 
 
 # ================================================================== sessions

@@ -14,6 +14,12 @@
     /api/cmd/{command}           GET|POST    run a session command (JSON body or ?k=v)
     /api/sessions/{pid}/cmd/{command}        ... on a specific session
     /api/screen.png                          current frame (?scale=2&border=0)
+    /arcade                                  the arcade: every game with its picture, Play buttons
+    /api/arcade                              the arcade's games (manifest) + whether the SD image is built
+    /api/arcade/picture/{game}.png           a game's menu picture
+    /api/arcade/build            POST        ./zx arcade --image-only (games, menu, SD image)
+    /api/arcade/play             POST        {"game", "window": true, "scratch": false}: boot the SD image,
+                                             choose the game (scratch: plays aren't saved to the image)
     /mcp                                     the MCP server (streamable HTTP)
 """
 from __future__ import annotations
@@ -227,8 +233,75 @@ async def screen_png(request: Request):
                     headers={"Cache-Control": "no-store"})
 
 
+async def arcade_page(request: Request):
+    return FileResponse(WEB / "arcade.html")
+
+
+async def arcade_list(request: Request):
+    from . import arcade
+    try:
+        m = await run_in_threadpool(arcade.manifest)
+    except arcade.ArcadeError as ex:
+        return err(str(ex), 500)
+    built = bool(m.get("image")) and Path(m["image"]).exists()
+    return ok({"built": built, "image": m.get("image"), "games": [
+        {k: g.get(k) for k in ("project", "title", "machine", "controls", "description", "index")}
+        for g in m["games"]]})
+
+
+async def arcade_picture(request: Request):
+    from . import arcade
+    import io
+    try:
+        g = arcade.find_game(arcade.manifest()["games"], request.path_params["game"])
+    except arcade.ArcadeError as ex:
+        return err(str(ex), 404)
+    p = g.get("image_picture")
+    if p and Path(p).exists():
+        return FileResponse(p, media_type="image/png")
+    buf = io.BytesIO()
+    (await run_in_threadpool(arcade.picture, g["picture"]))[1].save(buf, "PNG")
+    return Response(buf.getvalue(), media_type="image/png")
+
+
+async def arcade_build(request: Request):
+    return ok(await run_in_threadpool(_run, [str(ROOT / "zx"), "arcade", "--image-only"]))
+
+
+async def arcade_play(request: Request):
+    from . import arcade
+    a = await args_of(request)
+    image = arcade.OUT / "arcade.mmc"
+    if not image.exists():
+        return err("the arcade isn't built: POST /api/arcade/build (or ./zx arcade)", 404)
+
+    def spawn():
+        c = SessionClient.spawn(str(image), window=a.get("window", True) is not False,
+                                sd_scratch=bool(a.get("scratch")))
+        with bench.lock:
+            bench.clients[c.info["pid"]] = c
+            bench.locks[c.info["pid"]] = threading.Lock()
+            bench.selected = c.info["pid"]
+        return c.info
+    try:
+        info = await run_in_threadpool(spawn)
+    except ProtocolError as ex:
+        return err(str(ex), 500)
+    if not a.get("game"):
+        return ok({"session": info})
+    res = await call(info["pid"], "arcade_play", {"game": a["game"]})
+    if res.status_code != 200:
+        return res
+    return ok({"session": info, **json.loads(res.body)})
+
+
 ROUTES = [
     Route("/", index),
+    Route("/arcade", arcade_page),
+    Route("/api/arcade", arcade_list),
+    Route("/api/arcade/picture/{game}.png", arcade_picture),
+    Route("/api/arcade/build", arcade_build, methods=["POST"]),
+    Route("/api/arcade/play", arcade_play, methods=["POST"]),
     Route("/api/health", health),
     Route("/api/commands", commands),
     Route("/api/projects", projects),

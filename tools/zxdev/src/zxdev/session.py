@@ -152,8 +152,25 @@ class Session:
             "load_state": (lambda path: e.load_state(self._state_path(path)), "load_state(path|name)"),
             "zrcp": (lambda line, timeout=30: {"output": e.raw(line, timeout)},
                      "zrcp(line): raw ZEsarUX command (zrcp('help'), zrcp('zxh-help'))"),
+            "arcade_play": (self._arcade_play,
+                            "arcade_play(game): in a session on the arcade SD image, reset into the menu, "
+                            "choose the game (project, title or short name) and run to its title"),
             "quit": (self._quit, "stop the session and the emulator"),
         }
+
+    def _arcade_play(self, game):
+        from . import arcade
+        e = self.emu
+        if not e.sd:
+            raise EmulatorError("not an arcade session: start one on build/arcade/arcade.mmc (./zx arcade)")
+        gs = arcade.manifest()["games"]
+        try:
+            g = arcade.find_game(gs, game)
+        except arcade.ArcadeError as ex:
+            raise EmulatorError(str(ex)) from None
+        e.reset(hard=True)
+        started = arcade.menu_choose(e, g, len(gs))
+        return {"started": started, "game": g["title"], "machine": g["machine"], **e.status()}
 
     def _rel(self, p) -> str:
         """Relative paths are relative to the repo root (sessions have no useful cwd)."""
@@ -248,7 +265,8 @@ class _Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 def serve(program: str | None = None, machine: str | None = None, window: bool = False,
-          mode: str | None = None, port: int = 0, zoom: int | None = None, quiet: bool = False):
+          mode: str | None = None, port: int = 0, zoom: int | None = None, quiet: bool = False,
+          sd_scratch: bool = False):
     paused = (mode or ("running" if window else "paused")) == "paused"
     if machine is None:
         machine = "next" if program and program.lower().endswith((".nex", ".snx")) else "48k"
@@ -256,7 +274,7 @@ def serve(program: str | None = None, machine: str | None = None, window: bool =
     for old in sorted(SESSIONS_DIR.glob("zesarux-*.log"), key=lambda p: p.stat().st_mtime)[:-20]:
         old.unlink(missing_ok=True)   # keep the 20 newest emulator logs
     sd = program if program and program.lower().endswith(".mmc") else None
-    emu = Emulator(machine=machine, window=window, paused=True, zoom=zoom, sd=sd,
+    emu = Emulator(machine=machine, window=window, paused=True, zoom=zoom, sd=sd, sd_persist=not sd_scratch,
                    log_path=SESSIONS_DIR / f"zesarux-{os.getpid()}.log")
     if sd:
         emu.boot_sd(sd, fresh=True)       # boots NextZXOS from the card

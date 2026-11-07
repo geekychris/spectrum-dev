@@ -1,4 +1,5 @@
-"""Tests for the SDK's tools (run by ./zx selftest): mod2ay.py, nextpic.py, aystream.py."""
+"""Tests for the SDK's tools (run by ./zx selftest): mod2ay.py, nextpic.py, aystream.py, zxrle.py,
+fatimg.py, nextbasic.py."""
 import os
 import subprocess
 import sys
@@ -116,6 +117,45 @@ check("zxrle round trips", all(unpack(pack(c)) == c for c in cases))
 check("zxrle packs runs (600 dots -> a few bytes)", len(pack(b"." * 600)) <= 12)
 check("zxrle ends with 0x80 and never uses it as a control byte elsewhere",
       all(pack(c)[-1] == 0x80 for c in cases))
+
+# fatimg: trees round-trip through FAT16 images; short / mixed-case / long names
+import fatimg  # noqa: E402
+tree = {"nextzxos": None, "nextzxos/autoexec.bas": b"10 REM", "machines/next/enNxtmmc.rom": b"R" * 3000,
+        "A Long Directory Name": None, "A Long Directory Name/some file.txt": b"hello\n",
+        "empty.dat": b"", "big.bin": bytes(range(256)) * 600}
+tree.update({f"many/f{i:03d}.x": bytes([i]) * i for i in range(40)})
+with tempfile.TemporaryDirectory() as tmp:
+    img = os.path.join(tmp, "sd.mmc")
+    fatimg.write_image(tree, img, size_mb=16)
+    back = fatimg.read_image(img)
+    check("fatimg: write -> read gives the same tree", back == {**tree, "machines": None, "machines/next": None,
+                                                               "many": None})
+    raw = open(img, "rb").read()
+    check("fatimg: mixed-case 8.3 keeps its upper-case short name (NextZXOS's loader matches those)",
+          b"ENNXTMMCROM" in raw and b"ENNXTM~1" not in raw)
+    check("fatimg: all-lower-case 8.3 names are plain entries (NT case flags)", b"AUTOEXECBAS" in raw)
+    check("fatimg: an MBR partition at 1 MB", raw[510:512] == b"\x55\xaa" and raw[446 + 8:446 + 12] == (2048).to_bytes(4, "little"))
+    t2 = fatimg.drop(back, ["MANY", "a long directory name"])
+    fatimg.put(t2, "Arcade/stats.dat", b"\1\2")
+    check("fatimg: drop and put (case-insensitive, parents made)",
+          not any(k.lower().startswith("many") for k in t2) and t2.get("Arcade") is None and "Arcade" in t2)
+    stock = os.path.join(ROOT, "third_party", "zesarux", "src", "tbblue.mmc")
+    if os.path.exists(stock):
+        st = fatimg.read_image(stock)
+        check("fatimg: reads ZEsarUX's tbblue.mmc (NextZXOS)", fatimg.find(st, "nextzxos/autoexec.bas") is not None
+              and fatimg.find(st, "dot/NEXLOAD") is not None)
+
+# nextbasic: tokenising matches NextZXOS's own (mounter.bas's first lines)
+from nextbasic import plus3dos_basic, tokenize  # noqa: E402
+want = bytes.fromhex("000a09009cfd3a9efd3a9dfd0d000f3b00f9c0353830380e0000b016003aea636c65617220776f726b737061636520746f2073746f70206f7574206f66206d656d6f7279206572726f72730d")
+check("nextbasic: tokens + numbers as NextZXOS stores them",
+      tokenize("10 LAYER CLEAR: SPRITE CLEAR: PALETTE CLEAR\n15 RANDOMIZE USR 5808: REM clear workspace to stop out of memory errors") == want)
+dot = tokenize('10 CLS: .nexload /arcade/a.nex\n20 SPECTRUM "c:/x.sna"')
+check("nextbasic: dot commands stay text, SPECTRUM is 0xA3", b"\xfb:.nexload /arcade/a.nex\r" in dot and b"\xa3\"c:/x.sna\"" in dot)
+h = plus3dos_basic(dot, autostart=10)
+check("nextbasic: +3DOS header (signature, length, autostart, checksum)",
+      h[:8] == b"PLUS3DOS" and int.from_bytes(h[11:15], "little") == len(h) and h[18:20] == b"\x0a\x00"
+      and h[127] == sum(h[:127]) & 0xFF)
 
 print(f"{'FAIL' if failures else 'PASS'}: sdk tools")
 sys.exit(1 if failures else 0)

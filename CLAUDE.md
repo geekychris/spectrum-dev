@@ -23,7 +23,11 @@ we can script deterministically.
 ./zx selftest               # build + test everything (do this before saying "done")
 ./zx doctor                 # environment problems
 ./zx devbench               # web UI + REST (/api) + MCP over HTTP (/mcp) on :3580
+./zx arcade [--no-build]    # every game + menu on an SD card (NextZXOS), window; projects/arcade
 ```
+
+Arcade: a game joins with `projects/<p>/arcade.json` (title, description ~100 chars,
+controls, picture, ready = its title's log line); see projects/arcade/README.md.
 
 `--press` frames and `--frames` count from the load; a 48K `.tap` takes
 ~140 frames to load and start, a `.nex`/`.sna` starts at once.
@@ -37,6 +41,7 @@ user-visible, free-running; `emu_attach()` = join `./zx run X`. Also `emu_run(fr
 `emu_hold`/`emu_release`, `emu_type`, `emu_sequence`, `emu_joystick`, `emu_pause`/`emu_resume`,
 `emu_load`, `emu_machine`, `emu_save_state`/`emu_load_state`, `emu_screenshot(path, layer)`.
 Restart: `emu_reset(hard)`, `emu_reload`, `emu_power_cycle`, `emu_reboot` (wedged session).
+Arcade: `arcade_games`, `arcade_picture(game)`, `arcade_build`, `arcade_play(game, window=True)`.
 Screens: `emu_look(layer="screen"|"ula"|"layer2"|"sprites")`, `emu_record_video(path.gif|.mp4)`,
 `emu_screen_hash`, `emu_record_gif`. Recording: `emu_record_input("start"|"stop"|"save", path,
 from_reset)` (captures your input AND the user's in the window) + `emu_replay(path)` (per-frame
@@ -145,6 +150,19 @@ Details: docs/emulator-harness.md.
   call it makes must not map over the bank its arguments live in (nexttile uses slot 2 only).
   zsdcc won't initialise arrays of structs (`= {0}`): put big tables at a fixed address.
 - `Emulator.hold()` adds to the keys already held: `release()` before holding a new set.
+- SD images: ZEsarUX `chdir`s into its bundle before opening `--mmc-file`, so a relative path
+  gives "Error initializing SD card"; the harness passes it absolute. ZEsarUX writes the guest's
+  changes back to the image (`sd_persist=False` / `--sd-scratch` don't).
+- NextZXOS's boot loader matches 8.3 short names: a mixed-case name like `enNxtmmc.rom` must keep
+  its upper-case short name (`ENNXTMMC.ROM`), not a `~1` alias (fatimg does).
+  `machines/next/config.ini` `timing=8` runs the video-mode test on every boot; the arcade sets 0.
+- Dot commands take esxDOS paths (`.nexload /arcade/x.nex`); `c:/...` fails. BASIC's `LOAD` and
+  `SPECTRUM "c:/x.sna"` (token 0xA3, the 128K keyword) take `c:/`. Run these from BASIC
+  (autoexec.bas): the menu returns to BASIC instead of calling them itself.
+- `run_until` stops on the instruction that wrote the match: the rest of that log line isn't
+  there yet. Run a frame (or wait for the `\n`) before parsing values out of it.
+- The linker pulls whole SDK files: adding a function to a file a game links can push it over
+  0xF000 (Boing Pinball has ~20 bytes spare). Put new functions in their own file.
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 
 

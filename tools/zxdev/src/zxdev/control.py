@@ -58,7 +58,7 @@ class SessionClient:
 
     @classmethod
     def spawn(cls, program: str | None = None, window: bool = False, machine: str | None = None,
-              mode: str | None = None, zoom: int | None = None) -> "SessionClient":
+              mode: str | None = None, zoom: int | None = None, sd_scratch: bool = False) -> "SessionClient":
         """Start a new session process (headless+paused unless window=True)."""
         cmd = [sys.executable, "-m", "zxdev.cli", "serve", "--quiet"]
         if program:
@@ -71,6 +71,8 @@ class SessionClient:
             cmd += ["--mode", mode]
         if zoom:
             cmd += ["--zoom", str(zoom)]
+        if sd_scratch:
+            cmd.append("--sd-scratch")
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 stdin=subprocess.DEVNULL, start_new_session=True)
         deadline = time.monotonic() + 60

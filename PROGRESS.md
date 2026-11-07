@@ -102,8 +102,8 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
 - Recordings that start from a snapshot need the program to be running (no tape state in
   snapshots); use from_reset for programs still loading.
 - In a window, fast-forward stops a few frames after its condition (exact in paused sessions).
-- No SD card/NextZXOS setup: .nex programs that use esxDOS/NextZXOS file
-  APIs need `--mmc-file` with an SD image.
+- SD card/NextZXOS: sessions can boot an `.mmc` (see the arcade below); only
+  ZEsarUX's NextZXOS 2.06 distribution has been used.
 - Only tested on macOS arm64. The Linux path (scripts, configure flags) is
   written but not run.
 - The repo is private, so the one-line installer only works for people with access.
@@ -160,6 +160,24 @@ READMEs; docs/48k-vs-next.md.
 
 - Frank's redraw stays ~19 fps: the floor is ~5K T-states per lane object
   (about 17 a frame); moving draw_lane's loop to asm would give ~20 fps.
+
+## Arcade (2026-11-06)
+
+- [x] `./zx arcade`: every project with an `arcade.json` + the menu (projects/arcade) on a
+      32 MB SD image with NextZXOS (ZEsarUX's tbblue.mmc, trimmed), opened in a window.
+- [x] Menu: machine code that autoexec.bas loads and runs with USR; Layer 2 320x256 list +
+      picture + description, A-Z / most played (stats.dat on the card), keys + Kempston.
+      Returns the choice to BASIC, which starts it like NextZXOS's browser: `.nexload` for
+      .nex, `SPECTRUM` for 48K games (the .tap snapshotted on the host at its USR). Reset
+      returns to the menu on the last game.
+- [x] Host: `sdk/tools/fatimg.py` (FAT16 images in Python), `nextbasic.py` (tokeniser,
+      byte-identical to NextZXOS's), `zxdev/arcade.py`; Emulator(sd=...), `.mmc` sessions,
+      `--sd-scratch`.
+- [x] SDK: `sdfile.h` (esxDOS), `listui.h`, `l2w_text`, `frame_exit`, `OUTPUT := bin`.
+- [x] MCP `arcade_games/picture/build/play`, DevBench `/arcade` + REST, docs/arcade.md
+      generated from the manifests.
+- [x] Test: every registered game started from the menu and back by reset, picture bytes,
+      sort, persistence, BREAK; host tool tests; remote (MCP + REST play).
 
 ## Game candidates (survey)
 

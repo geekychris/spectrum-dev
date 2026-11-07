@@ -45,6 +45,16 @@ Port 3580 was chosen to stay clear of the other dev servers on this machine
 | `GET/POST /api/sessions/{pid}/cmd/{command}` | ... on a given session |
 | `GET /api/screen.png?scale=2&border=false` | current frame as PNG (also `/api/sessions/{pid}/screen.png`) |
 
+Arcade (see [projects/arcade/README.md](../projects/arcade/README.md)):
+
+| Method + path | |
+|---|---|
+| `GET /arcade` | page: every game with its picture, description, controls, a Play button (window) and Headless |
+| `GET /api/arcade` | the games (`project`, `title`, `machine`, `controls`, `description`, `index`) + `built`, `image` |
+| `GET /api/arcade/picture/{game}.png` | the menu's picture of a game |
+| `POST /api/arcade/build` | `./zx arcade --image-only` (games, menu, SD image) |
+| `POST /api/arcade/play` `{"game", "window": true, "scratch": false}` | a session on the SD image; with `game`, the menu picks it and runs it to its title (`started`). `scratch`: plays aren't saved to the image |
+
 Errors: `404` no such session/project, `400` command error (bad
 arguments, unknown command, emulator error), `502` session unreachable.
 

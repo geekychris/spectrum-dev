@@ -138,6 +138,12 @@ def test_mcp():
                 check("MCP exposes build/run/debug tools",
                       {"build", "emu_boot", "emu_run_until", "emu_look", "emu_press", "emu_read_mem",
                        "emu_break", "emu_watch", "emu_continue", "emu_regs", "emu_cmd"} <= names, str(sorted(names)))
+                check("MCP exposes the arcade",
+                      {"arcade_games", "arcade_picture", "arcade_build", "arcade_play"} <= names)
+                res = await s.call_tool("arcade_games", {})
+                check("MCP arcade_games lists the registered games", '"nova_defense"' in res.content[0].text)
+                res = await s.call_tool("arcade_picture", {"game": "stakattack"})
+                check("MCP arcade_picture returns an image", [c.type for c in res.content] == ["image"])
 
                 async def call(n, **a):
                     return await s.call_tool(n, a)
@@ -241,6 +247,18 @@ def test_devbench():
         check("GET on the selected session", st == 200 and "PC" in r)
         check("unknown command -> 400", req("GET", "/api/cmd/nope")[0] == 400)
         check("bad session -> 404", req("GET", "/api/sessions/1/cmd/status")[0] == 404)
+        st, a = req("GET", "/api/arcade")
+        check("GET /api/arcade lists the games", st == 200 and "stakattack" in {g["project"] for g in a["games"]})
+        st, page = req("GET", "/arcade", raw=True)
+        check("the arcade page", st == 200 and b"ZX Arcade" in page)
+        st, png = req("GET", "/api/arcade/picture/nova_defense.png", raw=True)
+        check("a game's picture", st == 200 and png[:4] == b"\x89PNG")
+        if a.get("built"):    # projects/arcade's test builds the image (selftest runs it first)
+            st, r = req("POST", "/api/arcade/play", {"game": "nova_defense", "window": False, "scratch": True})
+            if r.get("session"):
+                req("DELETE", f"/api/sessions/{r['session']['pid']}")
+            check("POST /api/arcade/play boots the SD image and starts the game from the menu",
+                  st == 200 and r.get("started") is True, str(r)[:300])
         init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
             "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}}
         r = urllib.request.Request(base + "/mcp", data=json.dumps(init).encode(), method="POST", headers={
