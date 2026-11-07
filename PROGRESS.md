@@ -381,6 +381,9 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   the host plays it and must match at every checkpoint (it found zsdcc's 16-bit
   int breaking the terrain). Collision scans, terrain columns and sprite
   positions in asm; 47-50 fps in waves 1-4, 28-46 with 16 enemies.
+  TODO: move its game-local scrolling (view.c, terrain.asm) onto sdk l2scroll.h
+  once that has world-width wrap (l2s_band_wrap), l2s_col and zero-scroll rows
+  outside the bands (zx-uranus-lander's follow-up).
 
 ### Cleanup (2026-11-06)
 

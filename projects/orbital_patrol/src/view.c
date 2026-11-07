@@ -99,6 +99,11 @@ void view_text_center(uint8_t y, const char *s, uint8_t colour)
 
 /* ------------------------------------------------------------ the terrain (scrolled) */
 
+/* TODO: switch to sdk l2scroll.h (one band, rows 20-236, world width 1920,
+   the ridge as its fill, l2s_col for col_h) once it is on main with its
+   world-width wrap (l2s_band_wrap) and zero-scroll rows outside the bands;
+   see PROGRESS.md */
+
 /* what each physical column shows: its world x (-1: nothing) and terrain
    row (0: none): col_wx, col_h (page 46) */
 static int16_t shown_vx = -1;              /* the viewport the columns were drawn for */
