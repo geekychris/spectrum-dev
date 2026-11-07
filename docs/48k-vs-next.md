@@ -87,7 +87,8 @@ the 48K:
 - TurboSound plays a four-channel MOD and the effects at once
 - Planet Chomp draws a perspective 3D sphere every frame: `MUL` rotates the
   maze's lattice corners by a camera matrix patched into the code, Layer 2
-  takes the polygons, DMA copies the starfield in, sprites carry everything
+  takes the polygons at half height (the copper doubles each row), DMA copies
+  the starfield and the planet's disc in, sprites carry everything
   that moves; its rules are the original's 32-bit code on 16-bit vectors
 - Spectral Keep draws each isometric room once into Layer 2 and moves
   everything as sprites; a sprite behind scenery has the scenery's
