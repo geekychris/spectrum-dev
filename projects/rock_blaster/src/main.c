@@ -339,6 +339,7 @@ int main(void)
     shapes_init();
     rb_music_init();
     input_init();
+    input_fast();
     ay_init();
     hs_init(200);                  /* 1000 800 600 400 200 */
     rnd_seed(12345);

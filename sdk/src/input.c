@@ -10,8 +10,8 @@ uint8_t input_last;
 static uint8_t input_prev;
 
 /* a key: half-row index (0 = 0xFEFE ... 7 = 0x7FFE), bit, and what it means */
-typedef struct { uint8_t row, mask, bits; } keymap;
-static const keymap keys[] = {
+typedef struct { uint8_t row, mask, bits; } keymap;   /* also input_fast.c */
+const keymap input_keys[] = {
     {5, 0x02, IN_LEFT}, {5, 0x01, IN_RIGHT},          /* O P */
     {2, 0x01, IN_UP},   {1, 0x01, IN_DOWN},           /* Q A */
     {4, 0x10, IN_LEFT}, {4, 0x08, IN_RIGHT},          /* Sinclair 1: 6 7 */
@@ -24,29 +24,20 @@ static const keymap keys[] = {
     {0, 0x02, IN_FIRE2},                              /* Z */
     {6, 0x01, IN_START},                              /* ENTER */
 };
-#define NKEYS (sizeof(keys) / sizeof(keys[0]))
+#define NKEYS (sizeof(input_keys) / sizeof(input_keys[0]))
+const uint8_t input_nkeys = NKEYS;
 static const uint16_t row_port[8] = {0xFEFE, 0xFDFE, 0xFBFE, 0xF7FE, 0xEFFE, 0xDFFE, 0xBFFE, 0x7FFE};
 static uint8_t rows_now[8];
 static uint8_t key_edges[8];            /* keys that went down since the read before (1 = yes) */
 
-/* row_bits[r][k]: the IN_* bits of the keys pressed in half-row r when its
-   five key bits (1 = pressed) are k; built once, so a read is 8 lookups */
-static uint8_t row_bits[8][32];
-
 void input_init(void)
 {
-    uint8_t i, v = 0, k;
-    const keymap *m;
+    uint8_t i, v = 0;
     /* a Kempston interface reads 0 in bits 5-7; no interface reads the
        floating bus (usually 0xFF) */
     for (i = 0; i < 16; i++) v |= z80_inp(0x001F);
     input_kempston = (v & 0xE0) == 0;
     input_prev = input_last = 0;
-    for (m = keys; m < keys + NKEYS; m++) {
-        uint8_t *t = row_bits[m->row], bits = m->bits, mask = m->mask;
-        for (k = 0; k < 32; k++, t++)          /* walking pointer: zsdcc */
-            if (k & mask) *t = *t | bits;
-    }
 }
 
 /* edge latching (input_latch(1)): input_sample() runs in the interrupt and
@@ -62,11 +53,17 @@ void input_latch(uint8_t on)
     latching = on;
 }
 
+uint8_t (*input_decoder)(const uint8_t *rows, uint8_t pressed_is_one);   /* input_fast.c */
+
 static uint8_t decode(const uint8_t *rows, uint8_t pressed_is_one)
 {
-    uint8_t i, b = 0, flip = pressed_is_one ? 0 : 0x1F;
-    const uint8_t *t = row_bits[0];
-    for (i = 0; i < 8; i++, t += 32) b |= t[(rows[i] ^ flip) & 0x1F];
+    uint8_t i, b = 0;
+    const keymap *k = input_keys;
+    if (input_decoder) return input_decoder(rows, pressed_is_one);
+    for (i = 0; i < NKEYS; i++, k++) {
+        uint8_t hit = rows[k->row] & k->mask;
+        if (pressed_is_one ? hit : !hit) b |= k->bits;
+    }
     return b;
 }
 

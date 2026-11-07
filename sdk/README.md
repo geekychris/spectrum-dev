@@ -36,6 +36,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext` and `project
 | | `frame.c`, `frame_isr.asm` | IM 2 frame timer, `frame_wait()` returns the frames passed (fixed-timestep loops), `frame_hook` |
 | | `frame_exit.c` | `frame_exit()`: back to IM 1 (I = 0x3F) before code returns to BASIC |
 | | `input.c`, `input_isr.asm` | keys (QAOP, cursor, Sinclair 1/2) + Kempston -> `IN_*` bits; presses latched in the interrupt (`input_latch`); `input_letter_pressed()` for typing |
+| | `input_fast.c` | `input_fast()`: optional table decode of the keys (same bits, ~9,000 T-states less a read, ~300 bytes) |
 | | `beep.asm`, `sound.c`, `ay_notes.c` | beeper effects; AY tone/noise, decaying effects, a small note-list music player |
 | | `gfx48.c`, `spr_blit.asm` | 48K screen: row table, pre-shifted sprites (xor/or/clear/store), rects, tiles, attributes, big text, numbers |
 | | `hiscore.c` | high-score table, the initials editor (`hs_edit_*`, any screen) |

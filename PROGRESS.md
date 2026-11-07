@@ -151,8 +151,8 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   loops in asm; logic 50 Hz, screen 12-40 fps (half the rocks a frame when
   busy); beeper effects, the original's MOD on a 128K's AY. SDK: `line48`
   (lines, wrapped polygons, compiled polygons, `poly_sync`, points),
-  `vec48` (rotation tables), `hit48` (circle collisions), `text_xor`; a faster
-  `input_read` (table decode); `modplay` fixed on a single-AY 128K.
+  `vec48` (rotation tables), `hit48` (circle collisions), `text_xor`; an optional
+  faster key decode (`input_fast`); `modplay` fixed on a single-AY 128K.
 
 ### Cleanup (2026-11-06)
 

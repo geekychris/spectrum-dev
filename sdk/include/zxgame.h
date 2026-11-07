@@ -81,6 +81,9 @@ extern uint8_t input_pressed(void);        /* bits that went down since the last
 extern void input_sample(void);
 extern void input_latch(uint8_t on);
 extern uint8_t input_last;                 /* state from the last input_read() */
+/* optional, after input_init(): decode keys by table (same results, ~9,000
+   T-states less a read; ~300 bytes more) */
+extern void input_fast(void);
 extern uint8_t key_down(uint16_t scancode);/* raw: IN_KEY_SCANCODE_x from <input.h> */
 extern char input_letter(void);            /* a letter key held now ('A'..'Z'), else 0 */
 /* a letter key that went down since the read before the last input_read()

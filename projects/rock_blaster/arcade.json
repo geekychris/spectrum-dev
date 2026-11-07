@@ -1,0 +1,7 @@
+{
+  "title": "Rock Blaster",
+  "description": "Vector rock shooter: turn, thrust and blast the drifting rocks before they smash your ship.",
+  "controls": "O/P rotate, Q thrust, SPACE fire",
+  "picture": "screenshots/play.png",
+  "ready": "rb: ready"
+}
