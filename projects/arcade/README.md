@@ -124,7 +124,11 @@ joystick and stops at its ends; the picture in Layer 2 is byte for byte the
 file on the card (`sd_load_l2w`); S sorts; then **every** game is chosen from
 the menu and must reach its title line, and each reset comes back to the
 menu on the game just played with its play counted; playing one game twice
-puts it first in the most-played order. `--gif` records
+puts it first in the most-played order (S presses are checked by the menu's
+log, so none of this depends on how many games there are). A second card,
+padded with extra entries to more than the 14 rows the list shows, checks
+scrolling to the end and back, the selection bar's row, the picture, starting
+the last entry and reopening scrolled to it. `--gif` records
 `docs/images/arcade.gif`. About 15 seconds; part of `./zx selftest`.
 
 ## SDK modules it added

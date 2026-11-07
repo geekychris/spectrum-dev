@@ -311,7 +311,7 @@ def menu_ready(emu: Emulator, max_frames: int = 3000) -> int | None:
     if not emu.run_until("arcade: ready", max_frames):
         return None
     for _ in range(10):                         # the rest of the line
-        m = re.findall(r"arcade: ready games=\d+ sort=\d sel=(\d+)\n", emu.log_text(since=start))
+        m = re.findall(r"arcade: ready games=\d+ sort=\d sel=(\d+)[^\n]*\n", emu.log_text(since=start))
         if m:
             return int(m[-1])
         emu.run(1)
@@ -333,6 +333,50 @@ def menu_select(emu: Emulator, index: int, sel: int, count: int) -> bool:
         else:
             key = "Q" if key == "A" else "A"    # at an end of the list
     return sel == index
+
+
+def menu_line(emu: Emulator, pattern: str, since: int, max_frames: int = 50):
+    """The last complete log line written after `since` that matches `pattern` (a
+    regex), running up to max_frames for it: its match object, or None."""
+    for _ in range(max_frames):
+        lines = emu.log_text(since=since).split("\n")[:-1]     # whole lines only
+        hits = [m for m in (re.search(pattern, line) for line in lines) if m]
+        if hits:
+            return hits[-1]
+        emu.run(1)
+    return None
+
+
+def set_sort(emu: Emulator, want: int, tries: int = 3) -> int | None:
+    """Press S until the menu sorts A-Z (0) or most played first (1), going by
+    its own log rather than counting presses: the game it lists first, or None."""
+    for _ in range(tries):
+        start = emu.log_cursor()
+        emu.press("S")
+        m = menu_line(emu, r"arcade: sort=(\d) first=(\d+)", start)
+        if m is None:
+            continue
+        if int(m.group(1)) == want:
+            return int(m.group(2))
+    return None
+
+
+def padded_image(src: Path, dst: Path, total: int, gs: list[dict]) -> list[dict]:
+    """A copy of an arcade image with `total` entries: the real games, then extra
+    entries ("Zz Extra NN", sorted last) that start the real games again. For
+    testing the menu with more games than it shows at once. Returns the entries."""
+    img = fatimg.FatImage(Path(src).read_bytes())
+    tree = img.tree()
+    full = [dict(g) for g in gs]
+    for k in range(total - len(gs)):
+        g = dict(gs[k % len(gs)], title=f"Zz Extra {k + 1:02d}", index=len(full), source=k % len(gs))
+        full.append(g)
+        fatimg.put(tree, f"arcade/pic{g['index']:02d}.l2", img.read(f"arcade/pic{g['source']:02d}.l2"))
+    fatimg.put(tree, "arcade/games.dat", games_dat(full))
+    fatimg.put(tree, "nextzxos/autoexec.bas", autoexec(full))
+    fatimg.put(tree, "arcade/stats.dat", stats_dat([]))
+    fatimg.write_image(tree, dst, size_mb=32)
+    return full
 
 
 def menu_choose(emu: Emulator, game: dict, count: int, max_frames: int = 3000,

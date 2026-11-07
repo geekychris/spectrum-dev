@@ -7,6 +7,11 @@ sdfile's sd_load_l2w) and the details follow the cursor; S sorts by plays;
 then every game is chosen from the menu and must reach its title (its
 "ready" log line), and a reset brings the menu back with that game selected
 and its play counted (stats.dat written with sd_save, read back with sd_load).
+The sort checks go by the menu's own log lines (arcade.set_sort), so they
+hold for any number of games. Then a card padded to 22+ entries
+(arcade.padded_image) checks scrolling: to the last entry and back, the bar
+on the right row, the picture, starting the last entry, and the menu opening
+scrolled to it after a reset.
 
     .venv/bin/python projects/arcade/test.py [--gif] [--no-build]
 
@@ -106,10 +111,9 @@ with tempfile.TemporaryDirectory() as tmp:
         check("the joystick moves too", e.run_until("arcade: sel=1", 50))
         e.press("UP", hold_frames=2, release_frames=2)
         e.run_until("arcade: sel=0", 50)
-        e.press("S")
-        check("S sorts by plays", e.run_until("arcade: sort=1", 50))
-        e.press("S")
-        check("S again: A-Z", e.run_until("arcade: sort=0", 50))
+        # S switches the order; go by the menu's log, not by counting presses
+        check("S sorts by plays (none yet: A-Z order, first game first)", arcade.set_sort(e, 1) == 0)
+        check("S again: A-Z", arcade.set_sort(e, 0) == 0)
         e.run(10)
         sel = 0
 
@@ -140,11 +144,8 @@ with tempfile.TemporaryDirectory() as tmp:
               ok and last(r"launch=\d+ .* plays=(\d+)", e.log_text(since=start)) == "2")
         e.reset(hard=True)
         arcade.menu_ready(e, 3000)
-        start = e.log_cursor()
-        e.press("S")
-        e.run_until("arcade: sort=1", 50)
-        e.run(1)
-        check("most played first", last(r"sort=1 first=(\d+)", e.log_text(since=start)) == str(g["index"]))
+        first = arcade.set_sort(e, 1)
+        check("most played first", first == g["index"], f"first={first}, want {g['index']}")
         e.run(10)
         e.screenshot(SHOTS / "menu_sorted.png")
 
@@ -165,6 +166,56 @@ with tempfile.TemporaryDirectory() as tmp:
             print("  wrote docs/images/arcade.gif")
         if failures:
             print("\n".join(e.debug_log[-25:]))
+
+# more games than the menu shows at once: scrolling, the bar, pictures, starting one from below
+with tempfile.TemporaryDirectory() as tmp:
+    sd = Path(tmp) / "many.mmc"
+    total = min(32, max(22, len(gs) + 6))
+    full = arcade.padded_image(Path(m["image"]), sd, total, gs)
+    with Emulator(machine="next", sd=sd) as e:
+        sel = arcade.menu_ready(e, 3000)
+        r = arcade.menu_line(e, r"ready games=(\d+) .*rows=(\d+)", 0)
+        rows = int(r.group(2)) if r else 0
+        check(f"a card with {total} entries: more than the {rows} rows shown",
+              r is not None and int(r.group(1)) == total and total > rows)
+        pos = top = 0
+        for _ in range(total + 2):
+            start = e.log_cursor()
+            e.press("A", hold_frames=2, release_frames=2)
+            mm = arcade.menu_line(e, r"arcade: sel=(\d+) pos=(\d+) top=(\d+)", start, 40)
+            if not mm:
+                break
+            sel, pos, top = map(int, mm.groups())
+        check("A goes down to the last entry and stops there", pos == total - 1 and sel == total - 1)
+        check("the list scrolled with it", top == total - rows, f"top={top}")
+        e.run_until(f"arcade: shown={sel}", 50)
+        e.run(2)
+        bar_y = 44 + (pos - top) * 12 + 1
+        check("the bar is on the bottom row, the top row isn't the bar",
+              layer2_column(e, 17, bar_y, 1)[0] == 0x1F and layer2_column(e, 17, 45, 1)[0] != 0x1F)
+        pic = arcade.picture(Path(full[sel]["picture"]))[0]
+        check("its picture is there", all(layer2_column(e, 152 + x, 56, 120) == pic[x * 120:(x + 1) * 120]
+                                          for x in (0, 80, 159)))
+        e.screenshot(SHOTS / "menu_scrolled.png")
+        for _ in range(total + 2):
+            start = e.log_cursor()
+            e.press("Q", hold_frames=2, release_frames=2)
+            mm = arcade.menu_line(e, r"arcade: sel=(\d+) pos=(\d+) top=(\d+)", start, 40)
+            if not mm:
+                break
+            sel, pos, top = map(int, mm.groups())
+        check("Q goes back up to the first and scrolls back", pos == 0 and top == 0)
+        g = full[-1]
+        ok = arcade.menu_choose(e, g, total, 3000, sel=sel)
+        check(f"the last entry starts its game ({gs[g['source']]['title']})",
+              ok and f"launch={g['index']} " in e.log_text(since=0))
+        e.reset(hard=True)
+        sel = arcade.menu_ready(e, 3000)
+        r = arcade.menu_line(e, r"ready games=\d+ sort=\d sel=(\d+) pos=(\d+) top=(\d+)", 0)
+        check("reset: the menu opens scrolled to it",
+              sel == g["index"] and r is not None and int(r.group(3)) == total - rows)
+        if failures:
+            print("\n".join(e.debug_log[-15:]))
 
 print(f"{'FAIL' if failures else 'PASS'}: arcade")
 sys.exit(1 if failures else 0)

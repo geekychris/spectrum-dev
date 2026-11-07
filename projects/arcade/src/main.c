@@ -197,7 +197,8 @@ int main(void)
         draw_details();
         show_picture();
     }
-    zx_log("arcade: ready games=%u sort=%u sel=%u\n", ngames, stats.sort, order[list.sel]);
+    zx_log("arcade: ready games=%u sort=%u sel=%u pos=%u top=%u rows=%u\n", ngames, stats.sort,
+           order[list.sel], list.sel, list.top, list.rows);
 
     for (;;) {
         uint8_t in, pressed, moved = 0;
@@ -215,7 +216,8 @@ int main(void)
         if (moved) {
             draw_details();
             pic_due = 6;                         /* load the picture once the cursor rests */
-            zx_log("arcade: sel=%u %s\n", order[list.sel], games[order[list.sel]].title);
+            zx_log("arcade: sel=%u pos=%u top=%u %s\n", order[list.sel], list.sel, list.top,
+                   games[order[list.sel]].title);
         }
         if (pic_due && !--pic_due) show_picture();
         if (letter == 'S') {
