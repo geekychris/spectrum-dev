@@ -608,6 +608,7 @@ static void isr_work(void)
 
 /* frames-per-second accounting, logged every 500 frames of play */
 static uint16_t perf_frames, perf_draws;
+static uint8_t held, read_phase;      /* the keys last read; read every other frame */
 static uint8_t perf_max_ticks;
 
 int main(void)
@@ -659,9 +660,17 @@ int main(void)
         }
         snd_frame();
 
-        /* the original's input: the last of up, down, left, right held */
-        b = input_read();
-        p = input_pressed();
+        /* the original's input: the last of up, down, left, right held.
+           port: in play the keys are read every other frame (a read costs
+           ~15,000 T-states): a direction is kept until the next turning
+           anyway, and the interrupt latches taps in between */
+        if (screen != SCR_GAME || (read_phase ^= 1)) {
+            held = input_read();
+            p = input_pressed();
+        } else {
+            p = 0;
+        }
+        b = held;
         in.dir = DIR_NONE;
         if (b & IN_UP)    in.dir = DIR_UP;
         if (b & IN_DOWN)  in.dir = DIR_DOWN;

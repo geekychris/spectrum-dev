@@ -78,13 +78,15 @@ on a 128K; on a 48K they are short beeper slices.
   clash; the hedges are drawn as their edges (with leafy speckles inside
   thick hedge) rather than solid as in the original, so a passing sprite
   tints a few lines, not a block.
-- **Logic at a fixed 50 Hz**, the picture redrawn every frame: **48 fps**
-  over a whole bot game (43-50 per 10 s; the test measures it). The worst
-  frames are tile centres where all four spiders choose a direction, and
-  the beeper's jingles.
+- **Logic at a fixed 50 Hz**, the picture redrawn every frame: **49.5 fps**
+  over a whole bot game (47-50 per 10 s; the test measures it); the frames
+  that miss are tile centres where all four spiders choose a direction, and
+  the beeper's jingles. In play the keys are read every other frame (a read
+  costs ~15,000 T-states; a direction is kept until the next turning
+  anyway, and the SDK's interrupt latch catches taps).
 - **Memory**: screen, shadow 0x6000-0x7AFF, game state 0x7B00-0x7F37 (both
-  free once the loader has run), program 0x8000-0xEEEC, the SDK's IM 2 table
-  at 0xF000. About 270 bytes are left.
+  free once the loader has run), program 0x8000-0xEF59, the SDK's IM 2 table
+  at 0xF000. About 160 bytes are left.
 - **Sound**: the beeper stops the CPU, so a 48K plays one short slice of the
   most important sound each frame (a pip is ~4,000 T-states). On a 128K the
   AY plays everything, as the original's four channels do on three.
