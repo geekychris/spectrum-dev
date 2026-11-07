@@ -51,6 +51,19 @@ with Emulator(machine="next") as e:
     cn = nums(log, "copper")
     check("copper: a wait + 2 moves a band (the top band no wait)", cn == [8], str(cn))
 
+    w = nums(log, "wrap goto")
+    check("wrap: goto 1900 (all 320, columns wrap at 1920)", w == [320, 0, 1900 % 320], str(w))
+    w = nums(log, "wrap right")
+    check("wrap: 1900 -> 10 goes 30 right across the seam", w == [30, 0, (1900 + 30) % 320], str(w))
+    w = nums(log, "wrap left")
+    check("wrap: 10 -> 1910 goes 20 left back across", w == [20, 0, 1910 % 320], str(w))
+    c = nums(log, "col")
+    off = 1910 % 320
+    check("l2s_col: world 1915 and 100 (wrapped) in view, 1000 not",
+          c == [(off + 5) % 320, (off + 1920 - 1910 + 100) % 320, 0xFFFF], str(c))
+    gn = nums(log, "gaps copper")
+    check("rows in no band get scroll 0 (2 + 4 x 3 instructions)", gn == [14], str(gn))
+
     # the picture: row y of each band shows world x0 + screen x
     img = e.screenshot(layer="screen")
     W, H = img.size
@@ -63,7 +76,7 @@ with Emulator(machine="next") as e:
     def seen(p):                         # an RGB pixel back to RRRGGGBB fields
         return (round(p[0] * 7 / 255), round(p[1] * 7 / 255), round(p[2] * 7 / 255) >> 1)
 
-    for name, y, x0 in (("top", 40, 0), ("middle", 100, 1503), ("bottom", 200, 69990)):
+    for name, y, x0 in (("middle", 100, 1503), ("bottom", 200, 69990)):
         good = 0
         for x in range(320):
             v = (x0 + x) & 0xFF

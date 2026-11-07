@@ -45,6 +45,21 @@ static uint16_t check(uint8_t b, uint32_t x0, uint8_t y)
     return bad;
 }
 
+/* the same with a world that wraps at 1920 */
+static uint16_t check_wrap(uint8_t b, uint32_t x0, uint8_t y)
+{
+    uint16_t sx, bad = 0, off = l2s_offset(b);
+    for (sx = 0; sx < L2S_W; sx++) {
+        uint16_t col = off + sx;
+        uint8_t v = (uint8_t)((x0 + sx) % 1920);
+        if (col >= L2S_W) col -= L2S_W;
+        if (v == 0xE3) v = 0xE2;
+        if (l2w_column(col)[y] != v) bad++;
+    }
+    l2w_done();
+    return bad;
+}
+
 int main(void)
 {
     uint8_t a, b, c;
@@ -86,6 +101,29 @@ int main(void)
     split_begin();
     l2s_copper();
     zx_log("scroll: copper n=%u\n", split_end());
+
+    /* a world that wraps (1920 wide, as Orbital Patrol's), one band */
+    l2s_reset();
+    a = l2s_band(0, 79, fill);
+    l2s_band_wrap(a, 1920);
+    calls = 0;
+    l2s_goto(a, 1900);
+    zx_log("scroll: wrap goto calls=%u bad=%u off=%u\n", calls, check_wrap(a, 1900, 40), l2s_offset(a));
+    calls = 0;
+    l2s_move(a, 10);                     /* 1900 -> 10: 30 to the right, across the seam */
+    zx_log("scroll: wrap right calls=%u bad=%u off=%u\n", calls, check_wrap(a, 10, 40), l2s_offset(a));
+    calls = 0;
+    l2s_move(a, 1910);                   /* 10 -> 1910: 20 to the left, back across it */
+    zx_log("scroll: wrap left calls=%u bad=%u off=%u\n", calls, check_wrap(a, 1910, 40), l2s_offset(a));
+    zx_log("scroll: col %u %u %u\n", l2s_col(a, 1915), l2s_col(a, 100), l2s_col(a, 1000));
+
+    /* rows in no band get scroll 0: bands 20..99 and 150..199 */
+    l2s_reset();
+    a = l2s_band(20, 99, fill);
+    b = l2s_band(150, 199, fill);
+    split_begin();                       /* built, not uploaded: the picture checks */
+    l2s_copper();                        /* use the three bands' list */
+    zx_log("scroll: gaps copper n=%u\n", copper_n);
     zx_log("ZX:DONE\n");
     for (;;) frame_wait();
 }
