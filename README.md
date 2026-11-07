@@ -271,7 +271,16 @@ licenses and are fetched at setup, not redistributed here:
   Spectrum ROMs to be redistributed for emulation). For the Next, ZEsarUX
   ships its TBBlue boot ROM (`tbblue_loader.rom`) and an SD image with the
   NextZXOS distribution (`tbblue.mmc`); `.nex` programs load directly without
-  it, and `./zx arcade` builds its card from it (not redistributed here).
+  it.
+- **NextZXOS** (System/Next distribution 1.3.2: NextZXOS 2.06H, firmware 1.29b,
+  esxDOS, ROMs, dot commands) by Garry Lancaster, SpecNext Ltd and the
+  contributors named in it, under "The Next License" (Phoebus Dokos / SpecNext
+  Ltd, CC BY-SA; `LICENSE.md` at the root of the card): free to copy whole,
+  never sold, and each part under its own licence. `./zx arcade` builds its SD
+  card from ZEsarUX's copy on your machine, at build time, into
+  `build/arcade/arcade.mmc`; no part of it is in this repository, and the
+  trimmed card it makes is for your own use, not for passing on (share the
+  full distribution instead: <https://www.specnext.com/latestdistro/>).
 - **[z88dk](https://github.com/z88dk/z88dk)** (Clarified Artistic License) and
   **[sjasmplus](https://github.com/z00m128/sjasmplus)** (BSD-3), in the
   toolchain image.

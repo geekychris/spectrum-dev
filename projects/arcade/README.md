@@ -134,6 +134,17 @@ puts it first in the most-played order. `--gif` records
 `frame_exit()` (back to IM 1 for code that returns to BASIC), project.mk's
 `OUTPUT := bin`, and the host tools `fatimg.py` and `nextbasic.py`.
 
+## Where NextZXOS comes from
+
+The card is built on your machine at `./zx arcade` time from the NextZXOS
+distribution that ZEsarUX ships (`third_party/zesarux/src/tbblue.mmc`,
+fetched by `./setup.sh`): System/Next 1.3.2, NextZXOS 2.06H, under "The Next
+License" (SpecNext Ltd, CC BY-SA; the card keeps its `LICENSE.md` and
+`README.md`). Nothing of it is committed here: the repo holds only the
+builder and the games, and `build/` and `*.mmc` are ignored by git. The
+trimmed card is for local use; the licence wants the distribution passed on
+whole, so share <https://www.specnext.com/latestdistro/> rather than the image.
+
 ## Limitations
 
 - Back to the menu is a reset: the games don't know about the arcade (a

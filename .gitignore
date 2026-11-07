@@ -5,3 +5,5 @@ projects/*/build/
 __pycache__/
 *.pyc
 .DS_Store
+# SD images (./zx arcade builds one from ZEsarUX's NextZXOS; never committed)
+*.mmc
