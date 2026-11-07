@@ -455,7 +455,9 @@ def emu_set_reg(reg: str, value: str) -> str:
 def emu_read_mem(addr: str, length: int = 64, bank: int = -1, page: int = -1) -> str:
     """Hex dump of memory at an address or symbol ('player_x', '$5800', 'buf+16').
     bank=N reads 16K RAM bank N (128K/+2/+3/Next) and page=N an 8K Next page,
-    paged in or not; addr is then the offset inside it."""
+    paged in or not; addr is then the offset inside it. A symbol in a banked
+    section (z88dk BANK_n/PAGE_n, linked above 0xFFFF) is read from its page
+    automatically; other addresses above 0xFFFF are an error."""
     return _call("read_mem", addr=addr, length=length, bank=None if bank < 0 else bank,
                  page=None if page < 0 else page)["dump"]
 

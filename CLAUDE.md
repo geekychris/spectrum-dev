@@ -150,8 +150,10 @@ Details: docs/emulator-harness.md.
   `zx-dev-toolchain-keep` container pins ours, and bin/zx-make rebuilds a missing image.
 - Memory zones: 128K RAM bank N is zone 0 offset N*16384; the Next's RAM page N is
   zone 0 offset 0x40000 + N*8192 (ROMs sit below). Palettes come back as 9-bit RGB333.
-- Banked symbols (z88dk BANK_n/PAGE_n sections) are linked at bank << 16 | address;
-  the harness resolves them to the 16-bit CPU address (map the page in first).
+- Banked symbols (z88dk BANK_n/PAGE_n sections) are linked at bank << 16 | address:
+  read_mem/write_mem (and MCP emu_read_mem) by name go to their Next RAM page,
+  mapped or not; breakpoints/watchpoints use the CPU address they run at. A bare
+  number above 0xFFFF is an error (it used to hang read_mem).
 - Emulators started by the harness (ZXH_PARENT_WATCH=1) exit by themselves when
   their parent process dies (zxh.c watchdog): no orphans from killed scripts.
 - Stop only our own emulators: the harness kills its own Popen (and checks the ZRCP

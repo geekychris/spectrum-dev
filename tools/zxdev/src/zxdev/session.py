@@ -190,6 +190,12 @@ class Session:
 
     def _read_mem(self, addr, length=64, bank=None, page=None):
         a = self.emu.addr(addr)
+        if bank is None and page is None:
+            _, lin = self.emu.symbols.locate(addr)
+            if lin is not None:                 # a banked symbol: read from its page
+                page, a = lin // 8192, lin % 8192
+                data = self.emu.read_mem(a, int(length), page=page)
+                return {"addr": a, "bank": None, "page": page, "hex": data.hex(), "dump": _hexdump(a, data)}
         data = self.emu.read_mem(a, int(length), bank=bank, page=page)
         return {"addr": a, "bank": bank, "page": page, "hex": data.hex(), "dump": _hexdump(a, data)}
 

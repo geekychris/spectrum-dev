@@ -1025,11 +1025,15 @@ class Emulator:
     # ------------------------------------------------------------- registers / memory
 
     def addr(self, expr) -> int:
-        """Number, $hex/0xhex/NNh, symbol (main or _main), symbol+off, or register."""
+        """Number, $hex/0xhex/NNh, symbol (main or _main), symbol+off, or register;
+        a banked symbol gives the address it runs at; above 0xFFFF otherwise: an error."""
         regs = None
         if isinstance(expr, str) and expr.strip().upper() in ("PC", "SP", "HL", "DE", "BC", "IX", "IY"):
             regs = self.regs()
-        return self.symbols.resolve(expr, regs)
+        try:
+            return self.symbols.resolve(expr, regs)
+        except ValueError as ex:
+            raise EmulatorError(str(ex)) from None
 
     def regs(self) -> dict:
         out = self._cmd("get-registers").strip()
@@ -1057,6 +1061,16 @@ class Emulator:
         self._cmd(f"set-register {name.upper()}={v}")
         return self.regs()
 
+    def _banked(self, addr) -> int | None:
+        """the Next RAM offset of a banked symbol (z88dk BANK_n/PAGE_n), or None"""
+        try:
+            _, lin = self.symbols.locate(addr)
+        except ValueError as ex:
+            raise EmulatorError(str(ex)) from None
+        if lin is not None and self.machine != "next":
+            raise EmulatorError(f"{addr!r} is a banked (Next) symbol; this is a {self.machine}")
+        return lin
+
     def _bank_offset(self, bank, page) -> int:
         if self.machine == "next":
             return 0x40000 + (bank * 16384 if bank is not None else page * 8192)
@@ -1072,9 +1086,10 @@ class Emulator:
         addr is the offset inside it."""
         if bank is not None or page is not None:
             return self._zone_read(0, self._bank_offset(bank, page) + int(self.addr(addr)), length)
+        lin = self._banked(addr)
+        if lin is not None:                     # a banked symbol: its page, mapped or not
+            return self._zone_read(0, 0x40000 + lin, length)
         a = self.addr(addr)
-        if not 0 <= a <= 0xFFFF:
-            raise EmulatorError(f"read_mem: {addr!r} is {a:#x}, outside the 64K CPU view")
         out = bytearray()
         while length > 0:
             n = min(length, 0x10000 - a, 4096)
@@ -1086,6 +1101,9 @@ class Emulator:
     def write_mem(self, addr, data: bytes, bank: int | None = None, page: int | None = None):
         if bank is not None or page is not None:
             return self._zone_write(0, self._bank_offset(bank, page) + int(self.addr(addr)), data)
+        lin = self._banked(addr)
+        if lin is not None:
+            return self._zone_write(0, 0x40000 + lin, data)
         a = self.addr(addr)
         for i in range(0, len(data), 128):
             chunk = data[i:i + 128]
@@ -1157,10 +1175,12 @@ class Emulator:
         """Data watchpoint: stop when the CPU reads ('r'), writes ('w') or
         accesses ('rw') [addr, addr+length)."""
         a = self.addr(addr)
+        lin = self._banked(addr)
+        desc = str(addr) if lin is None else f"{addr} (page {lin // 8192}: CPU ${a:04X} when mapped there)"
         t = {"r": 1, "w": 2, "rw": 3, "wr": 3}[kind]
         self._enable_breakpoints()
         self._cmd(f"set-membreakpoint {a} {t} {length}")
-        self._watches[a] = {"addr": a, "length": length, "kind": kind, "desc": str(addr)}
+        self._watches[a] = {"addr": a, "length": length, "kind": kind, "desc": desc}
         return self._watches[a]
 
     def delete(self, index: int | None = None, addr=None):

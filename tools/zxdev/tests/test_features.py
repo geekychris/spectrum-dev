@@ -25,6 +25,7 @@ P = ROOT / "projects"
 INPUT = P / "inputtest" / "build" / "inputtest.tap"
 H48 = P / "hello48" / "build" / "hello48.tap"
 NEXT = P / "hellonext" / "build" / "hellonext.nex"
+SDKN = P / "sdktestnext" / "build" / "sdktestnext.nex"     # has a PAGE_84 section
 TMP = Path(tempfile.mkdtemp(prefix="zxfeat-"))
 failures = []
 
@@ -293,7 +294,9 @@ def test_restart():
     from zxdev.symbols import Symbols
     sy = Symbols()
     sy.addr["_banked_thing"] = 0x28006D
-    check("banked symbol -> its 16-bit address", sy.resolve("banked_thing") == 0x6D and sy.resolve("banked_thing+2") == 0x6F)
+    sy.info["_banked_thing"] = {"scope": "public", "module": "x", "section": "BANK_20"}
+    check("banked symbol -> its CPU address and its page", sy.resolve("banked_thing") == 0x6D
+          and sy.resolve("banked_thing+2") == 0x6F and sy.locate("banked_thing+2") == (0x6F, 40 * 8192 + 0x6F))
 
     # a script killed hard (SIGKILL) leaves no emulator behind (zxh.c's watchdog)
     import signal as _sig
@@ -489,12 +492,42 @@ def test_logging():
               and 1000 <= p["tstates"] < 1100, str(p))
 
 
+def test_banked():
+    """symbols in z88dk PAGE_n / BANK_n sections (linked above 0xFFFF): read,
+    written and watched by name, mapped or not; other big addresses: an error"""
+    print("== banked symbols (sdktestnext's PAGE_84)")
+    with Emulator(machine="next") as e:
+        e.load(SDKN)
+        e.run_until("sdk: input ready", 3000)
+        check("banked symbol linked above 0xFFFF", e.symbols.lookup("banked_msg") == 0x54C000)
+        check("read_mem by a PAGE section symbol (page not mapped)", e.read_mem("banked_msg", 14) == b"BANKED PAGE 84")
+        check("read_mem symbol+offset", e.read_mem("banked_var+1", 3) == bytes([2, 3, 4]))
+        e.write_mem("banked_var", bytes([9]))
+        check("write_mem by symbol lands in page 84", e.read_mem(0x0F, 1, page=84) == bytes([9]))
+        try:
+            e.read_mem(0x54C000, 2)
+            err = ""
+        except EmulatorError as ex:
+            err = str(ex)
+        check("a bare address above 0xFFFF: a clear error, no hang", "above the 64K" in err, err)
+        w = e.watch("banked_var")
+        check("watchpoint on a banked symbol names its page", "page 84" in w["desc"] and w["addr"] == 0xC00F, str(w))
+        e.delete()
+    c = SessionClient.spawn(str(SDKN))
+    try:
+        c.call("run_until", text="sdk: input ready")
+        r = c.call("read_mem", addr="banked_msg", length=14)
+        check("session / MCP read_mem of a banked symbol", r["page"] == 84 and bytes.fromhex(r["hex"]) == b"BANKED PAGE 84", str(r)[:200])
+    finally:
+        c.close(stop=True)
+
+
 def main():
-    for f in (INPUT, H48, NEXT):
+    for f in (INPUT, H48, NEXT, SDKN):
         if not f.exists():
             print(f"build first: {f} missing")
             return 2
-    for t in (test_input, test_debugging, test_screens, test_restart, test_recorder, test_replay, test_logging):
+    for t in (test_input, test_debugging, test_screens, test_restart, test_recorder, test_replay, test_logging, test_banked):
         t()
     print(f"\n{'FAIL: ' + str(len(failures)) + ' failure(s)' if failures else 'PASS'}")
     for f in failures:

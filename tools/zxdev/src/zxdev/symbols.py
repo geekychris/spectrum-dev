@@ -15,6 +15,14 @@ _Z88DK = re.compile(r"^(\S+)\s*=\s*\$([0-9A-Fa-f]+)\s*;\s*(.*)$")
 _SJASM = re.compile(r"^(\S+?):?\s+(?:EQU|equ)\s+0x([0-9A-Fa-f]+)")
 
 
+def _cpu(a: int, expr) -> int:
+    """a CPU address (wrapping below 0), or a clear error for anything above 64K"""
+    if a > 0xFFFF:
+        raise ValueError(f"{expr!r} is {a:#x}, above the 64K CPU view: use a banked symbol's "
+                         f"name (BANK_n/PAGE_n sections are decoded), or bank=/page= with an offset")
+    return a & 0xFFFF
+
+
 class Symbols:
     def __init__(self):
         self.addr: dict[str, int] = {}
@@ -59,27 +67,59 @@ class Symbols:
                 return self.addr[n]
         return None
 
+    def banked(self, name: str) -> int | None:
+        """A symbol in a z88dk BANK_n / BANK_n_L / BANK_n_H / PAGE_n section is
+        linked at bank << 16 | address. Its place in the Next's RAM as an
+        offset from page 0 (page * 8192 + offset), or None."""
+        for n in (name, "_" + name):
+            if n in self.addr:
+                val, sec = self.addr[n], self.info.get(n, {}).get("section", "")
+                m = re.fullmatch(r"(PAGE|BANK)_(\d+)(_[LH])?", sec)
+                if val <= 0xFFFF or not m:
+                    return None
+                k, low = int(m.group(2)), val & 0xFFFF
+                if m.group(1) == "PAGE":
+                    return k * 8192 + (low & 0x1FFF)
+                if m.group(3):
+                    return (2 * k + (m.group(3) == "_H")) * 8192 + (low & 0x1FFF)
+                return 2 * k * 8192 + (low & 0x3FFF)
+        return None
+
+    def locate(self, expr, regs=None) -> tuple[int, int | None]:
+        """(CPU address, Next RAM offset if expr is a banked symbol[+-off] else None)"""
+        if isinstance(expr, str):
+            e = expr.strip()
+            m = re.fullmatch(r"(.+?)\s*([+-])\s*((?:0x|\$)?[0-9A-Fa-f]+h?)", e)
+            base, off = (m.group(1), _num(m.group(3)) * (1 if m.group(2) == "+" else -1)) if m else (e, 0)
+            lin = self.banked(base)
+            if lin is not None:
+                return (self.lookup(base) + off) & 0xFFFF, lin + off
+        return self.resolve(expr, regs), None
+
     def resolve(self, expr, regs=None) -> int:
         """Number, symbol, symbol+off, or a register name (pc, sp, hl...) -> address."""
         if isinstance(expr, int):
-            return expr & 0xFFFF
+            return _cpu(expr, expr)
         e = str(expr).strip()
         m = re.fullmatch(r"(.+?)\s*([+-])\s*((?:0x|\$)?[0-9A-Fa-f]+h?)", e)
         if m and not re.fullmatch(r"(0x|\$)?[0-9A-Fa-f]+h?", e):
             base = self.resolve(m.group(1), regs)
             off = _num(m.group(3))
-            return (base + off if m.group(2) == "+" else base - off) & 0xFFFF
+            return _cpu(base + off if m.group(2) == "+" else base - off, expr)
         if regs is not None and e.upper() in regs:
             return regs[e.upper()]
         v = self.lookup(e)
         if v is not None:
-            # z88dk links banked code/data at bank << 16 | address (BANK_n,
-            # PAGE_n sections): the CPU sees the low 16 bits once it's mapped
-            return v & 0xFFFF
+            # a banked symbol (bank << 16 | address): the address the CPU sees
+            # it at when its page is mapped (read_mem/write_mem use locate())
+            if v > 0xFFFF and self.banked(e) is not None:
+                return v & 0xFFFF
+            return _cpu(v, expr)
         try:
-            return _num(e) & 0xFFFF
+            n = _num(e)
         except ValueError:
             raise ValueError(f"unknown symbol or address: {expr!r}") from None
+        return _cpu(n, expr)
 
     def name_of(self, addr: int) -> str | None:
         """Nearest symbol at or below addr, as name or name+0xN. Named code and
