@@ -55,18 +55,21 @@ static uint8_t nv;
 static int16_t sx[MAXV] = { 0 }, sy[MAXV] = { 0 };
 static uint8_t plane_end[NPLANES] = { 0 };
 static int16_t plane_max[NPLANES] = { 0 };   /* each plane's largest |x| or |y| */
+static uint8_t vrec[MAXV * 5] = { 0 };       /* the corners as vproj's records */
 
 /* vproj.asm: one plane's corners */
 extern int16_t pj_e, pj_f, pj_c, pj_d;
-extern const int16_t *pj_vx, *pj_vy;
+extern const uint8_t *pj_rec;             /* corner records: |x|, |y| (2 bytes each), signs (bit 0 x, bit 1 y) */
 extern int16_t *pj_sx, *pj_sy;
 extern uint8_t pj_n;
 extern void vproj(void);        /* the corners are sorted by plane: plane p's end at plane_end[p] */
 
 typedef struct {
     uint8_t n, col, cull;                /* cull: 0 none, 1 a hub side, 2 a ring side (the mid angle in ang) */
+    uint8_t pa, pb;                      /* its corners' planes (two each, or all on one) */
     int8_t bias;
     uint16_t ang;
+    int16_t ca, sa;                      /* cos, sin of ang (Q14), for faces() */
     uint8_t v[8];
 } Poly;
 static Poly poly[MAXP] = { { 0 } };
@@ -82,6 +85,7 @@ static uint8_t btail[NB] = { 0 };
 
 /* the stars (render.c stars()): offsets from the middle, the original's hash */
 static int16_t star_x[60] = { 0 }, star_y[60] = { 0 };
+static uint8_t star_rec[60 * 5] = { 0 };
 
 
 static uint32_t a3_hash(uint32_t x)
@@ -103,6 +107,16 @@ static uint8_t vert(int32_t x, int32_t y, uint8_t plane)
     vy[nv] = (int16_t)y;
     vplane[nv] = plane;
     return nv++;
+}
+
+static void make_rec(uint8_t *r, int16_t x, int16_t y)
+{
+    uint16_t ax = x < 0 ? -x : x, ay = y < 0 ? -y : y;
+    r[0] = (uint8_t)ax;
+    r[1] = (uint8_t)(ax >> 8);
+    r[2] = (uint8_t)ay;
+    r[3] = (uint8_t)(ay >> 8);
+    r[4] = (x < 0 ? 1 : 0) | (y < 0 ? 2 : 0);
 }
 
 static Poly *add(uint8_t col, int8_t bias)
@@ -206,12 +220,22 @@ void view_init(void)
             if (m > plane_max[pl]) plane_max[pl] = m;
             m = vy[i] < 0 ? -vy[i] : vy[i];
             if (m > plane_max[pl]) plane_max[pl] = m;
+            make_rec(&vrec[i * 5], vx[i], vy[i]);
+        }
+        /* each polygon's planes: its first and last corners' (a polygon's
+           corners are on one plane or two, two each) */
+        for (i = 0; i < npoly; i++) {
+            poly[i].pa = vplane[poly[i].v[0]];
+            poly[i].pb = vplane[poly[i].v[poly[i].n - 1]];
+            poly[i].ca = (int16_t)(a3_cos(poly[i].ang) >> 2);
+            poly[i].sa = (int16_t)(a3_sin(poly[i].ang) >> 2);
         }
     }
     for (k = 0; k < 60; k++) {
         uint32_t h = a3_hash((uint32_t)k * 2654435761UL);
         star_x[k] = (int16_t)(h % 640) - 320;
         star_y[k] = 320 - (int16_t)((h >> 10) % 640);   /* (y negated: see stars()) */
+        make_rec(&star_rec[k * 5], star_x[k], star_y[k]);
     }
 }
 
@@ -265,8 +289,7 @@ static void project_planes(const ODGame *g, int16_t cz)
         pj_f = f;
         pj_c = CX + c;
         pj_d = CY - d;
-        pj_vx = &vx[i];
-        pj_vy = &vy[i];
+        pj_rec = &vrec[i * 5];
         pj_sx = &sx[i];
         pj_sy = &sy[i];
         pj_n = plane_end[pl] - i;
@@ -279,7 +302,7 @@ static int16_t cam_sx, cam_sy;           /* the camera across the axis, in the s
 
 static uint8_t faces(const Poly *p)
 {
-    int32_t dist = mul16(cam_sx, (int16_t)(a3_cos(p->ang) >> 2)) + mul16(cam_sy, (int16_t)(a3_sin(p->ang) >> 2));
+    int32_t dist = mul16(cam_sx, p->ca) + mul16(cam_sy, p->sa);
     /* the side's plane: R cos(half the side's angle) out; Q14 */
     return dist > (p->cull == 1 ? 55L * 16384 : 294L * 16384);
 }
@@ -295,8 +318,7 @@ static void stars(void)
     pj_f = (int16_t)(-(rc * 4 / 5) >> 5);
     pj_c = CX;
     pj_d = CY;
-    pj_vx = star_x;
-    pj_vy = star_y;
+    pj_rec = star_rec;
     pj_sx = star_sx;
     pj_sy = star_sy;
     pj_n = 60;
@@ -330,21 +352,18 @@ void view_draw(const ODGame *g)
     view_polys = 0;
     for (i = 0; i < npoly; i++) {
         Poly *p = &poly[i];
-        int16_t depth = 0;
-        uint8_t j, near = 0;
+        int16_t depth;
         if (i >= marker_first[0] && i < marker_first[0] + 12) {
             k = (i - marker_first[0]) >> 2;
             if ((int32_t)plane_z[P_M0 + k] << 16 >= g->z - FROMI(20)) continue;   /* behind us */
         }
         if (p->cull && !faces(p)) continue;
-        for (j = 0; j < p->n; j++) {
-            int16_t z = zc[vplane[p->v[j]]];
-            if (z < NEAR) near = 1;
-            depth += z;
+        {
+            int16_t za = zc[p->pa], zb = zc[p->pb];
+            if (za < NEAR || zb < NEAR) continue;
+            if (p->n == 8) depth = za - 4;           /* the face: its first corner's depth - 4 */
+            else depth = ((za + zb) >> 1) + p->bias;  /* (the four corners' mean: two on each plane) */
         }
-        if (near) continue;
-        if (p->n == 8) depth = zc[vplane[p->v[0]]] - 4;   /* the face: its first corner's depth - 4 */
-        else depth = (depth >> 2) + p->bias;
         bucket_add(i, depth);
     }
     /* the debris */
@@ -374,9 +393,15 @@ void view_draw(const ODGame *g)
             if (n >= DEB) {
                 l2p_poly(deb_xy[n - DEB], 6, PEN_DEBRIS);
             } else {
-                Poly *p = &poly[n];
+                const Poly *p = &poly[n];
+                const uint8_t *v = p->v;
+                int16_t *o = xy;
                 uint8_t j;
-                for (j = 0; j < p->n; j++) { xy[j * 2] = sx[p->v[j]]; xy[j * 2 + 1] = sy[p->v[j]]; }
+                for (j = p->n; j; j--) {
+                    uint8_t c = *v++;
+                    *o++ = sx[c];
+                    *o++ = sy[c];
+                }
                 l2p_poly(xy, p->n, p->col);
             }
             view_polys++;

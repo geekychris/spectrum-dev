@@ -121,7 +121,8 @@ void hud_dial(int16_t err, uint8_t ok)
     c = (int16_t)(a3_cos(a) >> 8);
     /* the needle: from the middle out 22, 3 wide at the middle narrowing to the tip */
     for (t = 0; t <= 22; t++) {
-        int16_t w = (22 - t) * 3 / 22, j, ts = t * s, tc = t * c;
+        static const uint8_t width[23] = { 3, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };  /* (22 - t) * 3 / 22 */
+        int16_t w = width[t], j, ts = t * s, tc = t * c;
         for (j = -w; j <= w; j++) {
             int16_t px = 24 + ((ts + j * c) >> 8), py = 24 + ((j * s - tc) >> 8);
             dial_px((uint8_t)px, (uint8_t)py, ok ? PAL_GREEN : 1 + 16 * TX_YELLOW);

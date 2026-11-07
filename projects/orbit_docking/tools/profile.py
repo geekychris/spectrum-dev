@@ -41,6 +41,10 @@ def main():
     with Emulator(machine="next") as e:
         e.load(HERE.parent / "build" / "orbit_docking.nex")
         e.run_until("od: ready", 500)
+        e.run(100)
+        e.press("SPACE", hold_frames=3, release_frames=3)      # a game, the autopilot flying it
+        e.run(60)
+        e.press("B", hold_frames=4, release_frames=3)
         e.run(300)
         start = e.position()["since_load"] + 20
         rnd = random.Random(1)
