@@ -14,15 +14,14 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "..", "..", "sdk", "tools"))
-from segimg import decode  # noqa: E402
+from runimg import decode  # noqa: E402
 
 STEPS, NANG = 8, 41
 
 
 def load_pal():
-    src = open(os.path.join(ROOT, "src", "gfx_data.c")).read()
-    body = src.split("game_pal[256] = {")[1].split("}")[0]
-    vals = [int(v) for v in body.replace("\n", " ").split(",") if v.strip()]
+    raw = open(os.path.join(ROOT, "gfx", "pal_0.bin"), "rb").read()
+    vals = [int.from_bytes(raw[2 * i:2 * i + 2], "little") for i in range(256)]
     return np.array([[(c >> 6 & 7) * 255 // 7, (c >> 3 & 7) * 255 // 7, (c & 7) * 255 // 7] for c in vals], np.uint8)
 
 
@@ -36,10 +35,9 @@ def load_banks(prefix):
 
 def brick_image(bricks, where, s, a, row):
     page, addr = where[s * NANG + a]
-    pg = bricks[page * 8192:(page + 1) * 8192]
-    off = addr - 0x4000
-    img = int.from_bytes(pg[off + 2 * row:off + 2 * row + 2], "little") - 0x4000
-    return pg[img:]
+    base = page * 8192
+    off = int.from_bytes(bricks[base + addr + 2 * row:base + addr + 2 * row + 2], "little")
+    return bricks[base + off:]
 
 
 def draw_order(cols):
@@ -64,14 +62,14 @@ def frame(board, view, piece=(), ghost=()):
     b = base[step * 32768:(step + 1) * 32768]
     scr[:, 32:160] = np.frombuffer(b, np.uint8).reshape(128, 256).T
 
-    def put(s, c, row, shade, lit):
+    def put(s, c, row, base):
         rel = ((c * 256 - vq + 8 * 256) & 4095) - 8 * 256
         a = rel * STEPS // 256
         if abs(a) >= NANG:
             return
         img = brick_image(bricks, where, s, abs(a), row)
-        for (x, y), code in decode(img, 199 if a < 0 else 0, a < 0).items():
-            scr[y, x] = shade if code == 1 else lit
+        for (x, y), off in decode(img, 199 if a < 0 else 0, a < 0).items():
+            scr[y, x] = base + off
 
     def rel_of(c):
         return ((c * 256 - vq + 8 * 256) & 4095) - 8 * 256
@@ -81,11 +79,11 @@ def frame(board, view, piece=(), ghost=()):
         for row in ROWS_ORDER:
             v = board.get((c, row))
             if v:
-                put(0, c, row, 8 + 2 * (v - 1) + 1 if v != 9 else 25, 8 + 2 * (v - 1) if v != 9 else 24)
+                put(0, c, row, 8 + 2 * (v - 1) if v != 9 else 24)
     for c, row, v in ghost:
-        put(2, c, row, 8 + 2 * (v - 1), 5)
+        put(2, c, row, 48 + 2 * (v - 1))
     for c, row, v in piece:
-        put(1, c, row, 8 + 2 * (v - 1) + 1, 8 + 2 * (v - 1))
+        put(1, c, row, 8 + 2 * (v - 1))
     return Image.fromarray(pal[scr], "RGB")
 
 

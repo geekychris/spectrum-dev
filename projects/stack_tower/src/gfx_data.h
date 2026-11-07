@@ -9,15 +9,20 @@
 #define GFX_BACK_BANK   21      /* Layer 2 buffer B */
 #define GFX_BASE_PAGE   52      /* base picture of step s: 4 pages from GFX_BASE_PAGE + 4 s */
 #define GFX_BASE_X0     32      /* ... columns 32..159 */
-#define GFX_TITLE_BANK  58      /* the title painting, 5 banks */
+#define GFX_TITLE_BANK  85      /* the title painting, 5 banks */
 #define GFX_VIEW_MIRROR 199     /* a brick on the left: the right one mirrored about 99.5 */
 
-enum { SET_BOARD, SET_PIECE, SET_GHOST, SET_GUIDE };
-/* the block of brick images of set s at position a: page brick_page[s * GFX_NANG + a]
-   mapped at 0x4000 (MMU slot 2), at brick_addr[...]: 24 addresses (one a row) */
-extern const uint8_t brick_page[164];
-extern const uint16_t brick_addr[164];
-extern const uint16_t game_pal[256];
-extern const uint16_t title_pal[256];
+enum { SET_BOARD, SET_PIECE, SET_GHOST };
+/* the block of brick images of set s at position a: page p = brick_page[s * GFX_NANG + a]
+   mapped at 0x0000 (MMU slot 0, over the ROM), at brick_addr[...]: 24 offsets (one a row)
+   from the start of page p: row r's image is in page p + (offset >> 13) at offset & 0x1FFF */
+extern const uint8_t brick_page[123];
+extern const uint16_t brick_addr[123];
+#define GFX_PAL_PAGE    88     /* the game's palette (256 RGB333 words), then the title painting's */
+#define GFX_GUIDE_Y     1024    /* in that page: the guide's rows, [41][25] (see gen_gfx.py) */
+#define GFX_PEN_SLOT    32      /* the core's panels: pen 32 + k for the column k to the right */
+#define GFX_PEN_GHOST   48      /* the ghost of piece type t: pens 48 + 2 t (core) and + 1 (its colour) */
+#define GFX_CACHE_PAGE  84     /* 4 pages: the board as last drawn (tower.c) */
+#define GFX_MUSIC_BANK  45      /* the song's rows (tools/make_music.py) */
 
 #endif

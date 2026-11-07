@@ -65,15 +65,10 @@ def brick(colf, row, out_r):
     return f
 
 
-def guide_cell(colf, row):
-    """the drop guide's quad on the core (r = TOWER_R - 2) with the grid's
-    lines at its edges left out (the original draws the grid over it)"""
-    r, y0, y1 = TOWER_R - 2, row * ROW_H, row * ROW_H + ROW_H
-    f = []
-    face(f, cam(colf - 128, r, y0), cam(colf - 128, r, y1), cam(colf + 128, r, y1), cam(colf + 128, r, y0), LIT)
-    for f2 in grid_quads(colf, [colf - 128, colf + 128], [row, row + 1]):
-        f.append((f2[0], 0))
-    return f
+def core_edge_y(colf, row):
+    """the screen row of the core's (TOWER_R - 3) edge between rows row - 1
+    and row, in the middle of the column at colf"""
+    return proj(cam(colf, TOWER_R - 3, row * ROW_H))[1]
 
 
 def grid_quads(colf, edges, rows):
@@ -93,13 +88,15 @@ def grid_quads(colf, edges, rows):
 
 def core_faces(frac):
     """the core, its grid and the red line for a view whose fraction of a
-    column is frac (0..255): (polygon, pen) in drawing order"""
+    column is frac (0..255): (polygon, kind) in drawing order; the core's
+    panels are ("core", k): panel k is the column k to the right of the one
+    facing you (k 0..15, round the back)"""
     R = TOWER_R
     out = []
     for k in range(16):
         c0 = (k << 8) - 128 - frac
         face(out, cam(c0, R - 3, -20), cam(c0, R - 3, ST_ROWS * ROW_H + 30),
-             cam(c0 + 256, R - 3, ST_ROWS * ROW_H + 30), cam(c0 + 256, R - 3, -20), "core")
+             cam(c0 + 256, R - 3, ST_ROWS * ROW_H + 30), cam(c0 + 256, R - 3, -20), ("core", k))
     for k in range(-5, 7):
         ce = (k << 8) - 128 - frac
         for poly, _ in grid_quads(0, [ce], []):
