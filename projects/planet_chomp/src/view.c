@@ -60,7 +60,7 @@ static void radar_dot(uint8_t i, const V3 *d, const V3 *cr, uint8_t pat)
     else {
         v3_norm(&t, &t);
         a = (ONE14 - cosang) / 2;
-        a = (int16_t)((a * 3L + isqrt32((uint32_t)a << 14)) / 4);
+        a = (int16_t)((a * 3L + isqrt32_fast((uint32_t)a << 14)) / 4);
         x = mulq14(v3_dot(&t, cr), a);
         y = mulq14(v3_dot(&t, &g.cam.up), a);
     }

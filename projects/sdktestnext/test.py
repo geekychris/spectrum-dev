@@ -70,14 +70,16 @@ with Emulator(machine="next") as e:
     check("palette write/read", "l2 palette[1]=03" in log)
     check("TurboSound chip 1 registers", "ts chip1 r0=144" in log)
     check("fixmath: mul16 / mulq14 / mulq8 / isqrt32 / div_q14", "fixmath -370200 1073741824 -65534 -5 5115 -301 65535 300 1 -12288 16384" in log, [l for l in log.splitlines() if "fixmath" in l])
-    x, sm = 2463534242, 0
+    x, sm, sm30 = 2463534242, 0, 0
     for k in range(1500):
         x ^= (x << 13) & 0xFFFFFFFF
         x ^= x >> 17
         x ^= (x << 5) & 0xFFFFFFFF
         v = x >> (k & 31) if k & 3 == 0 else x & 0xFFFF if k & 3 == 1 else x
         sm = (sm * 31 + math.isqrt(v)) & 0xFFFFFFFF
-    check("isqrt32 exact on 1500 values", f"isqrt sum={sm}" in log, [l for l in log.splitlines() if "isqrt" in l])
+        sm30 = (sm30 * 31 + math.isqrt(v & 0x3FFFFFFF)) & 0xFFFFFFFF
+    check("isqrt32 exact on 1500 values below 2^30", f"isqrt sum={sm30}" in log, [l for l in log.splitlines() if "isqrt" in l])
+    check("isqrt32_fast exact on 1500 values", f"isqrt_fast sum={sm}" in log, [l for l in log.splitlines() if "isqrt" in l])
     for want in v3_ref():
         check(f"vec3: {want[9:22]}", want in log, [l for l in log.splitlines() if want[:13] in l][:1])
     check("rnd + fix maths on the Next", "rnd=33153,24609 fix_div=384 sin32=181" in log)

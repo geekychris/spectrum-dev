@@ -225,6 +225,17 @@ Details: docs/emulator-harness.md.
 - Code that maps Layer 2 pages into a slot must check its data before putting the
   slot back (a list read through slot 2 read 0 after the restore: boards half drawn).
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
+- `dma_copy_banks` / `l2_copy_to_back` / `l2_clear` map slots 0-1 and give them back to the ROM:
+  remap banked code (and its data) after them, before calling into a bank.
+- zsdcc: an `extern` declared inside a function body gave "undefined symbol" at link; declare at
+  file scope. Its `int` is 16 bits: `3 * q`, sums of four Q14 dots or of four depths overflow
+  silently (the same C is fine on a 32-bit host): halve before adding.
+- Measure the cost per row and per call of any polygon routine before relying on it: l2poly
+  is ~660 T-states a row and ~10K a call; Planet Chomp's draw.asm (edge buffers, a span jump
+  table) is ~275 a row. Profile with a PC sampler (projects/planet_chomp/tools/profile.py):
+  estimates of zsdcc and vec3 costs were 2-3x low.
+- Hand-written asm loops that keep state in BC/DE/IXL must save them around any new call in
+  the loop (a threshold loaded into BC broke Planet Chomp's corner rows silently).
 - zsdcc: `long + 0x8000` became unsigned (`0x8000` is an unsigned int), so `(WORD)((x + 0x8000) >> 16) > 256`
   was true for x = -0.7: write `0x8000L`, and compare through a local. A function returning a pointer found
   by walking a struct array returned garbage (uranus_lander's choose_pad): return an index. 32-bit

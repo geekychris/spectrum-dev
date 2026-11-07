@@ -5,7 +5,7 @@
 SECTION code_user
 
 PUBLIC _v3_dot, _v3_dot32, _v3_cross, _v3_scale, _v3_mat, _v3_norm
-EXTERN fixmath_smul, _isqrt32
+EXTERN fixmath_smul, _isqrt32_fast
 
 ; ---------------------------------------------------------------- helpers
 
@@ -360,7 +360,7 @@ norm_small_done:
     call dot_core               ; DEHL = the sum (fits 32 bits unsigned)
     push de
     push hl
-    call _isqrt32
+    call _isqrt32_fast
     pop af
     pop af
     ld a,h

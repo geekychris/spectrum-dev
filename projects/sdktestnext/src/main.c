@@ -96,15 +96,17 @@ int main(void)
         uint16_t s1 = isqrt32(4294967295UL), s2 = isqrt32(90000), s3 = isqrt32(2);
         int16_t d1 = div_q14(-3, 4), d2 = div_q14(100, 100);
         {   /* isqrt32 on 1500 values (xorshift32, small and large): a checksum */
-            uint32_t x = 2463534242UL, sum = 0;
+            uint32_t x = 2463534242UL, sum = 0, sumf = 0;
             uint16_t k;
             for (k = 0; k < 1500; k++) {
                 uint32_t v;
                 x ^= x << 13; x ^= x >> 17; x ^= x << 5;
                 v = (k & 3) == 0 ? x >> (k & 31) : (k & 3) == 1 ? x & 0xFFFF : x;
-                sum = sum * 31 + isqrt32(v);
+                sum = sum * 31 + isqrt32(v & 0x3FFFFFFFUL);   /* (isqrt32: exact below 2^30) */
+                sumf = sumf * 31 + isqrt32_fast(v);
             }
             zx_log("sdk: isqrt sum=%lu\n", sum);
+            zx_log("sdk: isqrt_fast sum=%lu\n", sumf);
         }
         zx_log("sdk: fixmath %ld %ld %ld %d %d %d %u %u %u %d %d\n", m1, m2, m3, q1, q2, q3, s1, s2, s3, d1, d2);
     }

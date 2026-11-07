@@ -165,10 +165,10 @@ static void disc_points(void)
     uint8_t i;
     d2 = mul16(rd_campos.x >> 4, rd_campos.x >> 4) + mul16(rd_campos.y >> 4, rd_campos.y >> 4) +
          mul16(rd_campos.z >> 4, rd_campos.z >> 4);
-    dcam = (int16_t)(isqrt32((uint32_t)d2) << 4);
+    dcam = (int16_t)(isqrt32_fast((uint32_t)d2) << 4);
     v3_norm(&chat, &rd_campos);
     c_r = (int16_t)(mul16(PLANET_R, PLANET_R) / dcam);
-    rr = (int16_t)isqrt32((uint32_t)(mul16(PLANET_R, PLANET_R) - mul16(c_r, c_r)));
+    rr = (int16_t)isqrt32_fast((uint32_t)(mul16(PLANET_R, PLANET_R) - mul16(c_r, c_r)));
     v3_scale(&t, &chat, v3_dot(&xf_m[0], &chat));
     v3_sub(&t, &xf_m[0], &t);
     v3_norm(&e1, &t);
@@ -239,7 +239,7 @@ static void camera(void)
     dsq = mul16(rd_campos.x >> 4, rd_campos.x >> 4) + mul16(rd_campos.y >> 4, rd_campos.y >> 4) +
           mul16(rd_campos.z >> 4, rd_campos.z >> 4);
     {
-        int16_t dist = (int16_t)(isqrt32((uint32_t)dsq) << 4);          /* |C|, Q8 */
+        int16_t dist = (int16_t)(isqrt32_fast((uint32_t)dsq) << 4);          /* |C|, Q8 */
         xf_thr = (int16_t)(((int32_t)(PLANET_R - Q8(0.6)) << 14) / dist) - 1500;
         xf_thr_wall = (int16_t)(((int32_t)(PLANET_R - Q8(0.6)) << 14) / dist);
         xf_thr_crumb = (int16_t)(((int32_t)PLANET_R << 14) / dist) - 160;   /* the cell centre is ~1% inside its corners' */

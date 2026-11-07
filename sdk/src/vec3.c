@@ -65,7 +65,7 @@ void v3_norm(vec3 *r, const vec3 *v)
            (x | y | z) != 0 && sh > -8) {
         x <<= 1; y <<= 1; z <<= 1; sh--;
     }
-    len = isqrt32((uint32_t)(x * x) + (uint32_t)(y * y) + (uint32_t)(z * z));
+    len = isqrt32_fast((uint32_t)(x * x) + (uint32_t)(y * y) + (uint32_t)(z * z));
     if (len == 0) { r->x = 0; r->y = V3_ONE; r->z = 0; return; }
     inv = (int32_t)((1L << 28) / (int32_t)len);
     r->x = (int16_t)((x * inv) >> 14);
