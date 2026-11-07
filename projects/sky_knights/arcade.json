@@ -1,7 +1,7 @@
 {
   "title": "Sky Knights",
   "ready": "sky: ready",
-  "description": "Joust on flying mounts: strike enemy knights from above, catch the pods before they hatch. One or two players.",
-  "controls": "O/P move, Q or SPACE flaps, 1/2 players, Kempston",
+  "description": "Joust on flying mounts: strike enemy knights from above and catch their pods. 1 or 2 players.",
+  "controls": "O/P move, Q/SPACE flap, 1/2 players",
   "picture": "screenshots/play.png"
 }
