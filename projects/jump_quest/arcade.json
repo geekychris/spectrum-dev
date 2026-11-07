@@ -1,0 +1,7 @@
+{
+  "title": "Jump Quest",
+  "ready": "jq: ready",
+  "description": "RJ and Dale's platformer: three levels of beetles, flies, spiders and ants; stomp them, grab the gadgets.",
+  "controls": "O/P walk, Q or SPACE jump, Kempston",
+  "picture": "screenshots/play.png"
+}

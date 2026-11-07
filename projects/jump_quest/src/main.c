@@ -705,6 +705,7 @@ static void title_loop(void)
     music_off();
     if (demo_on) jq_new_game(CHAR_RJ, 1);
     else jq_new_game(sel_char, sel_players);
+    zx_log("jq: start character=%u players=%u demo=%u\n", game.player[0].character, game.num_players, demo_on);
     log_state();
     music_start();
     game_screen();
@@ -772,7 +773,7 @@ int main(void)
     input_init();
     input_fast();
     ay_init();
-    hs_init(500);                               /* 2500 2000 1500 1000 500 */
+    hs_init(100);                               /* 500 400 300 200 100 */
     cs_init(view, ROOM_W, ROOM_H, 0, ROOM_ROW, gfx_tile_cells, gfx_tile_attr);
     cs_nspr = N_SLOTS;
     sprites_init();
@@ -879,7 +880,7 @@ int main(void)
         }
         if (game.state == STATE_PLAYING || game.state == STATE_DYING) sprites_from_game();
         update_probe();
-        if ((jq_probe.frames & 127) == 0 && game.state == STATE_PLAYING)
+        if ((jq_probe.frames & 63) == 0 && game.state == STATE_PLAYING)
             zx_log("jq: perf frames=%u ticks=%u overruns=%u scrolls=%u level=%u\n", jq_probe.frames,
                    jq_probe.ticks, jq_probe.overruns, jq_probe.scrolls, game.current_level + 1);
     }
