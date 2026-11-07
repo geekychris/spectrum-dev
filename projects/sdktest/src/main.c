@@ -106,6 +106,7 @@ int main(void)
     screen_clear(PAPER_WHITE | INK_BLACK, INK_BLUE);
     input_init();
     ay_init();
+    if (ay_present) input_fast();            /* the 128K pass checks the table decoder */
 
     zx_log("sdk: fix_mul=%d fix_div=%d sin64=%d cos0=%d sin192=%d sin32=%d\n",
            fix_mul(FIX(1.5), FIX(2)), fix_div(FIX(3), FIX(2)), fix_sin(64), fix_cos(0),
