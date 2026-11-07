@@ -151,105 +151,10 @@ int world_hazard_ahead(const World *w, int segs)
     return -1;
 }
 
-/* ---------- route and game flow ---------- */
-void place_car(World *w)
-{
-    const RouteInfo *r = &route_info[w->route];
-    Car *c = &w->car;
-    memset(c, 0, sizeof(*c));
-    c->z = 3 * SEGF;
-    c->d = lane_centre(w, r->nl - 1) * (1 << FBITS);
-    c->v = FROM_KMH(r->limit_kmh * 7 / 10);
-    memset(&w->ai, 0, sizeof(w->ai));
-    w->ai.on = 1;
-    w->ai.lane = r->nl - 1;
-    w->ai.phantom_seg = -1;
-}
-
-void world_start_route(World *w, int route)
-{
-    route_build(w, route);
-    memset(w->obj, 0, sizeof(w->obj));
-    memset(w->knocked, 0, sizeof(w->knocked));
-    memset(w->haz_said, 0, sizeof(w->haz_said));
-    place_car(w);
-    w->mult = 1;
-    w->ap_frames = 0;
-    w->ap_rem = 0;
-    w->dist_ap = w->dist_all = 0;
-    w->saves = w->needless = w->takeovers = 0;
-    w->pending_save = -1;
-    w->incident = 0;
-    w->route_bonus = 0;
-    w->glare = 0;
-    w->siren = 0;
-    w->state = GS_INTRO;
-    w->state_timer = 100;
-    push(w, EV_ROUTE_START, route, 0);
-}
-
-void world_start_game(World *w)
-{
-    w->score = 0;
-    w->cover = 100;
-    w->total_saves = w->total_needless = 0;
-    world_start_route(w, 0);
-    world_say(w, MSG_HANDS);
-}
-
-void world_init(World *w)
-{
-    Tune t = w->tune;
-    int keep = w->tune.speed_pct != 0;
-    memset(w, 0, sizeof(*w));
-    if (keep) w->tune = t; else world_defaults(&w->tune);
-    w->rng = 1234567;
-    world_start_route(w, 0);
-    w->nev = 0;
-    w->state = GS_TITLE;
-    w->cover = 100;
-}
-
 int32_t world_ap_pct(const World *w)
 {
     if (w->dist_all <= 0) return 100;
     return (int32_t)(((w->dist_ap >> 8) * 100) / ((w->dist_all >> 8) ? (w->dist_all >> 8) : 1));
-}
-
-static void arrive(World *w)
-{
-    int32_t pct = world_ap_pct(w);
-    w->route_bonus = pct * 50 + w->saves * 500;
-    w->score += w->route_bonus;
-    w->cover += 30;
-    if (w->cover > 100) w->cover = 100;
-    w->state = GS_ARRIVED;
-    w->state_timer = 250;
-    w->ai.on = 1;
-    w->ai.blinded = 0;
-    w->pending_save = -1;
-    push(w, EV_ARRIVED, w->route, w->score);
-    world_say(w, MSG_ARRIVED);
-}
-
-static void score_update(World *w)
-{
-    Car *c = &w->car;
-    int32_t m;
-    if (w->state != GS_PLAY || c->state == CS_SPLASH || c->state == CS_ROLL) return;
-    w->dist_all += c->v;
-    if (!w->ai.on) return;
-    w->dist_ap += c->v;
-    w->ap_rem += c->v * w->mult;
-    w->score += w->ap_rem >> 8;
-    w->ap_rem &= 255;
-    w->ap_frames++;
-    m = 1 + w->ap_frames / (w->tune.mult_secs * 25);
-    if (m > 8) m = 8;
-    if (m > w->mult) {
-        w->mult = m;
-        push(w, EV_MULT_UP, m, 0);
-    }
 }
 
 void world_update(World *w, unsigned in)

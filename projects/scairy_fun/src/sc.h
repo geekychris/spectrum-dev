@@ -52,7 +52,7 @@ int a3_atan_ratio(int32_t num, int32_t den);    /* angle of (num, den), den > 0,
 /* ---------------- routes ---------------- */
 #define SEG_BITS    7
 #define SEG_LEN     (1 << SEG_BITS)      /* 128 units = 8 m */
-#define MAX_SEGS    560
+#define MAX_SEGS    512                  /* port: 560; the longest route needs 511 */
 #define LANE_W      56                   /* 3.5 m */
 #define SHOULDER    24
 #define LEVEE_H     96

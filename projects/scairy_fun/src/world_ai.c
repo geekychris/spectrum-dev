@@ -366,36 +366,6 @@ int aqua_kmh(const World *w)
     return w->route == 3 ? w->tune.aqua_kmh * 3 / 5 : w->tune.aqua_kmh;
 }
 
-static void respawn(World *w)
-{
-    Car *c = &w->car;
-    const RouteInfo *r = &route_info[w->route];
-    int s = seg_of(c->z) - 4, i;
-
-    while (s > 2 && (w->seg[s].flags & (SF_FLOOD | SF_GHOST | SF_CONES | SF_GLARE))) s--;
-    /* and well back from the start of whatever caught it, so there's room
-     * to get going and take it by hand */
-    for (i = 0; i < w->nhaz; i++)
-        if (w->haz[i].seg >= s && w->haz[i].seg < s + 10) s = w->haz[i].seg - 10;
-    if (s < 2) s = 2;
-    c->z = (int32_t)s * SEGF;
-    c->d = lane_centre(w, r->nl - 1) * (1 << FBITS);
-    c->v = c->s = c->lat = 0;
-    c->state = CS_DRIVING;
-    c->cool = 0;
-    w->ai.on = 0;
-    w->ai.lane = r->nl - 1;
-    w->ai.blinded = 0;
-    w->mult = 1;
-    w->ap_frames = 0;
-    for (i = 0; i < MAX_OBJS; i++) {
-        Obj *o = &w->obj[i];
-        if (o->type != OBJ_NONE && iabs(o->z - c->z) < 4 * SEGF && o->type != OBJ_DEBRIS &&
-            o->type != OBJ_AMBULANCE) o->type = OBJ_NONE;
-    }
-    push(w, EV_RESPAWN, s, 0);
-}
-
 static void off_road(World *w, int side, int16_t depth, int16_t edge)
 {
     Car *c = &w->car;

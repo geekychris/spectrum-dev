@@ -5,7 +5,7 @@
 
 SECTION code_user
 
-PUBLIC _l2p_begin, _l2p_end, _l2p_poly, _l2p_span
+PUBLIC _l2p_begin, _l2p_end, _l2p_poly, _l2p_span, _l2p_band, _l2p_rect
 PUBLIC _l2p_top, _l2p_bot, _l2p_xmin, _l2p_xmax
 PUBLIC l2p_fill                 ; for other asm: B = y, DE = x0, HL = x1 (clipped here), colour in l2p_col
 EXTERN _l2_back
@@ -30,6 +30,11 @@ _l2p_begin:
     ld (l2p_base),a             ; first 8K page of the back buffer
     ld a,0xFF
     ld (l2p_page),a             ; nothing mapped yet
+    ; the zxnDMA set up for fills from l2p_col; a span then sends its length
+    ; and destination only (don't use the DMA elsewhere before l2p_end)
+    ld hl,dma_init
+    ld bc,(DMA_INIT_LEN << 8) | 0x6B
+    otir
     ret
 
 _l2p_end:
@@ -151,8 +156,6 @@ lf_go:
 
 lf_dma:
     ; zxnDMA: fill C bytes (0 = 256) at DE with l2p_col
-    ld hl,l2p_col
-    ld (dma_src),hl
     ld (dma_dst),de
     ld b,0
     ld a,c
@@ -265,62 +268,731 @@ pp_start_ok:
     ld ix,chb
     ld a,-1
     call chain_next
+; the rows: chain A in HL (x), C (fraction), DE (slope), B (slope fraction);
+; chain B in the same registers of the other set (16.8 fixed point)
+    ld a,(lp_ystop)
+    ld (pp_vars),a
+    ld a,(lp_ycur)
+    call row_map
+    call ld_chains
+    ld ix,pp_vars
 pp_row:
-    ; span between the chains
-    ld de,(cha_x+2)
-    ld hl,(chb_x+2)
-    call cmp_hl_de
+    push bc
+    push de
+    push hl
+    exx
+    push hl
+    exx
+    pop de                      ; DE = x of B, HL = x of A
+    ld a,h
+    xor d
+    jp p,pp_same
+    bit 7,h                     ; signs differ: the negative one is the left
+    jr z,pp_ordered
+    ex de,hl
+    jr pp_ordered
+pp_same:
+    ld a,l
+    sub e
+    ld a,h
+    sbc a,d
     jr nc,pp_ordered
     ex de,hl
-pp_ordered:
+pp_ordered:                     ; DE = left, HL = right
+    call ffill
+    pop hl
+    pop de
+    pop bc
+    ld a,c                      ; step A
+    add a,b
+    ld c,a
+    adc hl,de
+    exx
+    ld a,c                      ; step B
+    add a,b
+    ld c,a
+    adc hl,de
+    exx
+    ld a,(l2p_rowhi)            ; the next row's address (a new page every 32)
+    inc a
+    ld (l2p_rowhi),a
+    and 31
+    call z,pp_nextpage
+    ld a,(lp_ycur)
+    inc a
+    ld (lp_ycur),a
+    cp (ix+0)                   ; ystop
+    jr z,pp_done
+    cp (ix+1)                   ; chain A's next vertex
+    jr z,pp_switch
+    cp (ix+2)                   ; chain B's
+    jp nz,pp_row
+pp_switch:
+    ; a chain reached its next vertex: save both, move it on, reload
+    call st_chains
+    ld a,(lp_ycur)
+    cp (ix+1)
+    jr nz,pp_sw_b
+    ld ix,cha
+    ld a,1
+    call chain_next
+    ld ix,pp_vars
+pp_sw_b:
+    ld a,(lp_ycur)
+    cp (ix+2)
+    jr nz,pp_sw_done
+    ld ix,chb
+    ld a,-1
+    call chain_next
+    ld ix,pp_vars
+pp_sw_done:
+    call ld_chains
+    jp pp_row
+pp_done:
+    pop ix
+    ret
+
+
+; ---------------------------------------------------------------- bands
+
+; void l2p_band(int16_t ytop, int16_t ybot, const int16_t *xtop, const int16_t *xbot,
+;               uint8_t nr, const uint8_t *spans, uint8_t ns)
+; Rails step in 16.8 (24 bits): x and slope, 3 bytes each, low byte first.
+_l2p_band:
+    push ix
+    ld ix,0
+    add ix,sp
+    ld l,(ix+4)
+    ld h,(ix+5)
+    ld e,(ix+6)
+    ld d,(ix+7)
+    xor a
+    ld (bd_swap),a
+    call cmp_hl_de              ; ytop < ybot?
+    jr c,bd_ord
+    jp z,bd_done                ; no rows
+    ex de,hl
+    ld a,1
+    ld (bd_swap),a
+bd_ord:
+    ld (bd_ytop),hl
+    ld (bd_ybot),de
+    ex de,hl
+    or a
+    sbc hl,de
+    ld (bd_dy),hl               ; > 0
+    ; y0 = max(ytop, top), y1 = min(ybot, bot)
+    ld hl,(bd_ytop)
+    ld a,(_l2p_top)
+    ld e,a
+    ld d,0
+    call cmp_hl_de
+    jr nc,bd_y0
+    ex de,hl
+bd_y0:
+    ld (lp_ycur),hl
+    ld hl,(bd_ybot)
+    ld a,(_l2p_bot)
+    ld e,a
+    ld d,0
+    call cmp_hl_de
+    jr c,bd_y1
+    ex de,hl
+bd_y1:
+    ld (lp_ystop),hl
+    ld de,(lp_ycur)
+    call cmp_hl_de              ; ystop <= ycur: nothing visible
+    jp c,bd_done
+    jp z,bd_done
+    ; the rails
+    ld l,(ix+8)
+    ld h,(ix+9)
+    ld (bd_src),hl
+    ld l,(ix+10)
+    ld h,(ix+11)
+    ld (bd_src2),hl
+    ld a,(ix+12)
+    or a
+    jp z,bd_done
+    ld (bd_nr),a
+    ld (bd_left),a
+    ld hl,bd_rx
+    ld (bd_dst),hl
+bd_rail:
+    ld hl,(bd_src)
+    ld c,(hl)
+    inc hl
+    ld b,(hl)                   ; BC = x at ytop (as given)
+    inc hl
+    ld (bd_src),hl
+    ld hl,(bd_src2)
+    ld e,(hl)
+    inc hl
+    ld d,(hl)                   ; DE = x at ybot (as given)
+    inc hl
+    ld (bd_src2),hl
+    ld a,(bd_swap)
+    or a
+    jr z,bd_noswap
+    ld h,b
+    ld l,c
+    ld b,d
+    ld c,e
+    ex de,hl
+bd_noswap:
+    ld (lp_ch_vx),bc            ; x at the top row
+    ex de,hl
+    or a
+    sbc hl,bc
+    ld (lp_ch_dx),hl            ; dx
+    ld de,(bd_dy)
+    ld a,d
+    or a
+    jr nz,bd_div
+    ld a,e
+    cp 1
+    jr z,bd_dy1
+    cp 2
+    jr z,bd_dy2
+    push hl
+    ld hl,_l2p_recip
+    add hl,de
+    add hl,de
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    pop hl
+    call l_z80n_muls_32_16x16   ; DEHL = slope 16.16
+    jr bd_slope
+bd_dy1:
+    ex de,hl                    ; slope = dx << 16
+    ld hl,0
+    jr bd_slope
+bd_dy2:                         ; dx << 15
+    ld a,h
+    sra a
+    ld d,a
+    ld a,l
+    rra
+    ld e,a
+    ld hl,0
+    rr h
+    jr bd_slope
+bd_div:
+    ld de,(bd_dy)
+    push de
+    push hl
+    call _l2p_slope_div
+    pop af
+    pop af
+bd_slope:
+    ; store bits 8..31 as the slope
+    ld bc,(bd_dst)              ; slope at +3..+5
+    push bc
+    inc bc
+    inc bc
+    inc bc
+    ld a,h
+    ld (bc),a
+    inc bc
+    ld a,e
+    ld (bc),a
+    inc bc
+    ld a,d
+    ld (bc),a
+    pop bc
+    ; x at the first row drawn
+    ld hl,(lp_ycur)
+    ld de,(bd_ytop)
+    or a
+    sbc hl,de                   ; t
+    jr z,bd_at_top
+    push hl
+    ld hl,(bd_dy)
+    push hl
+    ld hl,(lp_ch_dx)
+    push hl
+    ld hl,(lp_ch_vx)
+    push hl
+    call _l2p_x_at              ; DEHL, 16.16
+    pop af
+    pop af
+    pop af
+    pop af
+    jr bd_setx
+bd_at_top:
+    ld de,(lp_ch_vx)
+    ld hl,0x8000
+bd_setx:
+    ld bc,(bd_dst)
+    ld a,h
+    ld (bc),a
+    inc bc
+    ld a,e
+    ld (bc),a
+    inc bc
+    ld a,d
+    ld (bc),a                   ; x at +0..+2
+    ld hl,(bd_dst)
+    ld de,6
+    add hl,de
+    ld (bd_dst),hl
+    ld hl,bd_left
+    dec (hl)
+    jp nz,bd_rail
+    ; the spans: (left rail, right rail, colour) -> (&x left, &x right, colour)
+    ld l,(ix+13)
+    ld h,(ix+14)
+    ld a,(ix+15)
+    or a
+    jp z,bd_done
+    ld (bd_ns),a
+    ld b,a
+    ld de,bd_sp
+bd_span_prep:
+    ld a,(hl)
+    call bd_xptr
+    ld a,(hl)
+    call bd_xptr
+    ld a,(hl)
+    ld (de),a
+    inc hl
+    inc de
+    djnz bd_span_prep
+    ; the rows
+bd_row:
+    ; the row's page and address
     ld a,(lp_ycur)
     ld b,a
-    call l2p_fill
-    ; step
-    ld hl,(cha_x)
-    ld de,(cha_dx)
-    add hl,de
-    ld (cha_x),hl
-    ld hl,(cha_x+2)
-    ld de,(cha_dx+2)
-    adc hl,de
-    ld (cha_x+2),hl
-    ld hl,(chb_x)
-    ld de,(chb_dx)
-    add hl,de
-    ld (chb_x),hl
-    ld hl,(chb_x+2)
-    ld de,(chb_dx+2)
-    adc hl,de
-    ld (chb_x+2),hl
+    rlca
+    rlca
+    rlca
+    and 7
+    ld hl,l2p_base
+    add a,(hl)
+    ld hl,l2p_page
+    cp (hl)
+    jr z,bd_mapped
+    ld (hl),a
+    nextreg 0x53,a
+bd_mapped:
+    ld a,b
+    and 31
+    or 0x60
+    ld (bd_rowhi),a
+    push ix
+    ld ix,bd_sp
+    ld a,(bd_ns)
+    ld (bd_left),a
+bd_span:
+    ld l,(ix+0)
+    ld h,(ix+1)
+    ld e,(hl)
+    inc hl
+    ld d,(hl)                   ; DE = x of the left rail
+    ld l,(ix+2)
+    ld h,(ix+3)
+    ld a,(hl)
+    inc hl
+    ld h,(hl)
+    ld l,a                      ; HL = x of the right rail
+    ; left <= right (a rail pair can cross near the eye)
+    ld a,h
+    xor d
+    jp p,bs_same
+    bit 7,h
+    jr z,bs_ordered
+    ex de,hl
+    jr bs_ordered
+bs_same:
+    ld a,l
+    sub e
+    ld a,h
+    sbc a,d
+    jr nc,bs_ordered
+    ex de,hl
+bs_ordered:
+    ; clip to 0..255 (bands ignore l2p_xmin / l2p_xmax)
+    bit 7,h
+    jr nz,bs_next               ; right < 0
+    ld a,h
+    or a
+    jr z,bs_r_ok
+    ld l,255
+bs_r_ok:
+    bit 7,d
+    jr nz,bs_l0                 ; left < 0
+    ld a,d
+    or a
+    jr nz,bs_next               ; left > 255
+    jr bs_l_ok
+bs_l0:
+    ld e,0
+bs_l_ok:
+    ld a,l
+    sub e
+    jr c,bs_next
+    inc a                       ; length, 0 = 256
+    ld c,a
+    ld a,(bd_rowhi)
+    ld d,a                      ; DE = where
+    ld a,(ix+4)
+    ld (l2p_col),a
+    ld a,c
+    or a
+    jr z,bs_dma
+    cp SPAN_DMA
+    jr nc,bs_dma
+    ; unrolled
+    ld hl,lf_unroll_end
+    add a,a
+    neg
+    add a,l
+    ld l,a
+    jr c,bs_go
+    dec h
+bs_go:
+    ld a,(l2p_col)
+    call bs_jp
+    jr bs_next
+bs_dma:
+    ld (dma_dst),de
+    ld b,0
+    or a
+    jr nz,bs_len
+    inc b
+bs_len:
+    ld (dma_len),bc
+    ld hl,dma_prog
+    ld bc,(DMA_PROG_LEN << 8) | 0x6B
+    otir
+bs_next:
+    ld de,5
+    add ix,de
+    ld hl,bd_left
+    dec (hl)
+    jp nz,bd_span
+    pop ix
+    ; next row
     ld hl,(lp_ycur)
     inc hl
     ld (lp_ycur),hl
     ld de,(lp_ystop)
     or a
     sbc hl,de
-    jr z,pp_done
-    ; a chain at the end of its edge moves on
-    ld hl,(lp_ycur)
-    ld de,(cha_yend)
-    or a
-    sbc hl,de
-    jr nz,pp_b
-    ld ix,cha
-    ld a,1
-    call chain_next
-pp_b:
-    ld hl,(lp_ycur)
-    ld de,(chb_yend)
-    or a
-    sbc hl,de
-    jr nz,pp_row
-    ld ix,chb
-    ld a,-1
-    call chain_next
-    jr pp_row
-pp_done:
+    jr z,bd_done
+    ; every rail: x += slope (24 bits)
+    ld a,(bd_nr)
+    ld b,a
+    ld hl,bd_rx
+bd_step:
+    ld d,h
+    ld e,l
+    inc de
+    inc de
+    inc de                      ; DE = slope
+    ld a,(de)
+    add a,(hl)
+    ld (hl),a
+    inc hl
+    inc de
+    ld a,(de)
+    adc a,(hl)
+    ld (hl),a
+    inc hl
+    inc de
+    ld a,(de)
+    adc a,(hl)
+    ld (hl),a
+    inc hl
+    inc hl
+    inc hl
+    inc hl
+    djnz bd_step
+    jp bd_row
+bd_done:
     pop ix
+    ret
+bs_jp:
+    jp (hl)
+
+; DE -> the next span entry: write &bd_rx[A].x integer part (bd_rx + 6 * A + 1); HL++
+bd_xptr:
+    push hl
+    push de
+    ld e,a
+    ld d,6
+    mul d,e
+    ld hl,bd_rx + 1
+    add hl,de
+    ex de,hl
+    pop hl
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    inc hl
+    ex de,hl                    ; DE = the next free byte
+    pop hl
+    inc hl
+    ret
+
+; void l2p_rect(int16_t y0, int16_t y1, int16_t x0, int16_t x1, uint8_t colour)
+_l2p_rect:
+    ld hl,10
+    add hl,sp
+    ld a,(hl)
+    ld (l2p_col),a
+    ld hl,2
+    add hl,sp
+    ld e,(hl)
+    inc hl
+    ld d,(hl)                   ; y0
+    inc hl
+    ld c,(hl)
+    inc hl
+    ld b,(hl)                   ; y1
+    inc hl
+    push bc
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld (bd_rx),bc               ; x0
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    ld (bd_rx + 2),bc           ; x1
+    pop hl                      ; HL = y1
+    ; y0 = max(y0, top), y1 = min(y1, bot)
+    push hl
+    ex de,hl
+    ld a,(_l2p_top)
+    ld e,a
+    ld d,0
+    call cmp_hl_de
+    jr nc,rc_y0
+    ex de,hl
+rc_y0:
+    ld (lp_ycur),hl
+    pop hl
+    ld a,(_l2p_bot)
+    ld e,a
+    ld d,0
+    call cmp_hl_de
+    jr c,rc_y1
+    ex de,hl
+rc_y1:
+    ld (lp_ystop),hl
+    ; whole rows (x0 <= 0, x1 >= 255, no x clipping): one DMA a page
+    ld a,(_l2p_xmin)
+    or a
+    jr nz,rc_row
+    ld a,(_l2p_xmax)
+    inc a
+    jr nz,rc_row
+    ld hl,(bd_rx)
+    dec hl
+    bit 7,h
+    jr z,rc_row                 ; x0 > 0
+    ld hl,(bd_rx + 2)
+    ld de,255
+    call cmp_hl_de
+    jr c,rc_row                 ; x1 < 255
+rc_page:
+    ld hl,(lp_ystop)
+    ld de,(lp_ycur)
+    call cmp_hl_de
+    ret c
+    ret z
+    ld a,e                      ; y
+    or 31
+    inc a                       ; the next page's first row (0 = 256)
+    ld c,a
+    ld a,(lp_ystop)
+    dec a
+    cp c
+    jr c,rc_last                ; ystop - 1 < next page row: stop there
+    ld a,c
+    jr rc_n
+rc_last:
+    ld a,(lp_ystop)
+rc_n:
+    sub e
+    ld b,a                      ; rows in this page
+    ld a,e
+    add a,b
+    ld (lp_ycur),a              ; (high byte stays 0)
+    ; map the page
+    ld a,e
+    rlca
+    rlca
+    rlca
+    and 7
+    ld hl,l2p_base
+    add a,(hl)
+    ld hl,l2p_page
+    ld (hl),a
+    nextreg 0x53,a
+    ld a,e
+    and 31
+    or 0x60
+    ld d,a
+    ld e,0                      ; DE = row start
+    ld c,0                      ; BC = rows * 256
+    ld (dma_dst),de
+    ld (dma_len),bc
+    ld hl,dma_prog
+    ld bc,(DMA_PROG_LEN << 8) | 0x6B
+    otir
+    jr rc_page
+rc_row:
+    ld hl,(lp_ystop)
+    ld de,(lp_ycur)
+    call cmp_hl_de
+    ret c
+    ret z
+    ld a,e
+    ld b,a
+    ld de,(bd_rx)
+    ld hl,(bd_rx + 2)
+    call l2p_fill
+    ld hl,(lp_ycur)
+    inc hl
+    ld (lp_ycur),hl
+    jr rc_row
+
+; map the page of row A, set l2p_rowhi (keeps BC, DE, HL)
+row_map:
+    push hl
+    ld h,a
+    rlca
+    rlca
+    rlca
+    and 7
+    ld l,a
+    ld a,(l2p_base)
+    add a,l
+    ld l,a
+    ld a,(l2p_page)
+    cp l
+    jr z,rm_same
+    ld a,l
+    ld (l2p_page),a
+    nextreg 0x53,a
+rm_same:
+    ld a,h
+    and 31
+    or 0x60
+    ld (l2p_rowhi),a
+    pop hl
+    ret
+
+; the row after lp_ycur starts a new page (keeps BC, DE, HL)
+pp_nextpage:
+    ld a,(lp_ycur)
+    inc a
+    jr row_map
+
+; fill row l2p_rowhi from DE to HL (int16, inclusive, either order), l2p_col;
+; clipped to 0..255 and l2p_xmin..l2p_xmax. Uses A, BC, DE, HL.
+ffill:
+    ld a,d
+    or h
+    jr nz,ff_clip               ; an end outside 0..255
+ff_in:
+    ld a,(_l2p_xmin)
+    cp e
+    jr c,ff_l
+    ld e,a                      ; x0 <= xmin: xmin
+ff_l:
+    ld a,(_l2p_xmax)
+    cp l
+    jr nc,ff_r
+    ld l,a                      ; x1 > xmax: xmax
+ff_r:
+    ld a,l
+    sub e
+    ret c
+    inc a
+    ld c,a
+    ld a,(l2p_rowhi)
+    ld d,a
+    ld a,c
+    or a
+    jp z,lf_dma
+    cp SPAN_DMA
+    jp nc,lf_dma
+    ld hl,lf_unroll_end
+    add a,a
+    neg
+    add a,l
+    ld l,a
+    jr c,ff_go
+    dec h
+ff_go:
+    ld a,(l2p_col)
+    jp (hl)
+ff_clip:
+    bit 7,h
+    ret nz                      ; x1 < 0
+    ld a,h
+    or a
+    jr z,ff_c1
+    ld l,255                    ; x1 > 255
+ff_c1:
+    bit 7,d
+    jr nz,ff_c0                 ; x0 < 0
+    ld a,d
+    or a
+    ret nz                      ; x0 > 255
+    jr ff_in
+ff_c0:
+    ld e,0
+    jr ff_in
+
+; chains <-> registers: A in HL, C, DE, B; B in the other set; the rows they
+; end on, clamped to 255, in pp_vars + 1, + 2
+ld_chains:
+    ld hl,(cha_yend)
+    ld a,h
+    or a
+    ld a,l
+    jr z,ldc_a
+    ld a,255
+ldc_a:
+    ld (pp_vars + 1),a
+    ld hl,(chb_yend)
+    ld a,h
+    or a
+    ld a,l
+    jr z,ldc_b
+    ld a,255
+ldc_b:
+    ld (pp_vars + 2),a
+    ld a,(chb_x + 1)
+    ld c,a
+    ld hl,(chb_x + 2)
+    ld a,(chb_dx + 1)
+    ld b,a
+    ld de,(chb_dx + 2)
+    exx
+    ld a,(cha_x + 1)
+    ld c,a
+    ld hl,(cha_x + 2)
+    ld a,(cha_dx + 1)
+    ld b,a
+    ld de,(cha_dx + 2)
+    ret
+
+st_chains:
+    ld a,c
+    ld (cha_x + 1),a
+    ld (cha_x + 2),hl
+    exx
+    ld a,c
+    ld (chb_x + 1),a
+    ld (chb_x + 2),hl
+    exx
     ret
 
 ; chain_next: IX = chain (i, x[4], dx[4], yend[2]), A = step (+1 / -1).
@@ -532,20 +1204,25 @@ lf_unroll_end:
 
 SECTION data_user
 
-; the zxnDMA's fill program (see sdk/src/next/dma.c)
-dma_prog:
+; the zxnDMA (see sdk/src/next/dma.c): set up once by l2p_begin ...
+dma_init:
     defb 0x83                   ; WR6: disable
     defb 0x7D                   ; WR0: A -> B, A address + length follow
-dma_src:
-    defw 0
-dma_len:
-    defw 0
+    defw l2p_col                ;      A: the colour byte
+    defw 1
     defb 0x64, 0x02             ; WR1: A memory, fixed; 2-cycle timing
     defb 0x50, 0x02             ; WR2: B memory, incrementing; 2-cycle timing
+    defb 0x82                   ; WR5: stop at the end
+dma_init_end:
+DMA_INIT_LEN equ dma_init_end - dma_init
+; ... then each span: its length and where
+dma_prog:
+    defb 0x65                   ; WR0: A -> B, length follows
+dma_len:
+    defw 0
     defb 0xAD                   ; WR4: burst, B address follows
 dma_dst:
     defw 0
-    defb 0x82                   ; WR5: stop at the end
     defb 0xCF                   ; WR6: load
     defb 0x87                   ; WR6: enable
 dma_prog_end:
@@ -577,6 +1254,20 @@ lp_ch_vx:     defs 2
 lp_ch_vy:     defs 2
 lp_ch_dx:     defs 2
 lp_ch_dy:     defs 2
+bd_swap:   defs 1
+bd_ytop:   defs 2
+bd_ybot:   defs 2
+bd_dy:     defs 2
+bd_src:    defs 2
+bd_src2:   defs 2
+bd_dst:    defs 2
+bd_nr:     defs 1
+bd_ns:     defs 1
+bd_left:   defs 1
+bd_rowhi:  defs 1
+l2p_rowhi: defs 1
+bd_rx:     defs 6 * 32          ; L2P_RAILS rails: x (3 bytes), slope (3 bytes)
+bd_sp:     defs 5 * 32          ; L2P_SPANS spans
 cha:
 cha_i:     defs 1
 cha_x:     defs 4
@@ -587,3 +1278,4 @@ chb_i:     defs 1
 chb_x:     defs 4
 chb_dx:    defs 4
 chb_yend:  defs 2
+pp_vars:   defs 3               ; ystop, chain A's and B's next vertex rows (8 bits)

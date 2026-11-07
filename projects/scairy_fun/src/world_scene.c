@@ -3,7 +3,7 @@
 
 /*
  * world_scene.c - world_scene(), the test hook that jumps to a hazard.
- * (port: split out of the original world.c; in bank 16 with world_traffic.c)
+ * (port: split out of the original world.c; in bank 17 with world_ai.c)
  */
 #include <string.h>
 #include "sc.h"

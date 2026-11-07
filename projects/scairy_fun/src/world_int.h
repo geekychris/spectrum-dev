@@ -23,7 +23,11 @@ int32_t z_minus(int32_t a, int32_t b);
 /* world.c */
 void push(World *w, int type, int32_t a, int32_t b);
 void hurt(World *w, int n, int ev);
+/* world_flow.c */
 void place_car(World *w);
+void arrive(World *w);
+void score_update(World *w);
+void respawn(World *w);
 /* world_traffic.c */
 int lane_clear(const World *w, int lane, int32_t z, int dz0, int dz1, int skip);
 int16_t swerve_to(const World *w, const Obj *o);

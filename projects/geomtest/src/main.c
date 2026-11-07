@@ -9,7 +9,16 @@
 #include "zxgame.h"
 #include "nextgfx.h"
 #include "l2poly.h"
+#include "persp.h"
 #include "zxlog.h"
+
+static uint16_t lines(void)                 /* raster lines since some frame (wraps) */
+{
+    uint8_t f = frame_ticks;
+    uint16_t l = ((uint16_t)(ZXN_READ_REG(0x1E) & 1) << 8) | ZXN_READ_REG(0x1F);
+    if (f != frame_ticks) return lines();
+    return (uint16_t)(f & 127) * 312 + l;
+}
 
 static uint8_t px(uint8_t x, uint8_t y)        /* back buffer pixel */
 {
@@ -69,7 +78,9 @@ int main(void)
     l2p_poly(tall, 4, 3);
     zx_log("geo: tall r0=%d..%d r191=%d..%d\n", first(0, 3), last(0, 3), first(191, 3), last(191, 3));
 
+    l2p_end();                                /* l2_clear uses the DMA too */
     l2_clear(0);
+    l2p_begin();
     l2p_poly(slant, 4, 4);
     zx_log("geo: slant r0=%d..%d r99=%d..%d\n", first(0, 4), last(0, 4), first(99, 4), last(99, 4));
 
@@ -83,7 +94,53 @@ int main(void)
     l2p_span(183, 30, 20, 9);                 /* empty */
     zx_log("geo: span %u %d..%d %u %u %u\n", row_count(180, 6), first(181, 7), last(181, 7),
            row_count(182, 8), row_count(183, 9), px(4, 181));
+    /* bands: two rails crossing nothing, a road between rails 1 and 2 over the grass */
+    {
+        static const int16_t xt[] = { -500, 100, 156, 900 }, xb[] = { -900, 60, 196, 1500 };
+        static const uint8_t spans[] = { 0, 3, 10, 1, 2, 11 };
+        l2p_end();
+        l2_clear(0);
+        l2p_begin();
+        l2p_band(100, 140, xt, xb, 4, spans, 2);
+        zx_log("geo: band r99=%u r100=%d..%d %u r139=%d..%d %u r140=%u\n", row_count(99, 10),
+               first(100, 11), last(100, 11), row_count(100, 10), first(139, 11), last(139, 11),
+               row_count(139, 10), row_count(140, 10));
+        l2p_band(30, 10, xt, xb, 4, spans, 2);       /* edges given the other way up */
+        zx_log("geo: band2 r10=%d..%d r29=%d..%d\n", first(10, 11), last(10, 11), first(29, 11), last(29, 11));
+        l2p_rect(-5, 3, 250, 300, 12);
+        zx_log("geo: rect %u %u %d\n", row_count(0, 12), row_count(2, 12), first(3, 12));
+    }
     l2p_end();
+    persp_fov(144);
+    {
+        static const int16_t pts[] = { 0, 0, 100, -50, -30000, 20000 };
+        static int16_t out[6];
+        uint16_t s = persp_scale(1000);
+        persp_xy(pts, 3, 20, -92, s, 128, 59, out);
+        zx_log("geo: persp s=%u m=%d,%d %d,%d %d,%d %d,%d\n", s, persp_mul(1000, s), persp_mul(-1000, s),
+               out[0], out[1], out[2], out[3], out[4], out[5]);
+    }
+    /* timings: interrupts (1/50 s = 560000 T-states at 28 MHz) over many calls,
+       logged as T-states per call */
+    {
+        uint16_t k;
+        static const int16_t sq[] = { 10, 10, 60, 10, 60, 40, 10, 40 };
+        static const uint8_t lens[] = { 1, 10, 30, 39, 40, 100, 255 };
+        uint8_t j;
+        l2p_begin();
+#define TIME(name, n, stmt) do { uint8_t f0 = frame_ticks; for (k = 0; k < (n); k++) stmt; \
+            zx_log("geo: time " name " %lu T\n", (uint32_t)(uint8_t)(frame_ticks - f0) * 560000UL / (n)); } while (0)
+        for (j = 0; j < sizeof(lens); j++) {
+            uint8_t f0 = frame_ticks, x1 = lens[j] - 1;
+            for (k = 0; k < 2000; k++) l2p_span(50, 0, x1, 1);
+            zx_log("geo: time span %u px %lu T\n", lens[j], (uint32_t)(uint8_t)(frame_ticks - f0) * 560000UL / 2000);
+        }
+        TIME("poly 51x30", 200, l2p_poly(sq, 4, 2));
+        TIME("scale", 4000, persp_scale(1000 + k));
+        TIME("mul", 4000, persp_mul(1000 + k, 589));
+        TIME("loop", 4000, (void)0);
+        l2p_end();
+    }
     zx_log("geo: done\n");
     for (;;) frame_wait();
 }

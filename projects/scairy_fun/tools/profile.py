@@ -38,6 +38,9 @@ def name(pc, mmu):
 count = collections.Counter()
 with Emulator(machine="next") as e:
     e.load(nex)
+    e.run(20)
+    if "--skip" in sys.argv:
+        e.write_mem("render_skip", bytes([int(sys.argv[sys.argv.index("--skip") + 1])]))
     e.run(skip)
     rnd = random.Random(1)
     for k in range(frames):
