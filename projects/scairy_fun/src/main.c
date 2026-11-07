@@ -23,6 +23,7 @@
 #include "game.h"
 #include "modplay.h"
 #include "palfx.h"
+uint8_t lim_slope = 99, lim_wall = 99, lim_scene = 99, lim_draw = 99;   /* EXPERIMENT */
 uint8_t render_skip;                    /* profiling (render.c) */
 extern const mod_song scairy_song;      /* music.c (in page 39 for 0xF200, see main) */
 

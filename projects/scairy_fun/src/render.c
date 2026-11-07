@@ -40,6 +40,8 @@
 
 Cam cam;
 uint16_t render_polys;
+extern uint8_t lim_slope, lim_wall, lim_scene, lim_draw;   /* EXPERIMENT */
+static uint8_t cur_k;
 extern uint8_t render_skip;             /* profiling: bits skip parts of the frame (main.c) */
 
 /* ---------- colours (the original's, 12-bit) ---------- */
@@ -157,13 +159,14 @@ typedef struct {
     uint16_t s;                         /* persp_scale(depth) */
     int16_t y0;                         /* screen row of the road surface */
     int16_t x[MAXR + MAXD];             /* the rails on screen: static ones, then the segment's */
+    int16_t py[8];                      /* the rows of the cross-section's points (rail k's x) */
 } Edge;
 
 static int16_t prof[16];                /* the cross-section: (offset, height) pairs */
 static uint8_t prof_id;
 static int16_t roff[MAXR];              /* the static rails: offsets from the centre line */
 static uint8_t nroff;                   /* how many */
-static uint8_t rk[8];                   /* rail of each profile point (0xFF: not in the band) */
+static int16_t profh[8];                /* the points' heights (port: projected per edge in one go) */
 static uint8_t rline;                   /* the first line rail: line n is rails rline + 2n, +1 */
 static Edge edges[2];
 static Edge *pa = &edges[0], *pb = &edges[1];   /* near and far edge of the segment drawn */
@@ -186,8 +189,9 @@ static void edge_at(Edge *e, int32_t cx, int16_t y, int16_t zr)
     e->bx = (int16_t)bx;
     e->by = y - cam.y;
     e->s = persp_scale(zr);
-    e->y0 = ey(e, 0);
     persp_xs(roff, nroff, e->bx, e->s, VIEW_CX, e->x);
+    persp_ys(profh, 8, e->by, e->s >> 1, cam.horizon, e->py);       /* (half height) */
+    e->y0 = e->py[3];                   /* (the road's edge: height 0) */
 }
 
 static void poly4(uint8_t col)
@@ -196,24 +200,23 @@ static void poly4(uint8_t col)
     render_polys++;
 }
 
-/* a quad between the edges: offsets x0, x1 at heights h0, h1 */
+/* a quad between the edges: cross-section points k0, k1 (projected with the edges) */
 
-static void quad(int16_t x0, int16_t h0, int16_t x1, int16_t h1, uint8_t col)
+static void quad(uint8_t k0, uint8_t k1, uint8_t col)
 {
-    q[0] = ex(&ea, x0); q[1] = ey(&ea, h0);
-    q[2] = ex(&ea, x1); q[3] = ey(&ea, h1);
-    q[4] = ex(&eb, x1); q[5] = ey(&eb, h1);
-    q[6] = ex(&eb, x0); q[7] = ey(&eb, h0);
+    q[0] = ea.x[k0]; q[1] = ea.py[k0];
+    q[2] = ea.x[k1]; q[3] = ea.py[k1];
+    q[4] = eb.x[k1]; q[5] = eb.py[k1];
+    q[6] = eb.x[k0]; q[7] = eb.py[k0];
     /* off to one side entirely: nothing to fill */
     if ((q[0] < 0 && q[2] < 0 && q[4] < 0 && q[6] < 0) ||
         (q[0] > 255 && q[2] > 255 && q[4] > 255 && q[6] > 255)) return;
     poly4(col);
 }
 
-/* a vertical band along the segment (guardrail, barrier) */
-static void wall(int16_t x, int16_t y0, int16_t y1, uint8_t col)
+/* a vertical band along the segment (guardrail, barrier) at screen x xa (near), xb (far) */
+static void wall(int16_t xa, int16_t xb, int16_t y0, int16_t y1, uint8_t col)
 {
-    int16_t xa = ex(&ea, x), xb = ex(&eb, x);
     q[0] = xa; q[1] = ey(&ea, y0);
     q[2] = xa; q[3] = ey(&ea, y1);
     q[4] = xb; q[5] = ey(&eb, y1);
@@ -275,17 +278,13 @@ static void profile(const World *w, const Seg *g)
     prof[0] = -FAR_OUT;          prof[1] = L[3];          /* 0 (port: was offset 2 - L[2]) */
     prof[12] = prof[10] + R[0];  prof[13] = R[1];         /* 6 */
     prof[14] = FAR_OUT;          prof[15] = R[3];         /* 7 */
-    /* rails: the flat points, then the lines' edges */
-    nroff = 0;
+    /* rails: the eight points (rail k is point k: port, all of them, so quads
+       and strips take their x from the edges), then the lines' edges */
     for (k = 0; k < 8; k++) {
-        int side = k < 2 ? 0 : k > 5 ? 1 : -1;
-        uint8_t in = side < 0 || (k == 0 || k == 7 ? SIDE_IN_BAND(g->side[side]) : SLOPE_IN_BAND(g->side[side]));
-        rk[k] = 0xFF;
-        if (in) {
-            rk[k] = nroff;
-            roff[nroff++] = prof[k * 2];
-        }
+        roff[k] = prof[k * 2];
+        profh[k] = prof[k * 2 + 1];
     }
+    nroff = 8;
     rline = nroff;
     if (seg_mode == 2) return;
 #define LINE_RAILS(x) (roff[nroff++] = (x) - 2, roff[nroff++] = (x) + 2)
@@ -299,12 +298,10 @@ static void profile(const World *w, const Seg *g)
 
 static uint8_t fog;                     /* added to the pens of far segments */
 
-static int16_t sx_t[2], sx_b[2];
-
 static void side_strips(const World *w, int i, int side)
 {
     int t = w->seg[i].side[side], alt = i & 1, alt2 = ((i >> 1) + (w->frame >> 4)) & 1;
-    uint8_t inner, outer, ko = side ? 6 : 0, ki = side ? 5 : 1, ka, kb;
+    uint8_t inner, outer, ko = side ? 6 : 0, ki = side ? 5 : 1;
     switch (t) {
     case SIDE_LEVEE: inner = PEN_GRASS + alt; outer = PEN_WATER + alt2; break;
     case SIDE_DROP:  inner = PEN_DIRT + alt;  outer = PEN_GRASS + 1; break;
@@ -315,8 +312,8 @@ static void side_strips(const World *w, int i, int side)
     default:         inner = PEN_GRASS + alt; outer = PEN_GRASS; break;
     }
     if (SIDE_IN_BAND(t)) {              /* port: in the flat band (heights of 3 units or less, or far) */
-        band_span(rk[ko], rk[ko + 1], outer + fog);
-        band_span(rk[ki], rk[ki + 1], inner + fog);
+        band_span(ko, ko + 1, outer + fog);
+        band_span(ki, ki + 1, inner + fog);
         return;
     }
     /* sloping: the outer strip, drawn before the band, as a band of its own at
@@ -324,21 +321,16 @@ static void side_strips(const World *w, int i, int side)
        by 20 units at most: the mean), and the slope as a quad, near only
        (port: further out the ground fill shows between, as in the original
        where nothing covers it) */
-    ka = ko * 2; kb = (ko + 1) * 2;
     {
         static uint8_t sp1[3] = { 0, 1, 0 };
-        int16_t h = (prof[ka + 1] + prof[kb + 1]) / 2;
-        sx_t[0] = ex(&eb, prof[ka]); sx_t[1] = ex(&eb, prof[kb]);
-        sx_b[0] = ex(&ea, prof[ka]); sx_b[1] = ex(&ea, prof[kb]);
         sp1[2] = outer + fog;
-        if (!(render_skip & 32)) l2p_band(ey(&eb, h), ey(&ea, h), sx_t, sx_b, 2, sp1, 1);
+        if (!(render_skip & 32))
+            l2p_band((eb.py[ko] + eb.py[ko + 1]) >> 1, (ea.py[ko] + ea.py[ko + 1]) >> 1,
+                     &eb.x[ko], &ea.x[ko], 2, sp1, 1);
         render_polys++;
     }
-    if (seg_mode) band_span(rk[ki], rk[ki + 1], inner + fog);
-    else if (!(render_skip & 64)) {
-        ka = ki * 2; kb = (ki + 1) * 2;
-        quad(prof[ka], prof[ka + 1], prof[kb], prof[kb + 1], inner + fog);
-    }
+    if (seg_mode) band_span(ki, ki + 1, inner + fog);
+    else if (!(render_skip & 64) && cur_k < lim_slope) quad(ki, ki + 1, inner + fog);
 }
 
 static int far_pen(int side)
@@ -525,6 +517,7 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
     uint8_t road_pen, sh_pen, old_id = prof_id;
     int16_t cd;
 
+    cur_k = k;
     seg_mode = k >= LINE_SEGS ? 2 : k >= SLOPE_SEGS ? 1 : 0;
     profile(w, s);
     /* the far edge is the last segment's near one if nothing differs (port) */
@@ -557,9 +550,9 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
         road_pen = PEN_ROAD + ((i >> 1) & 1);
         sh_pen = PEN_ROAD + 1;
     }
-    band_span(rk[2], rk[3], sh_pen + fog);
-    band_span(rk[4], rk[5], sh_pen + fog);
-    band_span(rk[3], rk[4], road_pen + fog);
+    band_span(2, 3, sh_pen + fog);
+    band_span(4, 5, sh_pen + fog);
+    band_span(3, 4, road_pen + fog);
 
     /* the finish line: a chequered band */
     if (s->flags & SF_FINISH) {
@@ -605,16 +598,16 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
     }
     band_end();
 
-    if (render_skip & 16) goto done;
+    if ((render_skip & 16) || k >= lim_wall) goto done;
     if (s->flags & SF_RAIL_L) {
-        wall(prof[4], 6, 12, PEN_GREY + fog);
-        wall(prof[4], 0, 6, PEN_PANEL + fog);
+        wall(ea.x[2], eb.x[2], 6, 12, PEN_GREY + fog);
+        wall(ea.x[2], eb.x[2], 0, 6, PEN_PANEL + fog);
     }
     if (s->flags & SF_RAIL_R) {
-        wall(prof[10], 6, 12, PEN_GREY + fog);
-        wall(prof[10], 0, 6, PEN_PANEL + fog);
+        wall(ea.x[5], eb.x[5], 6, 12, PEN_GREY + fog);
+        wall(ea.x[5], eb.x[5], 0, 6, PEN_PANEL + fog);
     }
-    if (s->side[0] == SIDE_MEDIAN) wall(prof[4] - 8, 0, 14, PEN_GREY + fog);
+    if (s->side[0] == SIDE_MEDIAN) wall(ex(&ea, prof[4] - 8), ex(&eb, prof[4] - 8), 0, 14, PEN_GREY + fog);
 
     /* cones: in the closed lane, and along its line (sprites) */
     if (s->flags & SF_CONES) {
@@ -628,7 +621,7 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
         }
     }
 
-    if (k < SCENE_SEGS && !(render_skip & 1)) {
+    if (k < SCENE_SEGS && k < lim_scene && !(render_skip & 1)) {
         if (n2 == 2) scenery(w, i + 1);
         scenery(w, i);
     }
@@ -759,7 +752,7 @@ void render_world(const World *w)
 
     s0 = seg_of(cam.z * (1 << FBITS));
     if (s0 < 0) s0 = 0;
-    s1 = s0 + DRAW_SEGS;
+    s1 = s0 + (lim_draw < DRAW_SEGS ? lim_draw : DRAW_SEGS);
     if (s1 > w->nseg - 2) s1 = w->nseg - 2;
 
     /* where the sky meets the ground: the far end's centre at the eye's height */

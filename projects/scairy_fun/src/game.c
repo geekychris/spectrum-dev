@@ -568,15 +568,16 @@ static void ai_view(const World *w)
 {
     const Ai *a = &w->ai;
     const Car *car = &w->car;
-    int16_t l = road_left(w) - SHOULDER, r = road_right(w) + SHOULDER, span = r - l;
-    int32_t cz = car->z >> FBITS;
-    uint8_t i, n;
 #define X0 193
 #define Y0 161
 #define X1 254
 #define Y1 190
-#define AX(u) (X0 + 2 + (int16_t)((((int32_t)(u) - l) * (X1 - X0 - 4)) / span))
-#define AY(dz) (Y1 - 4 - (int16_t)(((dz) * (Y1 - Y0 - 8)) / (12 * SEG_LEN)))
+    int16_t l = road_left(w) - SHOULDER, r = road_right(w) + SHOULDER, span = r - l;
+    int16_t kx = (int16_t)(((X1 - X0 - 4) << 8) / span);       /* port: a multiply a point, not a division */
+    int32_t cz = car->z >> FBITS;
+    uint8_t i, n, nl = route_info[w->route].nl, xs[8], nx = 0;
+#define AX(u) (X0 + 2 + (int16_t)(((int32_t)((u) - l) * kx) >> 8))
+#define AY(dz) (Y1 - 4 - (int16_t)(((dz) * 1877) >> 17))          /* dz x (Y1 - Y0 - 8) / (12 x SEG_LEN) */
     l2p_begin();
     l2p_top = 0;
     l2p_bot = 192;
@@ -591,13 +592,16 @@ static void ai_view(const World *w)
         l2p_end();
         return;
     }
+    xs[nx++] = AX(road_left(w));
+    xs[nx++] = AX(road_right(w));
+    if (route_info[w->route].no) xs[nx++] = AX(0);
+    for (n = 1; n < nl; n++) xs[nx++] = AX(n * LANE_W);
     for (i = Y0; i < Y1; i += 3) {
-        l2p_span(i, AX(road_left(w)), AX(road_left(w)), PEN_GREY);
-        l2p_span(i, AX(road_right(w)), AX(road_right(w)), PEN_GREY);
-        if (route_info[w->route].no) l2p_span(i, AX(0), AX(0), PEN_YELLOW);
+        l2p_span(i, xs[0], xs[0], PEN_GREY);
+        l2p_span(i, xs[1], xs[1], PEN_GREY);
+        if (nx > nl + 1) l2p_span(i, xs[2], xs[2], PEN_YELLOW);
         if (i % 6 == 0)
-            for (n = 1; n < route_info[w->route].nl; n++)
-                l2p_span(i, AX(n * LANE_W), AX(n * LANE_W), PEN_PANEL);
+            for (n = nx - nl + 1; n < nx; n++) l2p_span(i, xs[n], xs[n], PEN_PANEL);
     }
     if (a->on)
         for (i = 0; i < 12; i++) {

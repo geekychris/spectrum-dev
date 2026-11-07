@@ -1,6 +1,8 @@
 """Statistical profiler: run a .nex, sample the PC once a frame, map it to
 functions with the .map (8K pages in MMU slots 0-3 are told apart by the
-bank sections' link addresses). Usage: profile.py NEX [frames] [skip]"""
+bank sections' link addresses). Usage: profile.py NEX [frames] [skip]
+[--skip BITS] [--set NAME=BYTE] [--raw] [--files] [--in MODULE] (--files: totals per source
+file; --in: the functions of one, e.g. l2poly_asm)"""
 import bisect
 import collections
 import random
@@ -16,6 +18,7 @@ nex = Path(sys.argv[1])
 frames = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
 skip = int(sys.argv[3]) if len(sys.argv) > 3 else 50
 syms = {}                                   # page or None -> sorted [(addr, name)]
+module = {}                                 # name -> its source file (the .map's module)
 for line in open(nex.with_suffix(".map")):
     m = re.match(r"(\S+)\s+= \$([0-9A-F]+) ; addr, \w+, , (\S+), (\S+),", line)
     if not m:
@@ -23,6 +26,7 @@ for line in open(nex.with_suffix(".map")):
     a = int(m.group(2), 16)
     page = a >> 16 if a > 0xFFFF else None
     syms.setdefault(page, []).append((a & 0xFFFF, m.group(1)))
+    module.setdefault(m.group(1), m.group(3))
 for v in syms.values():
     v.sort()
 
@@ -40,7 +44,11 @@ with Emulator(machine="next") as e:
     e.load(nex)
     e.run(20)
     if "--skip" in sys.argv:
-        e.write_mem("render_skip", bytes([int(sys.argv[sys.argv.index("--skip") + 1])]))
+        e.write_mem(e.addr("render_skip"), bytes([int(sys.argv[sys.argv.index("--skip") + 1])]))
+    for i, a in enumerate(sys.argv):         # --set NAME=VALUE: a resident byte
+        if a == "--set":
+            k, v = sys.argv[i + 1].split("=")
+            e.write_mem(e.addr(k), bytes([int(v)]))
     e.run(skip)
     rnd = random.Random(1)
     for k in range(frames):
@@ -49,6 +57,19 @@ with Emulator(machine="next") as e:
         pc = e.regs()["PC"]
         mmu = [e._reg(0x50 + k) for k in range(4)]
         count[name(pc, mmu)] += 1
+if "--files" in sys.argv:
+    files = collections.Counter()
+    for n, c in count.items():
+        files[module.get(n, n)] += c
+    for n, c in files.most_common(40):
+        print(f"{100 * c / frames:5.1f}% {n}")
+    sys.exit(0)
+if "--in" in sys.argv:                      # the functions of one source file
+    mod = sys.argv[sys.argv.index("--in") + 1]
+    for n, c in count.most_common():
+        if module.get(n) == mod:
+            print(f"{100 * c / frames:5.2f}% {n}")
+    sys.exit(0)
 if "--raw" in sys.argv:
     for n, c in count.most_common():
         print(f"{100 * c / frames:.2f}% {n}")
