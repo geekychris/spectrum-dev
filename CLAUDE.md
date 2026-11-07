@@ -181,6 +181,23 @@ Details: docs/emulator-harness.md.
 - `./zx shot --until X --frames N` can grab a frame before the program has drawn its first
   screen; check with a Python `Emulator` and `run(n)` before chasing a missing layer.
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
+- zsdcc: `long + 0x8000` became unsigned (`0x8000` is an unsigned int), so `(WORD)((x + 0x8000) >> 16) > 256`
+  was true for x = -0.7: write `0x8000L`, and compare through a local. A function returning a pointer found
+  by walking a struct array returned garbage (uranus_lander's choose_pad): return an index. 32-bit
+  arithmetic through struct pointers costs ~2,000 T-states a statement (Uranus's 32 particles took
+  more than a frame): such loops go to asm. `char` arguments are pushed as one byte each (asm reads
+  them at consecutive offsets).
+- A 48K game too big for 0x8000-0xF000 can move its variables below the code: `#pragma output
+  CRT_ORG_BSS = 0x5D80` in zpragma.inc (past the BASIC loader) and a lower ORG (uranus_lander); appmake
+  and project.mk catch overlaps. Data below 0x8000 is contended: memory-heavy loops run up to 2x slower.
+- Latched input counted a press twice when input_read saw it before the interrupt sampled it (the
+  sampler then latched it as a new edge): typed "BOT" became "BBO", the arcade's S toggled twice.
+  input_read now marks the presses it found itself in the sampler's state (input_last_rows), so they
+  don't come back. Copying all of its view there lost presses (its view can be stale), and reporting
+  only the interrupt's edges changed timing enough to break Spectral Keep's bot. Timing changes
+  (here: a faster input_read) expose such bugs.
+- Fixed-timestep loops: cap the catch-up ticks (a level's first frame can take seconds), but high enough
+  (Uranus: 6) that a slow frame doesn't lose game time; count ticks vs frames in a perf log and test it.
 
 
 ## Layout

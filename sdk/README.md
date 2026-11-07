@@ -27,7 +27,7 @@
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
 (one object per file, so files are split where a game might want only
-part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext`, `projects/nextlibtest` and `projects/splittest` (split screens, two-player input).
+part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest` and `projects/splittest` (split screens, two-player input).
 
 | header | module (src/) | what |
 |---|---|---|
@@ -47,6 +47,14 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext`, `projects/n
 | `hit48.h` | `hit48.asm`, `hit48.c` | circle collisions in asm: `hit_first(x, y, r, list, n)` against a list of {x, y, r, id} (16-bit coordinates) |
 | `modplay.h` | `modplay.c` | plays a MOD converted by `tools/mod2ay.py`: four channels routed to TurboSound chips, tone / noise / kick instruments; leaves free channels to `ay_sfx` |
 | `fixmath.h` | `fixmath.asm`, `fixmath.c` | 16-bit fixed point for physics: `mul16` (16x16 -> 32, MUL on the Z80N), `mulq14`, `mulq8`, `isqrt32`, `div_q14`; inline C on a host compiler for host tests |
+| | `fixmath_sin14.c`, `fixmath_muls.asm` | `fix_sin14` / `fix_cos14` (Q14 table), `muls` (fast multiply by a small factor, shift-and-add) |
+| | `rot2d.c`, `rot2d.asm` | `rot2d_set(angle, sx, sy)` + `rot2d(in, out, n)`: rotate int8 point lists with separate x and y scales, in asm, ~1,000 T-states a point: for shapes rotated every frame (vec48's `vec_rotate` is the start-up, uniform-scale one) |
+| `bitline.h` | `bitline.asm`, `bitline.c` | lines into any 1-bit bitmap through a row-address table (the screen, or an off-screen buffer such as a ship image), clipped to a box, no wrap-around; `bl_poly` draws each vertex once in XOR; ~45 T-states a pixel inside the box. For screen-only work with wrap-around and compiled polygons use `line48.h` |
+| `dots48.h` | `dots48.asm` | XOR lists of points (stars, sparks): XOR the same list again to erase. 60 bytes, no tables (line48's `plot_list` needs its 512-byte row table) |
+| `hmap48.h` | `hmap48.c`, `hmap48_fill.asm` | heightmap terrain: surface line, dithered fill below it, cells coloured sky / surface / ground |
+| `gauge48.h` | `gauge48.c` | a bar gauge (fuel, energy) on a character row: only the changed pixels redrawn |
+| `attrtint.h` | `attrtint.c`, `attrtint_capture.asm` | colour for moving objects: tint the plain (open-sky) cells under them, restore them after; scenery cells keep their colours (a 96-byte bitmap of plain cells) |
+| `zxgame.h` | `spr32.asm` | `spr32_shift`: shift a 32-pixel-wide image into place (draw once, blit anywhere without 8 pre-shifted copies) |
 | `font5.h` | `font5.c` | a 5x7 font for drawing text yourself (Layer 2, a dot-matrix display), `font5_width` |
 | `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites (`spr_show_quad` 32x32, patterns from memory pages), palettes (`pal_load`), TurboSound chip select |
 | | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |

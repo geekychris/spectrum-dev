@@ -175,7 +175,26 @@ game), Layer 2 320x256 helpers `l2w_*`, `spr_show_quad`,
 screens by DMA). "Next features used" in StakAttack's and Boing Pinball's
 READMEs; docs/48k-vs-next.md.
 
+### Uranus Lander (2026-11-06)
+
+- [x] 48K port of amiga_mcp/examples/uranus_lander: the original's terrain
+      generator, 16.16 physics, landing rules, scoring and levels in a
+      320x256 world drawn scaled to 256x192; the ST port's autopilot moved
+      into the game (Z); ~26 fps while flying, logic 50 Hz; beeper / AY.
+      test.py: the autopilot lands twice, crashes x3, game over, initials,
+      replays x2; terrain checked against the original's generator.
+- [x] SDK: `bitline` (lines into the screen or any buffer through a row table,
+      clipped to a box, fast unclipped path; line48 is screen-only), `dots48`, `hmap48` (heightmap terrain), `gauge48`, `attrtint` (tint
+      open-sky cells under moving objects), `spr32_shift`, fixmath
+      `fix_sin14` / `muls` / `rot2d`; tests in `projects/sdktest48gfx`. project.mk also checks
+      the code end and a BSS moved below the code. Fixed: latched input reported a
+      press twice when input_read saw it before the interrupt's sample (initials
+      "BOT" -> "BBO", the arcade's S toggled twice). Uranus Lander is in the arcade.
+
 ### Known limitations (games)
+
+- Uranus Lander: a new level's screen takes ~0.5 s to draw (the game waits);
+  frames where the ship turns cost ~2x (rotation + lines, ~70K T-states).
 
 - Frank's redraw stays ~19 fps: the floor is ~5K T-states per lane object
   (about 17 a frame); moving draw_lane's loop to asm would give ~20 fps.

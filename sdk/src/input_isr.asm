@@ -8,7 +8,7 @@
 SECTION code_user
 
 PUBLIC _input_sample
-PUBLIC _input_edge_rows, _input_edge_kemp
+PUBLIC _input_edge_rows, _input_edge_kemp, _input_last_rows, _input_last_kemp
 EXTERN _input_kempston
 
 _input_sample:
@@ -54,7 +54,9 @@ sample_row:
     ret
 
 SECTION data_user
+_input_last_rows:
 last_rows:        defb 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F
+_input_last_kemp:
 last_kemp:        defb 0
 _input_edge_rows: defb 0, 0, 0, 0, 0, 0, 0, 0
 _input_edge_kemp: defb 0

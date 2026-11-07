@@ -111,10 +111,15 @@ $(OUT): $(OBJS) $(SDK_LIB) $(wildcard zpragma.inc)
 	zcc $(LDFLAGS) $(OBJS) -L$(BUILD) -lzxsdk -o $(BUILD)/$(NAME) $(APPFLAGS)
 	@rm -f $(BUILD)/$(NAME)
 	@if [ "$(OUTPUT)" = bin ]; then mv $(BUILD)/$(NAME)_CODE.bin $@; fi
-	@# frame_init() puts the IM 2 table at 0xF000: code + data must end below it
-	@end=$$(awk '/^__BSS_END_tail/ {print $$3}' $(BUILD)/$(NAME).map | tr -d '$$'); \
-	 if [ -n "$$end" ] && [ $$((0x$$end)) -gt $$((0xF000)) ]; then \
-	   echo "error: $(NAME) ends at 0x$$end, above 0xF000 (frame_init's IM 2 table)"; rm -f $@; exit 1; fi
+	@# frame_init() puts the IM 2 table at 0xF000: code + data must end below it.
+	@# A BSS moved below the code (zpragma CRT_ORG_BSS) must end before the code.
+	@m=$(BUILD)/$(NAME).map; v() { awk -v s="$$1" '$$1 == s {print $$3}' $$m | tr -d '$$'; }; \
+	 for s in __BSS_END_tail __DATA_END_tail; do e=$$(v $$s); \
+	   if [ -n "$$e" ] && [ $$((0x$$e)) -gt $$((0xF000)) ]; then \
+	     echo "error: $(NAME) ends at 0x$$e ($$s), above 0xF000 (frame_init's IM 2 table)"; rm -f $@; exit 1; fi; done; \
+	 b=$$(v __BSS_head); be=$$(v __BSS_END_tail); c=$$(v __CODE_head); \
+	 if [ -n "$$b" ] && [ $$((0x$$b)) -lt $$((0x$$c)) ] && [ $$((0x$$be)) -gt $$((0x$$c)) ]; then \
+	   echo "error: $(NAME)'s BSS (0x$$b-0x$$be) runs into its code at 0x$$c"; rm -f $@; exit 1; fi
 
 # every object depends on all headers: simple and safe for small projects
 HDRS := $(wildcard $(SRC_DIR)/*.h) $(wildcard $(SDK_DIR)/include/*.h)

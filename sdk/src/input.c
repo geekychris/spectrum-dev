@@ -43,6 +43,8 @@ void input_init(void)
 /* edge latching (input_latch(1)): input_sample() runs in the interrupt and
    collects keys that went down; input_pressed() then reports those */
 extern uint8_t input_edge_rows[8], input_edge_kemp;
+extern uint8_t input_last_rows[8], input_last_kemp;      /* input_sample's last view */
+static uint8_t kemp_prev;
 static uint8_t latching, latched_pressed;
 
 void input_latch(uint8_t on)
@@ -80,7 +82,7 @@ static uint8_t kemp_bits(uint8_t r)
 
 uint8_t input_read(void)
 {
-    uint8_t i, b;
+    uint8_t i, b, kn = 0;
     for (i = 0; i < 8; i++) {
         uint8_t r = z80_inp(row_port[i]);
         key_edges[i] = (uint8_t)(~r & rows_now[i] & 0x1F);   /* down now, up at the last read */
@@ -89,22 +91,31 @@ uint8_t input_read(void)
     b = decode(rows_now, 0);
     /* BREAK = CAPS SHIFT + SPACE: not a fire */
     if (!(rows_now[0] & 0x01) && !(rows_now[7] & 0x01)) b = (b & ~IN_FIRE) | IN_QUIT;
-    if (input_kempston) b |= kemp_bits(z80_inp(0x001F));
+    if (input_kempston) {
+        kn = z80_inp(0x001F) & 0x1F;
+        b |= kemp_bits(kn);
+    }
     if (latching) {
         uint8_t edges[8], ke;
         intrinsic_di();
         for (i = 0; i < 8; i++) {
             edges[i] = input_edge_rows[i];
+            /* a press this read found itself (before the interrupt sampled it)
+               must not come back as the interrupt's edge at the next read:
+               typed "BOT" came out "BBO" */
+            input_last_rows[i] = input_last_rows[i] & (uint8_t)~key_edges[i];
             key_edges[i] |= edges[i];
             input_edge_rows[i] = 0;
         }
         ke = input_edge_kemp;
         input_edge_kemp = 0;
+        input_last_kemp |= kn & ~kemp_prev;
         intrinsic_ei();
         /* a press = a key that went down since the last read, even if it is
            down again now after a release the read didn't see */
         latched_pressed = decode(edges, 1) | kemp_bits(ke) | (b & ~input_last);
     }
+    kemp_prev = kn;
     input_prev = input_last;
     input_last = b;
     return b;

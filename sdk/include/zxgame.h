@@ -77,7 +77,7 @@ extern uint8_t input_read(void);
 extern uint8_t input_pressed(void);        /* bits that went down since the last read */
 /* latch presses between reads: call input_sample() from frame_hook (every
    interrupt) and input_latch(1); then a tap shorter than a slow game frame
-   still shows up in the next input_read()/input_pressed() */
+   still shows up in the next input_read()/input_pressed(), once */
 extern void input_sample(void);
 extern void input_latch(uint8_t on);
 extern uint8_t input_last;                 /* state from the last input_read() */
@@ -130,6 +130,10 @@ extern void spr_xor(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t
 extern void spr_or(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h);
 extern void spr_clear(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h);
 extern void spr_put(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t h);
+/* copy a 32-pixel-wide image (4 bytes a line) shifted right by 0..7 pixels
+   (its last 7 columns must be empty): render a shape once, then blit it at
+   any x with spr_blit-style byte copies (spr32.asm) */
+extern void spr32_shift(uint8_t *dst, const uint8_t *src, uint8_t lines, uint8_t shift);
 /* clear / fill pixel lines y..y+h-1 between byte columns c0..c0+wc-1 */
 extern void gfx_clear_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h);
 extern void gfx_fill_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h, uint8_t pattern);

@@ -15,7 +15,7 @@ the games in `projects/`:
 
 ## What the games did on each
 
-**48K** (Nova Defense, Frank the Frog, Rock Blaster): every pixel is drawn by the CPU, and
+**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander): every pixel is drawn by the CPU, and
 the CPU is slow, so the work goes into drawing less:
 
 - sprites pre-shifted into 8 copies so a draw is byte moves, written in
@@ -33,10 +33,16 @@ the CPU is slow, so the work goes into drawing less:
 - tables built at start-up can go in the RAM below the program
   (0x5D00-0x7FFF once the BASIC loader is done), as Rock Blaster's do
 - the game logic runs at a fixed 50 Hz while the screen updates when it can
-  (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40), so the games play at
-  the original speed
+  (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40, Uranus Lander ~26),
+  so the games play at the original speed
 - sound on the beeper (which stops the CPU), or on the AY on a 128K (Rock
   Blaster plays the original's MOD there through `modplay`)
+- Uranus Lander draws its terrain once per level from a heightmap, renders
+  its line-drawn ship into a small image only when it turns and shifts that
+  image into place when it moves; moving things take the colour of the
+  open-sky cells they cross, never of the terrain's. Its 31 KB of code
+  leaves no room for the variables above 0x8000, so they go below (in
+  contended memory: hot loops are in assembly)
 
 **Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball): the hardware does what the CPU did on
 the 48K:
