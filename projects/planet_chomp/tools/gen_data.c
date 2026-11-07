@@ -9,7 +9,7 @@
  *                    directions in Q7, each edge's corners, side normal and
  *                    midpoint
  *   src/maze_tab.h   their sizes and the special cells
- *   build/level1.txt the original's level-1 maze (test.py compares the
+ *   gfx/level1.txt   the original's level-1 maze (test.py compares the
  *                    port's carving with it)
  *
  * The maze itself (which edges are open) is carved on the Next at the
@@ -204,7 +204,7 @@ int main(void)
     fclose(h);
 
     /* the original's level 1: open exits per cell as a hex digit, and its walls */
-    lv = fopen("build/level1.txt", "w");
+    lv = fopen("gfx/level1.txt", "w");
     for (c = 0; c < CELLS; c++)
         fprintf(lv, "%x", mz_open[c][0] | mz_open[c][1] << 1 | mz_open[c][2] << 2 | mz_open[c][3] << 3);
     fprintf(lv, "\n%d\n", mz_nwalls);

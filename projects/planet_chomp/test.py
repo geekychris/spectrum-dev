@@ -61,7 +61,7 @@ with Emulator(machine="next") as e:
     check("boots to the title", e.run_until("pc: ready", 500))
     check("28 MHz", e._cmd("get-cpu-turbo-speed").strip() == "8")
     # the maze the Next carved is the original's (tools/gen_data.c ran its maze.c)
-    want = (HERE / "build" / "level1.txt").read_text().split()[0]
+    want = (HERE / "gfx" / "level1.txt").read_text().split()[0]
     got = "".join("%x" % b for b in e.read_mem("mz_open", 486))
     check("level 1's maze is the original's (486 cells)", got == want, f"{sum(a != b for a, b in zip(got, want))} cells differ")
     e.run(300)
