@@ -117,7 +117,14 @@ shown at the next vertical blank. A frame where only the piece moved is
 the cached board copied back plus the ghost and the piece: **50 fps**. When
 the board changes (a piece locks, a ring clears) or the view turns, the
 board is redrawn: about 9,000 T-states a brick, 1-2 frames for a
-well-filled tower. FRAME_RATE_HERE
+well-filled tower.
+
+Measured in the test (`perf` lines every 100 frames, a game of 47 pieces):
+**38 fps on average while playing**, 50 fps between pieces, dips to 14-25
+fps in seconds where the board changes on most steps (pieces locking
+quickly on a tall tower, the view turning). The title's demo game, which
+stacks a tall tower and turns to every piece, runs at 10-15 fps. The rules
+always run their 25 steps a second (the test checks steps against frames).
 
 ## How it's built
 
@@ -133,7 +140,11 @@ well-filled tower. FRAME_RATE_HERE
 
 ## Testing
 
-`./zx test stack_tower` (`test.py`) boots to the title (28 MHz, the
+`./zx test stack_tower` (`test.py`) first runs the rules as zsdcc
+compiles them (`tests/z80`) through the original's four games played by the
+browser's own engine (its `tests/vectors.h`): each must end with the
+browser's pieces, score, board, queue and held piece. Then it boots the
+game to the title (28 MHz, the
 painting, the demo, the music on chips 1 and 2), turns the help pages and
 picks the mode and level on the keys and the Kempston. Then, recorded from
 reset: a game where `tools/bot.py` plays from the game's probe with the
@@ -143,3 +154,12 @@ the tower tops out; game over, initials typed into the table, back to the
 title. The recording is replayed twice and every frame's hash must match.
 `make -C tests` checks the rules against the original's.
 `tools/make_gif.py` makes the GIF above.
+
+## Known issues
+
+- It needs a 2 MB Next (ZEsarUX's default): the pictures fill banks up to
+  90. A 1 MB machine would need fewer view steps or no painted backdrop.
+- Redrawing the board costs about 9,000 T-states a brick, so a tall tower
+  that changes on most steps (the title's demo, a fast game near the top)
+  runs at 10-25 fps. The rules keep their pace; a key pressed during a slow
+  frame is latched and handled in the next one.

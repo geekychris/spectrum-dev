@@ -1,5 +1,8 @@
 """Stack Tower (Next) - plays through the harness.
 
+First the rules as zsdcc compiles them (tests/z80) play the original's four
+browser games (its tests/vectors.h) and must end as the browser did. Then the
+game:
 Boots to the title (28 MHz, the painting, then the demo game, the music on
 TurboSound chips 1 and 2), turns the help pages, picks the mode and level
 on the keys and the Kempston. Then, recorded from reset: a game where
@@ -12,6 +15,7 @@ match. Screenshots go to screenshots/, the frame rate is reported.
 """
 import re
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -65,6 +69,16 @@ def perf(log, state):
 
 
 SHOTS.mkdir(exist_ok=True)
+build = subprocess.run([str(ROOT / "bin" / "zx-make"), "-C", str(HERE / "tests" / "z80")], capture_output=True, text=True)
+check("the rules' Z80 test builds", build.returncode == 0, build.stdout[-300:] + build.stderr[-300:])
+with Emulator(machine="next") as e:
+    e.load(HERE / "tests" / "z80" / "build" / "stack_rules.nex")
+    e.run_until("rules: done", 3000)
+    e.run(1)
+    log = e.log(0)
+    check("the Z80's rules end the browser's four games as the browser did (pieces, score, board, queue, hold)",
+          "rules: done 4 of 4" in log, log[-300:])
+
 with Emulator(machine="next") as e:
     e.load(NEX)
     check("boots to the title", e.run_until("stack: ready", 300))
