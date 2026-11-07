@@ -646,7 +646,7 @@ done:
 
 /* ---------- the sky ---------- */
 static uint8_t skyline[NUM_ROUTES][64];
-static int sun_yaw, sun_route = -1;
+static int sun_yaw, sun_route = -1, sky_route = -1;
 
 static void make_skylines(void)
 {
@@ -671,23 +671,40 @@ static int16_t yaw_x(int16_t d)
     return VIEW_CX + (int16_t)(((int32_t)d * FOV) / 10430);
 }
 
-static void draw_skyline(const World *w, int16_t hz)
+/* the panorama: SKY_W x SKY_PH bytes in pages SKY_PAGE.. (mapped at 0x6000 a page at a time) */
+static void sky_put(uint16_t o, uint16_t n, uint8_t v)
 {
-    int j, r = w->route, blocky = r == 1 || r == 3, j0;
-    /* the columns 1024 of yaw wide that can be on screen */
-    j0 = (int)(((uint16_t)cam.yaw - (uint16_t)(VIEW_CX * 10430 / FOV)) >> 10);
-    for (j = j0 - 1; j < j0 + 21; j++) {
-        int16_t a = (int16_t)(j * 1024 - cam.yaw), b = (int16_t)((j + 1) * 1024 - cam.yaw);
-        int16_t x0 = yaw_x(a), x1 = yaw_x(b);
-        int h0 = skyline[r][j & 63], h1 = skyline[r][(j + 1) & 63];
-        if (x1 < 0 || x0 > VIEW_W - 1 || x1 <= x0) continue;
-        if (blocky) h1 = h0;
-        q[0] = x0; q[1] = hz - h0;
-        q[2] = x1; q[3] = hz - h1;
-        q[4] = x1; q[5] = hz;
-        q[6] = x0; q[7] = hz;
-        poly4(PEN_HAZE);
+    while (n) {
+        uint16_t off = o & 0x1FFF, k = 0x2000 - off;
+        if (k > n) k = n;
+        ZXN_WRITE_REG(0x53, SKY_PAGE + (o >> 13));
+        memset((uint8_t *)0x6000 + off, v, k);
+        o += k;
+        n -= k;
     }
+}
+
+/* the original's skyline columns (1024 of yaw each, sloping tops, or flat
+   for the towers and roofs), drawn into the panorama: row rr is SKY_PH - rr
+   rows above the horizon */
+static void sky_build(int r)
+{
+    uint8_t rr, j, blocky = r == 1 || r == 3;
+    for (rr = 0; rr < SKY_PH; rr++) {
+        uint16_t base = rr * SKY_W;
+        int16_t lv = SKY_PH - rr;
+        sky_put(base, SKY_W, PEN_SKY);
+        for (j = 0; j < 64; j++) {
+            int16_t x0 = (int16_t)(((uint32_t)j * 1024 * FOV) / 10430);
+            int16_t x1 = j == 63 ? SKY_W : (int16_t)(((uint32_t)(j + 1) * 1024 * FOV) / 10430);
+            int16_t h0 = skyline[r][j], h1 = blocky ? h0 : skyline[r][(j + 1) & 63], a = x0, b = x1;
+            if (h0 < lv && h1 < lv) continue;
+            if (h0 >= lv && h1 < lv) b = x0 + (x1 - x0) * (h0 - lv + 1) / (h0 - h1);
+            else if (h0 < lv) a = x1 - (x1 - x0) * (h1 - lv + 1) / (h1 - h0);
+            if (b > a) sky_put(base + a, b - a, PEN_HAZE);
+        }
+    }
+    ZXN_WRITE_MMU3(11);
 }
 
 static int16_t oct[16];
@@ -766,20 +783,27 @@ void render_world(const World *w)
     if (vanish_x < 0) vanish_x = 0;
     if (vanish_x > VIEW_W - 1) vanish_x = VIEW_W - 1;
 
+    if (w->route != sky_route) {
+        sky_route = w->route;
+        sky_build(w->route);
+    }
+    {
+        /* the panorama's column at the view's left edge (port: see sky_build) */
+        int16_t p0 = (int16_t)(((uint32_t)(uint16_t)cam.yaw * FOV) / 10430) - VIEW_CX;
+        if (p0 < 0) p0 += SKY_W;
+        if (!(render_skip & 16)) sky_copy((uint16_t)p0, hz - SKY_PH);    /* (before l2poly sets up the DMA) */
+    }
     l2p_begin();
     l2p_top = 0;
     l2p_bot = VIEW_ROWS;
-    if (!(render_skip & 8)) l2p_rect(0, hz, 0, VIEW_W - 1, PEN_SKY);
+    if (!(render_skip & 8)) l2p_rect(0, hz - SKY_PH, 0, VIEW_W - 1, PEN_SKY);
     /* the ground: the right side's colour across (one DMA a page), then the left */
     if (!(render_skip & 8)) {
         uint8_t gl = far_pen(w->seg[s1].side[0]), gr = far_pen(w->seg[s1].side[1]);
         l2p_rect(hz, VIEW_ROWS, 0, VIEW_W - 1, gr);
         if (gl != gr) l2p_rect(hz, VIEW_ROWS, 0, vanish_x, gl);
     }
-    if (!(render_skip & 16)) {
-        draw_skyline(w, hz);
-        draw_sun(w, hz);
-    }
+    if (!(render_skip & 16)) draw_sun(w, hz);
 
     spr_frame_begin(w, s0, s1);
     prof_id = 0xFF;

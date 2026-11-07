@@ -58,7 +58,13 @@ extern uint16_t render_polys;           /* polygons drawn, last frame */
 
 void render_init(void);
 void camera_follow(const World *w);
-void render_world(const World *w);      /* the 3D view into the Layer 2 back buffer */
+void render_world(const World *w);
+/* the skyline: a panorama of the whole horizon (port: drawn once per route,
+   copied into the view by DMA each frame) */
+#define SKY_PH   16                     /* rows above the horizon */
+#define SKY_W    905                    /* 65536 of yaw at FOV / 10430 a pixel */
+#define SKY_PAGE 44                     /* pages 44-45 */
+void sky_copy(uint16_t p0, int16_t ytop);   /* main.c (resident: it maps the panorama over the renderer) */
 int16_t render_horizon(int view);
 void render_copper(int route, int view);/* the line doubling and the sky's gradient */
 
