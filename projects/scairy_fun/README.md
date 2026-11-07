@@ -171,7 +171,7 @@ demo, route 1):
 | the music and effects (interrupt) | ~3% | |
 
 The speed pass took the view from 3.66M to ~2.4M T-states (5.1 to
-6.2-6.7 frames a second in play): the cross-section projected per edge in
+6.2-7.5 frames a second in play): the cross-section projected per edge in
 one batch, the skyline as a panorama copied by DMA (it was 22 polygons),
 segments in pairs from 6 out and fours from 14, lane lines to 16 segments,
 the AI view without divisions, cheaper sprite and scenery positions, a

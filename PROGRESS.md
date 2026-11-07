@@ -335,7 +335,7 @@ READMEs; docs/48k-vs-next.md.
       the MOD on TurboSound; high scores.
 - [x] test.py: a bot plays route 1 (two saves, the embankment, the tow truck, the
       cockpit view), arrives, Rush Hour to game over, initials; replays x2.
-- [x] Speed pass (2026-11-07): 5.1 to 6.2-6.7 fps in play (the view 3.66M to ~2.4M T-states):
+- [x] Speed pass (2026-11-07): 5.1 to 6.2-7.5 fps in play (the view 3.66M to ~2.4M T-states):
       the cross-section projected per edge in one batch (`persp_xs`/`persp_ys`), the skyline
       as a DMA-copied panorama, segments in pairs from 6 and fours from 14, lines to 16,
       sprites/scenery/AI view cheaper, DMA set-up by one OTIR (`fastdma.c`). SDK: faster
