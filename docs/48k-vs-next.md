@@ -15,7 +15,7 @@ the games in `projects/`:
 
 ## What the games did on each
 
-**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander, Sky Knights, Miner Meteor): every pixel is drawn by the CPU, and
+**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander, Sky Knights, Miner Meteor, Jump Quest): every pixel is drawn by the CPU, and
 the CPU is slow, so the work goes into drawing less:
 
 - sprites pre-shifted into 8 copies so a draw is byte moves, written in
@@ -47,8 +47,13 @@ the CPU is slow, so the work goes into drawing less:
   ~40% slower there)
 - the game logic runs at a fixed 50 Hz while the screen updates when it can
   (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40, Uranus Lander ~26,
-  Sky Knights 50 down to 15 with eight enemies, Miner Meteor 33-50), so the
-  games play at the original speed
+  Sky Knights 50 down to 15 with eight enemies, Miner Meteor 33-50, Jump
+  Quest ~7: its logic alone takes ~40% of the CPU), so the games play at the
+  original speed
+- scrolling: Jump Quest tried character-strip scrolling of a 32x23-cell tile
+  view (cellspr48 `cs_scroll`) and measured ~130K T-states a 16-pixel step on
+  a busy view, more than its frame; it jumps the view half a screen instead
+  (`cs_put_tile` draws only the cells that change)
 - sound on the beeper (which stops the CPU), or on the AY on a 128K (Rock
   Blaster plays the original's MOD there through `modplay`)
 - Uranus Lander draws its terrain once per level from a heightmap, renders

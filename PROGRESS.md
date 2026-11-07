@@ -226,6 +226,18 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   loop against a host build of the rules. SDK: `gridpack` (+ tools/gridpack.py),
   `gridbfs`; tests in projects/sdktestgrid.
 
+- **Jump Quest** (48K): the original's logic (`player.c`, `enemy.c`, `items.c`,
+  `level.c`, the state machine) at 50 Hz; two of its bugs fixed (a 14-pixel jump
+  that can't pass level 1's pipes: -180 instead of -78, found by a host-side
+  beam search over `jq_tick`; score and lives reset every life). 16-pixel tiles
+  as 2x2 cells, a 16x12-tile view that jumps half a screen, sprites per cell
+  (cellspr48), items as tiles; graphics converted from the original's own
+  drawing code built on the host. ~7 fps (9 while running): the logic's hot
+  loops are asm and still take ~30K T-states a tick. A zsdcc miscompile of a
+  struct-field `&&` chain was caught by comparing the Spectrum with the host
+  build tick by tick. SDK: cellspr48 `cs_scroll` / `cs_put_tile` /
+  `cs_wipe_sprites`, 16 sprite slots; `spr16_shift`.
+
 ### Cleanup (2026-11-06)
 
 SDK modules pulled out of the games, each with a test (sdktest,
@@ -263,6 +275,11 @@ READMEs; docs/48k-vs-next.md.
 - Bullion Dash: 24-30 fps where guards with no path wander (the original's
   32-bit LCG per random step, `input_read` ~15% of a frame); a new level's
   first frame takes ~0.3 s (unpack, path flags, whole-room draw).
+- Jump Quest draws ~7 fps (logic 50 Hz): a tick of the original's logic is
+  ~30K T-states (13-17 enemies, the player's probes and box tests), and each
+  frame composes the sprites' cells. Ideas: the player's update in asm, enemies
+  far off-screen fast-forwarded (they move deterministically), a 128K version
+  with pre-shifted sprites.
 - Miner Meteor's caverns 4 and 6 draw 33-36 fps: three guardians and the miner
   move every frame (~10 cells composed, ~2,500 T-states each), the logic is
   ~14K T-states a tick in C and `input_read` ~15K (with `input_fast`).

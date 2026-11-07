@@ -258,6 +258,16 @@ Details: docs/emulator-harness.md.
 - zsdcc: `int8_t * uint8_t` zero-extended the `int8_t` (-1 * 6 came out 0x05FA): Stack Tower's icon x became
   0x06E0 and `l2w_column` mapped a page far past Layer 2 (its board cache). Make both `int16_t` first.
   A wild x in `l2w_*` writes some other page, not the screen: look there for "stray" pixels that persist.
+- zsdcc got `px + pw > e->x + 3 && px < e->x + 13 && ...` (int16 arguments against fields of a
+  struct walked by pointer) wrong: true for an enemy 90 pixels away. Read the fields into locals
+  first. Build the game logic for the host too and compare the two tick by tick (jump_quest's
+  trace): that is how it showed up. `f(a, g(b))` with `f` testing its arguments: g runs anyway
+  (jump_quest re-shifted every enemy's sprite a frame until a visibility test came first).
+- A demo/route player called before the logic tick sees `level_ticks == 0` on a level's first
+  tick, not 1 (jump_quest's demo started its routes a tick late).
+- When the logic costs a large part of a frame, a slow frame runs several ticks, the sprites move
+  further, more cells change and the next frame is slower: measure frames drawn against ticks
+  over a stretch of play (jump_quest's test), not single calls.
 - Fixed-timestep loops: cap the catch-up ticks (a level's first frame can take seconds), but high enough
   (Uranus: 6) that a slow frame doesn't lose game time; count ticks vs frames in a perf log and test it.
 

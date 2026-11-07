@@ -196,6 +196,7 @@ They are part of `./zx selftest`.
 | [Rock Blaster](projects/rock_blaster/README.md) | 48K `.tap`: XOR vector wireframes, the original's MOD on a 128K's AY | ![](docs/images/rock_blaster.gif) |
 | [Uranus Lander](projects/uranus_lander/README.md) | 48K `.tap`: the original's terrain and 16.16 physics, line-drawn ship, an autopilot (Z); AY on a 128K | ![](docs/images/uranus_lander.gif) |
 | [Sky Knights](projects/sky_knights/README.md) | 48K `.tap`: one or two players, the per-frame loops in asm (checked against the original C) | ![](docs/images/sky_knights.gif) |
+| [Jump Quest](projects/jump_quest/README.md) | 48K `.tap`: side-scrolling platformer (the view jumps half a screen), the original's logic at 50 Hz with its unwinnable jump fixed, one or two players, a demo of all three levels; AY tune on a 128K | ![](docs/images/jump_quest.gif) |
 | [Miner Meteor](projects/miner_meteor/README.md) | 48K `.tap`: single-screen platformer, sprites composed per cell over the tiles (no flicker, colour per cell), a demo of all six caverns | ![](docs/images/miner_meteor.gif) |
 | [Bullion Dash](projects/bullion_dash/README.md) | 48K `.tap`: the original's 150 levels arithmetic-coded into 8 KB, guards' pathfinding from one cached distance field, the level editor; tested against a host build of its own rules | ![](docs/images/bullion_dash.gif) |
 | [StakAttack](projects/stakattack/README.md) | Next `.nex`: Layer 2, hardware sprites, TurboSound music | ![](docs/images/stakattack.gif) |
