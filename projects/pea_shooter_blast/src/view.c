@@ -3,11 +3,10 @@
  * draw.c and the drawing half of main.c).
  *
  *   The playfield is Layer 2 in its 320 x 256 mode, scrolled sideways by
- *   the hardware (NextReg 0x16 / 0x71). Its 320 columns are a ring: map
- *   pixel column mx lives in column mx mod 320, so when the view moves,
- *   only the map columns coming into view are drawn (at most 4 a frame: the
- *   original scrolls 4 pixels a frame at most), into the columns that just
- *   left it. A column is 16 copies of a 16-byte tile column (the tiles are
+ *   the hardware (NextReg 0x16 / 0x71), with the SDK's l2scroll: its 320
+ *   columns are a ring and only the map columns coming into view are drawn
+ *   (at most 4 a frame: the original scrolls 4 pixels a frame at most), into
+ *   the columns that just left it. A column is 16 copies of a 16-byte tile column (the tiles are
  *   stored column-major, like Layer 2; their page is mapped at 0x0000 over
  *   the rules, the Layer 2 column's at 0x6000 over the HUD). The original redraws all 22 x 16 tiles
  *   every frame.
@@ -25,6 +24,7 @@
 #include "nextsprl.h"
 #include "palfx.h"
 #include "l2rle.h"
+#include "l2scroll.h"
 #include "psb.h"
 #include "gfx_data.h"
 #include "view.h"
@@ -38,23 +38,23 @@
 uint16_t view_cols;                     /* map columns drawn last frame (profiling) */
 static int16_t shown_px = -1;           /* the map x at the screen's left edge, -1: nothing drawn */
 static int8_t shown_level = -1;
+static uint8_t band;                    /* l2scroll's band: the whole screen */
 
 /* ------------------------------------------------------------ the playfield */
 
-/* TODO: move this ring onto sdk l2scroll.h (one band, rows 0-255, this
-   column() as its fill, the scroll register from l2s_offset()) once it is on
-   main (Lunar Rider); see PROGRESS.md */
+/* l2scroll's fill: world (map) pixel column wx of the level into Layer 2
+   column col (mapped by l2scroll): 16 slices of 16 bytes, one a tile */
+static uint8_t fill_level;
 
-/* map pixel column mx of level lvl into its Layer 2 column (mx mod 320) */
-static void column(uint8_t lvl, int16_t mx)
+static void column(uint8_t band, uint32_t wx, uint8_t *col)
 {
-    uint16_t bx = (uint16_t)mx % 320;
-    uint8_t r, *dst;
-    const uint8_t *m = &level_maps[lvl][0][mx >> 4], *tiles = (const uint8_t *)0x0000 + ((mx & 15) << 4);
-    ZXN_WRITE_MMU3(L2_PAGE + (bx >> 5));
-    dst = (uint8_t *)0x6000 + ((bx & 31) << 8);
-    for (r = 0; r < MAP_H; r++, m += MAP_W, dst += TILE_H)
-        memcpy(dst, tiles + ((uint16_t)*m << 8), TILE_H);
+    uint8_t r;
+    uint16_t x = (uint16_t)wx;
+    const uint8_t *m = &level_maps[fill_level][0][x >> 4], *tiles = (const uint8_t *)0x0000 + ((x & 15) << 4);
+    (void)band;
+    for (r = 0; r < MAP_H; r++, m += MAP_W, col += TILE_H)
+        memcpy(col, tiles + ((uint16_t)*m << 8), TILE_H);
+    view_cols++;
 }
 
 static void copper_gradient(uint8_t lvl)
@@ -73,32 +73,26 @@ static void copper_gradient(uint8_t lvl)
 
 void view_playfield(uint8_t lvl, int16_t px)
 {
-    int16_t x0, x1;
-    if (lvl != shown_level) {
+    uint8_t newlevel = lvl != shown_level;
+    uint16_t off;
+    if (!newlevel && px == shown_px) { view_cols = 0; return; }
+    view_cols = 0;
+    ZXN_WRITE_MMU0(TILE_PAGE);                  /* the tiles at 0x0000 (over the rules) */
+    fill_level = lvl;
+    if (newlevel || shown_px < 0) {
         copper_gradient(lvl);
-        shown_px = -1;
+        l2s_reset();
+        band = l2s_band(0, SCREEN_H - 1, column);
+        l2s_goto(band, (uint32_t)px);
         shown_level = (int8_t)lvl;
-    }
-    if (px == shown_px) { view_cols = 0; return; }
-    if (shown_px < 0 || px >= shown_px + SCREEN_W || px <= shown_px - SCREEN_W) {
-        x0 = px;                                /* everything */
-        x1 = px + SCREEN_W;
-    } else if (px > shown_px) {
-        x0 = shown_px + SCREEN_W;               /* coming in on the right */
-        x1 = px + SCREEN_W;
-    } else {
-        x0 = px;                                /* coming in on the left */
-        x1 = shown_px;
-    }
-    /* the scroll first, at the top of the frame, then the new columns
-       (they are on the screen's edge, drawn before the beam gets there) */
-    ZXN_WRITE_REG(0x16, (uint8_t)((uint16_t)px % 320));
-    ZXN_WRITE_REG(0x71, (uint8_t)(((uint16_t)px % 320) >> 8));
-    ZXN_WRITE_MMU0(TILE_PAGE);
-    view_cols = x1 - x0;
-    for (; x0 < x1; x0++) column(lvl, x0);
+    } else l2s_move(band, (uint32_t)px);
     ZXN_WRITE_MMU0(RULES_PAGE);
     ZXN_WRITE_MMU3(UI_PAGE);
+    /* one band over the whole screen: its scroll straight into the
+       register (the copper does the gradient) */
+    off = l2s_offset(band);
+    ZXN_WRITE_REG(0x16, (uint8_t)off);
+    ZXN_WRITE_REG(0x71, (uint8_t)(off >> 8));
     shown_px = px;
 }
 

@@ -12,7 +12,7 @@
  *   0x4000-0x5FFF  page 82: levels.c and the level maps; bank 5 (the
  *                  tilemap) and sound streams while they are written / read
  *   0x6000-0x7FFF  page 84: the HUD, the fonts, the palettes, the test
- *                  probe; Layer 2 columns and sprite patterns while drawn;
+ *                  probe, the song; Layer 2 columns and sprite patterns while drawn;
  *                  page 86 (the state hash) during the scripted run
  *   0x8000-0xEFFF  this, the view, the SDK; 0xF000- the IM 2 table, the stack
  * (memmap.h). Code in a page calls only main memory and the other pages,
@@ -112,25 +112,17 @@ static void step(uint8_t in)
 
 /* ------------------------------------------------------------ the scripted game */
 
-/* the same game as tools/host_trace.c: game_init, then 3000 frames of
-   input from script_input(), then the state's hash */
+/* the same game as tools/host_trace.c (state_hash.c's hash_game, in page 86) */
 static void hash_run(void)
 {
     uint16_t f;
+    uint32_t h;
     snd_music(0);
     ZXN_WRITE_MMU3(HASH_PAGE);
-    game_init(&gs);
-    port_fixes(&gs);
-    for (f = 0; f < SCRIPT_FRAMES && gs.state != STATE_TITLE; f++) {
-        uint8_t in = script_input(f);
-        game_update(&gs, in & 1, (in >> 1) & 1, (in >> 2) & 1, (in >> 3) & 1, (in >> 4) & 1);
-    }
-    {
-        uint32_t h = state_hash(&gs);
-        ZXN_WRITE_MMU3(UI_PAGE);
-        zx_log("psb: HASH %lx frames=%u level=%d score=%ld lives=%d\n", (unsigned long)h, f, gs.level,
-               (long)gs.score, gs.lives);
-    }
+    h = hash_game(&gs, &f);
+    ZXN_WRITE_MMU3(UI_PAGE);
+    zx_log("psb: HASH %lx frames=%u level=%d score=%ld lives=%d\n", (unsigned long)h, f, gs.level,
+           (long)gs.score, gs.lives);
     hash_req = 0;
     snd_music(1);
     to_title();
@@ -190,7 +182,7 @@ int main(void)
         draws++;
         if (fps_frames >= 250) {
             fps = (uint8_t)((uint16_t)draws * 50 / fps_frames);
-            zx_log("psb: fps=%u mode=%u overruns=%u ay=%u,%u,%u\n", fps, mode, frame_overruns,
+            zx_log("psb: fps=%u mode=%u ay=%u,%u,%u\n", fps, mode,       /* late frames: the probe */
                    snd_reg(0, 7), snd_reg(0, 8), snd_reg(1, 8));
             draws = 0;
             fps_frames = 0;

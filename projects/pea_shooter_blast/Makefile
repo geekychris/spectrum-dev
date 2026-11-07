@@ -10,9 +10,10 @@ include $(ZX_SDK)/project.mk
 $(OBJDIR)/game.c.o: EXTRA_CFLAGS += --opt-code-size --codesegBANK_40 --constsegBANK_40 --datasegBANK_40
 # the levels and their maps (6K): page 82 at 0x4000
 $(OBJDIR)/levels.c.o: EXTRA_CFLAGS += --codesegPAGE_82 --constsegPAGE_82 --datasegPAGE_82 --bsssegPAGE_82
-# the HUD, its font, the palettes, the test probe: page 84 at 0x6000
+# the HUD, its font, the palettes, the test probe, the song (modplay reads it
+# in snd_tick, with the page in): page 84 at 0x6000
 UI_SEG := --codesegPAGE_84 --constsegPAGE_84 --datasegPAGE_84 --bsssegPAGE_84
-$(OBJDIR)/hud.c.o $(OBJDIR)/font.c.o $(OBJDIR)/gfx_data.c.o $(OBJDIR)/probe.c.o: EXTRA_CFLAGS += $(UI_SEG)
+$(OBJDIR)/hud.c.o $(OBJDIR)/font.c.o $(OBJDIR)/gfx_data.c.o $(OBJDIR)/probe.c.o $(OBJDIR)/music.c.o: EXTRA_CFLAGS += $(UI_SEG)
 # the scripted game's input and state hash: page 86 at 0x6000 during that run
 $(OBJDIR)/state_hash.c.o: EXTRA_CFLAGS += --codesegPAGE_86 --constsegPAGE_86 --datasegPAGE_86 --bsssegPAGE_86
 # the banked parts must fit their 8K pages / 16K bank

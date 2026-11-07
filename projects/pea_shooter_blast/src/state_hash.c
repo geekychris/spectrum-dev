@@ -1,5 +1,6 @@
 /* A scripted game's input and a hash of the game's state (state_hash.h). */
 #include "state_hash.h"
+#include "port_fixes.h"
 
 uint8_t script_input(uint16_t f)
 {
@@ -49,4 +50,17 @@ uint32_t state_hash(const GameState *gs)
     mix(gs->scroll.pixel_x); mix(gs->score); mix(gs->lives); mix(gs->level); mix(gs->state);
     mix(gs->state_timer); mix(gs->frame);
     return h;
+}
+
+uint32_t hash_game(GameState *gs, uint16_t *frames)
+{
+    uint16_t f;
+    game_init(gs);
+    port_fixes(gs);
+    for (f = 0; f < SCRIPT_FRAMES && gs->state != STATE_TITLE; f++) {
+        uint8_t in = script_input(f);
+        game_update(gs, in & 1, (in >> 1) & 1, (in >> 2) & 1, (in >> 3) & 1, (in >> 4) & 1);
+    }
+    *frames = f;
+    return state_hash(gs);
 }

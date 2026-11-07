@@ -400,8 +400,7 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   finished (jump too low for its walls, a metal block shutting level 1;
   tools/reach.c searches every way through): jump 4.5 and a doorway.
   SDK: tmtext (projects/texttest), nextsprl spl_scale, spl_zmask in nextsprl_z.c.
-  TODO: move its game-local scroller (view.c view_playfield) onto sdk l2scroll.h
-  once Lunar Rider has merged it.
+  Its playfield scrolls with sdk l2scroll.h (one band, the whole screen).
 
 - **Orbital Patrol** (Next): the original's game.c and main-loop states unchanged
   in 32-bit 8.8, on its own 320 x 256 (Layer 2): the playfield scrolled by the
