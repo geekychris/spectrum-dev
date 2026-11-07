@@ -19,51 +19,53 @@ img6 img_seed, img_flower[2], img_gate, img_empty;
 uint8_t img_popup[2][1 + 2 * 5];
 const uint8_t *bug_img[8], *spider_img[8], *husk_img[4];
 
-typedef const char *art6[6];
+/* 6x6 pictures, a row a byte: R(o,X,X,X,o,o) is .###.. (X = ink) */
+typedef const uint8_t art6[6];
+#define o 0
+#define X 1
+#define R(a, b, c, d, e, f) ((a) << 7 | (b) << 6 | (c) << 5 | (d) << 4 | (e) << 3 | (f) << 2)
 
 static const art6 a_bug[2] = {
-    { ".###..", "#.##.#", "####.#", "####.#", "#.##.#", ".###.." },
-    { "#.#...", ".####.", "#.##.#", "#.##.#", ".####.", "#.#..." },
+    { R(o,X,X,X,o,o), R(X,o,X,X,o,X), R(X,X,X,X,o,X), R(X,X,X,X,o,X), R(X,o,X,X,o,X), R(o,X,X,X,o,o) },
+    { R(X,o,X,o,o,o), R(o,X,X,X,X,o), R(X,o,X,X,o,X), R(X,o,X,X,o,X), R(o,X,X,X,X,o), R(X,o,X,o,o,o) },
 };
 static const art6 a_spider[2] = {
-    { "#.##.#", ".####.", "####.#", "####.#", ".####.", "#.##.#" },
-    { ".#..#.", "######", "####.#", "####.#", "######", ".#..#." },
+    { R(X,o,X,X,o,X), R(o,X,X,X,X,o), R(X,X,X,X,o,X), R(X,X,X,X,o,X), R(o,X,X,X,X,o), R(X,o,X,X,o,X) },
+    { R(o,X,o,o,X,o), R(X,X,X,X,X,X), R(X,X,X,X,o,X), R(X,X,X,X,o,X), R(X,X,X,X,X,X), R(o,X,o,o,X,o) },
 };
-static const art6 a_husk = { "......", "......", "..##.#", "..##..", "......", "......" };
+static const art6 a_husk = { R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,X,X,o,X), R(o,o,X,X,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o) };
 static const art6 a_bonus[7] = {
-    { "...#..", "..#...", ".##.##", ".##.##", "..###.", "..###." },    /* berry */
-    { "..##..", ".####.", "#.##.#", "######", "..##..", "..##.." },    /* mushroom */
-    { ".#.#..", "..#...", "#####.", ".###..", "..##..", "..#..." },    /* carrot */
-    { "...#..", "..#...", "..##..", ".####.", ".####.", "..##.." },    /* pear */
-    { "..#...", "######", "######", ".####.", ".####.", "..##.." },    /* acorn */
-    { ".####.", "######", "#....#", "######", "######", ".####." },    /* honey pot */
-    { ".#.#..", "#####.", "##.##.", "#####.", ".#.#..", "..#..." },    /* sunflower */
+    { R(o,o,o,X,o,o), R(o,o,X,o,o,o), R(o,X,X,o,X,X), R(o,X,X,o,X,X), R(o,o,X,X,X,o), R(o,o,X,X,X,o) },    /* berry */
+    { R(o,o,X,X,o,o), R(o,X,X,X,X,o), R(X,o,X,X,o,X), R(X,X,X,X,X,X), R(o,o,X,X,o,o), R(o,o,X,X,o,o) },    /* mushroom */
+    { R(o,X,o,X,o,o), R(o,o,X,o,o,o), R(X,X,X,X,X,o), R(o,X,X,X,o,o), R(o,o,X,X,o,o), R(o,o,X,o,o,o) },    /* carrot */
+    { R(o,o,o,X,o,o), R(o,o,X,o,o,o), R(o,o,X,X,o,o), R(o,X,X,X,X,o), R(o,X,X,X,X,o), R(o,o,X,X,o,o) },    /* pear */
+    { R(o,o,X,o,o,o), R(X,X,X,X,X,X), R(X,X,X,X,X,X), R(o,X,X,X,X,o), R(o,X,X,X,X,o), R(o,o,X,X,o,o) },    /* acorn */
+    { R(o,X,X,X,X,o), R(X,X,X,X,X,X), R(X,o,o,o,o,X), R(X,X,X,X,X,X), R(X,X,X,X,X,X), R(o,X,X,X,X,o) },    /* honey pot */
+    { R(o,X,o,X,o,o), R(X,X,X,X,X,o), R(X,X,o,X,X,o), R(X,X,X,X,X,o), R(o,X,o,X,o,o), R(o,o,X,o,o,o) },    /* sunflower */
 };
 static const art6 a_shrink[4] = {
-    { "######", "######", "##..##", "##..##", "######", "######" },
-    { "......", ".####.", ".####.", ".####.", ".####.", "......" },
-    { "......", "......", "..##..", "..##..", "......", "......" },
-    { "......", "......", "..#...", "......", "......", "......" },
+    { R(X,X,X,X,X,X), R(X,X,X,X,X,X), R(X,X,o,o,X,X), R(X,X,o,o,X,X), R(X,X,X,X,X,X), R(X,X,X,X,X,X) },
+    { R(o,o,o,o,o,o), R(o,X,X,X,X,o), R(o,X,X,X,X,o), R(o,X,X,X,X,o), R(o,X,X,X,X,o), R(o,o,o,o,o,o) },
+    { R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,X,X,o,o), R(o,o,X,X,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o) },
+    { R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,X,o,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o) },
 };
-static const art6 a_seed = { "......", "......", "...#..", "..##..", "......", "......" };
+static const art6 a_seed = { R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,o,X,o,o), R(o,o,X,X,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o) };
 static const art6 a_flower[2] = {
-    { "......", "......", "..##..", "..##..", "......", "......" },
-    { "..##..", ".#..#.", "#.##.#", "#.##.#", ".#..#.", "..##.." },
+    { R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,X,X,o,o), R(o,o,X,X,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o) },
+    { R(o,o,X,X,o,o), R(o,X,o,o,X,o), R(X,o,X,X,o,X), R(X,o,X,X,o,X), R(o,X,o,o,X,o), R(o,o,X,X,o,o) },
 };
-static const art6 a_empty = { "......", "......", "......", "......", "......", "......" };
-static const art6 a_gate = { "#....#", "######", "#....#", "#....#", "######", "#....#" };
+static const art6 a_empty = { R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o), R(o,o,o,o,o,o) };
+static const art6 a_gate = { R(X,o,o,o,o,X), R(X,X,X,X,X,X), R(X,o,o,o,o,X), R(X,o,o,o,o,X), R(X,X,X,X,X,X), R(X,o,o,o,o,X) };
+
+#undef o
+#undef X
+#undef R
 
 /* art -> spr8 box image: the whole 6x6 box is the mask (sprites are opaque) */
-static void make(uint8_t *img, const char *const *a)
+static void make(uint8_t *img, const uint8_t *a)
 {
-    uint8_t y, x;
     img[0] = 6 | 0x80;
-    for (y = 0; y < 6; y++) {
-        uint8_t d = 0;
-        for (x = 0; x < 6; x++)
-            if (a[y][x] == '#') d |= 0x80 >> x;
-        img[1 + y] = d;
-    }
+    memcpy(img + 1, a, 6);
 }
 
 /* the right-facing image turned to face dir (the original's rot_rect) */
@@ -86,7 +88,7 @@ static void turn(uint8_t *dst, const uint8_t *src, uint8_t dir)
     }
 }
 
-static void make_turned(img6 out[4], const char *const *a)
+static void make_turned(img6 out[4], const uint8_t *a)
 {
     uint8_t d;
     make(out[DIR_RIGHT], a);

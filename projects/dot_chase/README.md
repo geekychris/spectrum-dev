@@ -82,8 +82,8 @@ on a 128K; on a 48K they are short beeper slices.
   frames are tile centres where all four spiders choose a direction, and
   the beeper's jingles.
 - **Memory**: screen, shadow 0x6000-0x7AFF, game state 0x7B00-0x7F37 (both
-  free once the loader has run), program 0x8000-0xEF11, the SDK's IM 2 table
-  at 0xF000. About 230 bytes are left.
+  free once the loader has run), program 0x8000-0xEEEC, the SDK's IM 2 table
+  at 0xF000. About 270 bytes are left.
 - **Sound**: the beeper stops the CPU, so a 48K plays one short slice of the
   most important sound each frame (a pip is ~4,000 T-states). On a 128K the
   AY plays everything, as the original's four channels do on three.

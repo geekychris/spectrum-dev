@@ -617,6 +617,7 @@ int main(void)
     art_init();
     scr_tab_init();
     input_init();
+    input_fast();                     /* the table decode: ~9,000 T-states less a read */
     ay_init();
     hs_init(2000);                    /* 10000 8000 6000 4000 2000: the original's best is 10000 */
     frame_init();
