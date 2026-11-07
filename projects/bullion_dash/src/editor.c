@@ -160,8 +160,8 @@ static void draw_palette(void)
         tile_draw(1 + 2 * i, 20, edit_gfx + 8 * t);
         attr_set(1 + 2 * i, 20, (uint8_t)(PAPER_BLACK | (cs_attrs[t] & 0x47)));
     }
-    zx_print_at(0, 22, "QAOP MOVE FIRE PUT Z/X TILE");
-    zx_print_at(0, 23, "ENTER TEST S/L KEEP/GET BREAK END");
+    zx_print_at(1, 22, "QAOP MOVE  FIRE PUT  Z/X TILE");
+    zx_print_at(1, 23, "ENTER TEST S/L KEEP/GET BRK END");
 }
 
 void editor_draw(void)

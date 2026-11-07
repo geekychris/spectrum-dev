@@ -11,7 +11,16 @@
    the title again.
 
 The whole session is recorded and replayed twice (every frame hash must
-match). Screenshots go to screenshots/, the frame rate is measured in play.
+match). While the bot plays, every game loop's result is checked against the
+game's rules built for the host (the same C, run for the same frames with
+the same keys): the Z80 build, its asm pathfinding and the level unpacker
+included, must match it byte for byte.
+
+3. Level DEMO, where the guards can't reach the player: the bot collects
+   gold for a while (the frame rate is measured here, screenshots/demo.png).
+4. A 128K: the AY is found and the game runs.
+
+docs/images/bullion_dash.gif is part 1's test play.
 """
 import re
 import struct
@@ -24,13 +33,17 @@ sys.path.insert(0, str(ROOT / "tools" / "zxdev" / "src"))
 sys.path.insert(0, str(HERE / "tools"))
 
 from zxdev.emu import Emulator  # noqa: E402
-from bot import Bot, State  # noqa: E402
+from bot import Bot, State, PLAY_ON  # noqa: E402
+import ctypes  # noqa: E402
+from PIL import Image  # noqa: E402
 
 TAP = HERE / "build" / "bullion_dash.tap"
 SHOTS = HERE / "screenshots"
 REC = HERE / "build" / "bot-game.json"
 START = 4                           # the bot takes some gold here before the guards get it
+DEMO = 15                           # the guards can't reach the player here
 GIVE_UP = 1500                      # frames without gold or a death: BREAK
+GIF = ROOT / "docs" / "images" / "bullion_dash.gif"
 failures = []
 bot = Bot()
 
@@ -45,23 +58,51 @@ def state(e):
     return e.read_mem("gs", bot.size), e.read_mem("enemy_rng_state", 4)
 
 
-def drive(e, until, max_loops=30000, shots=None):
+mismatches = []
+compared = [0]
+
+
+def same_as_host(prev, gs, rng_prev, keys):
+    """The frames between two looks, run on the host from the first look
+    with the same keys, must give the second look's game state."""
+    frames = (struct.unpack_from("<H", gs, 13)[0] - struct.unpack_from("<H", prev, 13)[0]) & 0xFFFF
+    lib = bot.lib
+    ctypes.memmove(lib.sim_gs(), prev, bot.size)
+    ctypes.memmove(lib.sim_rng(), rng_prev, 4)
+    lib.sim_sync()
+    for _ in range(frames):
+        if lib.sim_tick(keys) != PLAY_ON:
+            return                                  # an event: main.c takes over
+    host = ctypes.string_at(lib.sim_gs(), bot.size)
+    compared[0] += frames
+    if host[15:] != gs[15:] or host[1:13] != gs[1:13]:
+        mismatches.append((struct.unpack_from("<H", gs, 13)[0],
+                           [i for i in range(1, bot.size) if host[i] != gs[i] and not 13 <= i < 15][:8]))
+
+
+def drive(e, until, max_loops=30000, shots=None, frames=None):
     """The bot plays: the emulator stops at each game loop's frame_wait, the
-    bot reads gs and holds its keys. Returns (log, loops, ticks)."""
+    bot reads gs and holds its keys. Returns (log, loops). frames: a list to
+    collect (screenshot, frames shown) for a GIF."""
     bp = e.break_at("frame_wait")
     held, log, last_progress, last = "", "", 0, None
+    prev = None
     loops = 0
     for loops in range(max_loops):
         e.continue_(50)
         gs, rng = state(e)
         s = State(gs)
-        keys = Bot.key_names(bot.decide(gs, rng))
+        if prev and prev[0][0] == 1 and s.state == 1 and prev[2] is not None:
+            same_as_host(prev[0], gs, prev[1], prev[2])
+        bits = bot.decide(gs, rng)
+        keys = Bot.key_names(bits)
         progress = (s.gold, s.lives, s.level, s.state)
         if progress != last:
             last, last_progress = progress, s.frame
         if s.state == 1 and (s.frame - last_progress) & 0xFFFF > GIVE_UP:
-            keys = "CAPS SPACE"                 # BREAK: give the life up
+            keys, bits = "CAPS SPACE", None         # BREAK: give the life up
             last_progress = s.frame
+        prev = (gs, rng, bits)
         if keys != held:
             e.release()
             if keys:
@@ -70,11 +111,24 @@ def drive(e, until, max_loops=30000, shots=None):
         log += e.log()
         if shots:
             shots(e, s, log)
+        if frames is not None:
+            frames.append([e.screenshot(), 0, s.frame])
         if until(log, s):
             break
     e.release()
     e.delete(bp["index"])
     return log, loops
+
+
+def save_gif(frames, path):
+    """Screenshots taken at each game loop -> a GIF at the game's speed."""
+    for a, b in zip(frames, frames[1:]):
+        a[1] = 20 * max(1, (b[2] - a[2]) & 0xFFFF)
+    frames[-1][1] = 1000
+    imgs = [f[0].convert("P", palette=Image.ADAPTIVE, colors=16) for f in frames]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=[f[1] for f in frames],
+                 loop=0, optimize=True)
 
 
 def ed_cursor(e):
@@ -145,12 +199,14 @@ with Emulator() as e:
             trapped.append(s.frame)
             e.screenshot(SHOTS / "trap.png")
 
-    log, _ = drive(e, lambda log, s: "complete" in log or "death" in log, 3000, watch_trap)
+    gif = []
+    log, _ = drive(e, lambda log, s: "complete" in log or "death" in log, 3000, watch_trap, gif)
     check("the bot digs a hole and the guard falls in", bool(trapped), log[-300:])
     check("the gold is taken", "gold=1/1" in log, log[-300:])
     check("climbing to the top row with the gold clears the level", "level 0 complete" in log, log[-300:])
     e.run(20)
-    e.screenshot(SHOTS / "cleared.png")
+    gif.append([e.screenshot(SHOTS / "cleared.png"), 0, gif[-1][2] + 50])
+    save_gif(gif, GIF)
     check("back to the editor after the test play", e.run_until("state=editor", 200))
     e.run(30)                                   # the editor's screen is redrawn
     e.press("CAPS SPACE", hold_frames=10)
@@ -163,20 +219,9 @@ with Emulator() as e:
         e.press("P")
     e.press("SPACE")
     check(f"FIRE starts the game at level {START}", e.run_until(f"game started at level {START}", 100))
-    bullion_perf0 = struct.unpack("<2H", e.read_mem("bullion_perf", 4))
-    shots = set()
-
-    def playing_shot(e, s, log):
-        if "play" not in shots and s.state == 1 and s.gold >= 1:
-            e.screenshot(SHOTS / "play.png")
-            shots.add("play")
-
-    log, loops = drive(e, lambda log, s: "gameover" in log, 30000, playing_shot)
-    perf = struct.unpack("<2H", e.read_mem("bullion_perf", 4))
-    ticks, draws = perf[0] - bullion_perf0[0], perf[1] - bullion_perf0[1]
-    fps = 50.0 * draws / max(ticks, 1)
-    print(f"  play: {ticks} frames of game time, {draws} screens drawn: {fps:.1f} fps")
-    check("the screen keeps up (>= 25 fps in play)", fps >= 25, f"{fps:.1f}")
+    e.run(25)
+    e.screenshot(SHOTS / "play.png")
+    log, loops = drive(e, lambda log, s: "gameover" in log, 30000)
     scores = [int(v) for v in re.findall(r"bullion: score=(\d+)", log)]
     lives = [int(v) for v in re.findall(r"bullion: lives=(\d+)", log)]
     deaths = re.findall(r"bullion: death (\w+(?: up)?)", log)
@@ -212,6 +257,50 @@ with Emulator() as e:
     e.screenshot(SHOTS / "hiscores.png")
     rec = e.record_input("save", REC)
     print(f"  recorded {rec['frames']} frames, {rec['events']} input changes, final score {final}")
+
+check("the Z80 plays as the host build of the rules, frame by frame", compared[0] > 200 and not mismatches,
+      f"{compared[0]} frames compared, mismatches at {mismatches[:3]}")
+
+# ---- 3. a level where the guards can't reach the player: gold, frame rate
+with Emulator() as e:
+    e.load(TAP)
+    e.run_until("bullion: ready", 3000)
+    e.run(10)
+    for _ in range(DEMO - 1):
+        e.press("P")
+    e.press("SPACE")
+    check(f"level {DEMO} starts", e.run_until(f"game started at level {DEMO}", 100))
+    e.run(20)
+    perf0 = struct.unpack("<2H", e.read_mem("bullion_perf", 4))
+    start = State(state(e)[0]).frame
+    shot = []
+
+    def gold_shot(e, s, log):
+        if not shot and s.gold >= 3:
+            e.screenshot(SHOTS / "demo.png")
+            shot.append(s.frame)
+
+    log, _ = drive(e, lambda log, s: (s.frame - start) & 0xFFFF >= 600 or s.state != 1, 3000, gold_shot)
+    perf = struct.unpack("<2H", e.read_mem("bullion_perf", 4))
+    ticks, draws = perf[0] - perf0[0], perf[1] - perf0[1]
+    fps = 50.0 * draws / max(ticks, 1)
+    print(f"  level {DEMO}: {ticks} frames of game time, {draws} screens drawn: {fps:.1f} fps")
+    check(f"the bot collects gold on level {DEMO}", "gold=4/" in log, log[-200:])
+    check("the screen keeps up (>= 20 fps in play; the rules run at 50 Hz)", fps >= 20, f"{fps:.1f}")
+check("still the host's rules, frame by frame", not mismatches, str(mismatches[:3]))
+
+# ---- 4. the 128K: AY effects
+with Emulator() as e:
+    e.load(TAP, machine="128k")
+    ok = e.run_until("bullion: ready", 3000)
+    e.run(2)
+    log = e.log_text(0)
+    check("a 128K finds the AY", ok and "ay=1" in log, log[-100:])
+    e.run(10)
+    e.press("SPACE")
+    check("the game runs on a 128K", e.run_until("state=playing", 100))
+    e.run(200)
+    check("... and plays on (a life lost to the guards)", "death caught" in e.log())
 
 seqs = []
 for i in range(2):

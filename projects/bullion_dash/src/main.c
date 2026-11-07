@@ -327,7 +327,8 @@ int main(void)
             if (prev_state != STATE_GAMEOVER) {
                 render_frame(0);
                 render_status(0);
-                render_box("GAME OVER", "PRESS FIRE", "TO CONTINUE", PAPER_BLACK | INK_RED | BRIGHT);
+                render_box("GAME OVER", "SCORE 000000", "PRESS FIRE", PAPER_BLACK | INK_RED | BRIGHT);
+                text_num(16, 9, gs.score, 6);
             }
             break;
         case STATE_EDITOR:

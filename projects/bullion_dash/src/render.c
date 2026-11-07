@@ -221,8 +221,8 @@ void render_status(uint8_t force)
     if (gs.level_num != shown_level) {
         zx_print_at(18, 19, "    ");
         num_at(18, 19, gs.level_num);
-        zx_print_at(25, 0, "LEVEL    ");
-        num_at(31 - (gs.level_num > 99) - (gs.level_num > 9), 0, gs.level_num);
+        zx_print_at(23, 0, "LEVEL    ");
+        num_at(29, 0, gs.level_num);
         shown_level = gs.level_num;
     }
     if (gs.lives != shown_lives) {
