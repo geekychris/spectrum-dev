@@ -69,5 +69,6 @@ extern void cs_mark_id(uint8_t id);
 extern void cs_update(void);
 extern void cs_refresh(const uint8_t *cols, const uint8_t *rows, uint8_t n, uint8_t first, uint8_t lines);
 extern uint8_t cs_last_cells;   /* cells written by the last cs_update (profiling) */
+extern uint8_t cs_list_n;       /* cells marked for the next cs_update */
 
 #endif
