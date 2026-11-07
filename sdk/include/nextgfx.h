@@ -99,5 +99,7 @@ extern void dma_fill(void *dst, uint8_t value, uint16_t len);
 extern void dma_to_port(uint16_t port, const void *src, uint16_t len);   /* e.g. 0x5B sprite patterns */
 extern void dma_copy_banks(uint8_t dst_bank, uint8_t src_bank, uint8_t nbanks);
 extern void dma_fill_banks(uint8_t bank, uint8_t value, uint8_t nbanks);
+/* 8K pages (dma_pages.c), e.g. a band of 32-column pages of Layer 2's 320 mode */
+extern void dma_copy_pages(uint8_t dst_page, uint8_t src_page, uint8_t npages);
 
 #endif
