@@ -108,7 +108,7 @@ title's cycle.
 | 0xF000-0xFFFF | the IM 2 table, the music (copied to 0xF200 at start), the stack | | |
 
 Banks 40-44 hold the sprites' patterns, page 39 the music and the ROM's
-font at start-up, page 42 the copper list's code.
+font at start-up, page 42 the palettes' and the copper list's code.
 
 ## Next features used
 
@@ -183,5 +183,5 @@ reads memory instead).
 - The frame rate (above). A hill crest hides a sprite only when its foot is
   behind it: one partly behind a crest shows whole.
 - The 3D view's vertical resolution is 80 rows (shown 160).
-- Memory is full: 27 bytes free in the resident area, 8 in bank 20.
+- Memory is tight: about 0.9K free in the resident area, 8 bytes in bank 20.
 

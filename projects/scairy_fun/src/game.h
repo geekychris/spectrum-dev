@@ -12,7 +12,7 @@ extern uint8_t keys_latched;            /* V, H, S taps seen by the interrupt (b
 void map_sim(void);                     /* MMU slots 0-3: the simulation's banks */
 void map_render(void);                  /*                the renderer's */
 void map_front(void);                   /*                the front end's (game.c) */
-void set_palette(int route, int glare); /* with the renderer's bank mapped */
+void set_palette(int route, int glare); /* copper.c: page 42 at 0x6000, the renderer's bank mapped */
 
 
 /* game.c (bank 20) */
