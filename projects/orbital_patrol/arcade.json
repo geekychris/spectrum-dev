@@ -1,0 +1,7 @@
+{
+  "title": "Orbital Patrol",
+  "ready": "op: ready",
+  "description": "Defend the humans from waves of abductors over a scrolling planet; smart bombs, hyperspace.",
+  "controls": "QAOP fly, SPACE fire, Z bomb, X hyper",
+  "picture": "screenshots/play.png"
+}

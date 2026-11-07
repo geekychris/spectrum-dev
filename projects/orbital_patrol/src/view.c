@@ -459,6 +459,37 @@ void view_message(WORD level, const char *msg)
     msg_x[0] = 120;
 }
 
+/* the game-over screen's prompt: the frozen frame's sprites stay, line 1 of
+   the sprite text shows the prompt at the original's 96, 180 */
+static const char *prompt_text;
+static uint8_t prompt_on;
+
+void view_prompt(const char *s)
+{
+    uint8_t *a;
+    if (s && s != prompt_text) {
+        text_line(1, s, C_YELLOW);
+        prompt_text = s;
+    }
+    if ((s != 0) == prompt_on) return;
+    prompt_on = s != 0;
+    /* the last attribute slot: the prompt's sprites replace the end of the list */
+    a = attrs + ATTRS_LEN - 4 * 8;
+    {
+        uint8_t i;
+        for (i = 0; i < 8; i++, a += 4) {
+            if (prompt_on && i < msg_n[1]) {
+                int16_t x = 96 + i * 16;
+                a[0] = (uint8_t)x;
+                a[1] = 180;
+                a[2] = (uint8_t)(x >> 8) & 1;
+                a[3] = 0x80 | (P_TEXT + 8 + i);
+            }
+            else a[3] = 0;
+        }
+    }
+}
+
 /* ------------------------------------------------------------ the frame */
 
 static uint8_t copper_ready;
@@ -514,6 +545,8 @@ void view_static_screen(GameState *gs)
     memset(attrs, 0, ATTRS_LEN);
     msg_n[0] = msg_n[1] = 0;
     msg_text = 0;
+    prompt_text = 0;
+    prompt_on = 0;
     tm_scroll_x = (uint16_t)(FROM_FP(gs->viewport_x) / 4) % 320;
     copper_ready = 1;
 }

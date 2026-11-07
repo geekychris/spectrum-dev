@@ -21,6 +21,7 @@ void view_play_screen(GameState *gs);   /* a new playfield: scanner, terrain, HU
 void view_prepare(GameState *gs);       /* the frame: scroll, terrain columns, scanner, HUD, sprites */
 void view_commit(void);                 /* in the vertical blank */
 void view_message(WORD level, const char *msg);   /* "WAVE n" + msg as sprite text; NULL hides */
+void view_prompt(const char *s);        /* one line of sprite text at y 180 (game over); NULL hides */
 /* static screens (no scroll, no sprites): cleared to the sky (stars show) */
 void view_static_screen(GameState *gs);
 void view_text(int16_t sx, uint8_t y, const char *s, uint8_t colour);   /* on the screen as seen */

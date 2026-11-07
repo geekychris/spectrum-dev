@@ -239,13 +239,13 @@ if "--gif" in sys.argv:
             held = steer(e, tuple(decide(read_gs(e), False)), held)
             e.run(1)
         frames = []
-        for k in range(240):
+        for k in range(150):
             held = steer(e, tuple(decide(read_gs(e), False)), held)
             e.run(1)
             if k % 2 == 0:
                 frames.append(e.screenshot().convert("RGB"))
         frames[0].save(ROOT / "docs" / "images" / "orbital_patrol.gif", save_all=True,
-                       append_images=frames[1:], loop=0, duration=40)
+                       append_images=frames[1:], loop=0, duration=40, optimize=True)
         print("  docs/images/orbital_patrol.gif")
 
 print(f"{'FAIL' if failures else 'PASS'}: orbital_patrol")

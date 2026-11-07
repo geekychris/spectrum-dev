@@ -125,6 +125,7 @@ static void log_changes(void)
 /* ------------------------------------------------------------ screens */
 
 static char line[32];
+static uint8_t blink_shown = 0xFF;          /* the title's prompt as drawn */
 
 static char *num(char *p, LONG v, uint8_t digits)
 {
@@ -153,12 +154,15 @@ static void title_screen(void)
     strcpy(line, "HI SCORE  ");
     num(line + 10, gs.hiscore, 7);
     view_text(80, 220, line, C_CYAN);
+    blink_shown = 0xFF;
     zx_log("op: title\n");
 }
 
 static void title_blink(void)
 {
     uint8_t on = (gs.frame / 15) & 1;      /* the original's blinking prompt */
+    if (on == blink_shown) return;
+    blink_shown = on;
     view_fill(80, 185, 160, 8, C_SKY);
     if (on) view_text(80, 185, "PRESS FIRE TO START", C_YELLOW);
 }
@@ -312,6 +316,7 @@ int main(void)
                 gameover_overlay();
                 zx_log("op: gameover score=%ld level=%d\n", gs.score, gs.level);
             }
+            view_prompt(((gs.frame / 15) & 1) ? "PRESS FIRE" : 0);   /* blinks (sprite text) */
             break;
         case STATE_HISCORE_ENTRY: {
             int8_t place = hs_rank((uint32_t)gs.score);
