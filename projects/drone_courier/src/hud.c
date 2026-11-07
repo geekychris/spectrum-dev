@@ -122,8 +122,8 @@ void hud_init(void)
         pal_set(2, (PAL_DRONE + k) * 16 + 2, RGB9(4, 4, 4));
         pal_set(2, (PAL_DRONE + k) * 16 + 4, RGB9(2, 2, 2));
     }
-    pal_set(2, PAL_DRONE * 16 + 5, RGB9(5, 4, 2));          /* 0xB85 */
-    pal_set(2, (PAL_DRONE + 1) * 16 + 5, RGB9(7, 2, 2));    /* 0xE44 */
+    pal_set(2, (uint8_t)(PAL_DRONE * 16 + 5), RGB9(5, 4, 2));          /* 0xB85 */
+    pal_set(2, (uint8_t)((PAL_DRONE + 1) * 16 + 5), RGB9(7, 2, 2));    /* 0xE44 */
 }
 
 /* the drone's frame into patterns 112..121 (from its page, through slot 2),

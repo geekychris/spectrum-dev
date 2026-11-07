@@ -516,7 +516,7 @@ void view_scene(const DCGame *g, uint16_t cam_yaw)
 
     l2p_begin();
     sky_ground(hz);
-    for (b = NB - 1;; b--) {
+    for (b = (uint8_t)(NB - 1);; b--) {
         for (k = bhead[b]; k != NIL; k = pool[k].next) {
             if (pool[k].n & 0x80) fastpoly(&pool[k]);        /* wholly on the screen (view_asm.asm) */
             else l2p_poly(pool[k].xy, pool[k].n, pool[k].col);
