@@ -6,6 +6,8 @@
 
 Game g;
 PcView pv;
+uint8_t pc_bot;                  /* test: the bot steers (game.c bot_update) */
+uint16_t bot_key;
 uint8_t crumb[CELLS], key[CELLS];
 int16_t nest_dist[CELLS];
 uint8_t mz_open[CELLS];

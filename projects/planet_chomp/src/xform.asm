@@ -12,7 +12,9 @@
 ; the constant is the row's start value and the last term is a subtraction
 ; from the high byte for each negative coefficient (patched in or out).
 ;
-; Then per corner: round the back (horizon dot < xf_thr): hidden. Else the
+; Then per corner: round the back (horizon dot < xf_thr) or below the bottom
+; of the screen (a fifth row: the dot with the bottom edge's plane < xf_thr_bot,
+; with a margin for walls that cross it): hidden. Else the
 ; rotated direction q (Q14), the ground point b = 3/16 q - C (Q8: the
 ; planet's radius is 12) and the top t = b + 3/256 q (+ 0.75), each
 ; projected with the scale table (focal * 16384 / z) into a 16-byte Corner
@@ -22,7 +24,7 @@ SECTION BANK_18
 
 PUBLIC _xf_setup, _xf_corners
 PUBLIC row_x, row_y, row_z     ; for draw.asm (wall side normals)
-EXTERN _xf_m8, _xf_chat, _xf_c, _xf_thr, _rd_recip, _rd_corner8
+EXTERN _xf_m8, _xf_chat, _xf_c, _xf_thr, _xf_bot8, _xf_thr_bot, _rd_recip, _rd_corner8
 
 CN_BASE equ 0x4000
 NCORNERS equ 488
@@ -45,6 +47,9 @@ CY equ 96
 _xf_setup:
     ld hl,_xf_chat
     ld de,row_pre
+    call setup_row
+    ld hl,_xf_bot8
+    ld de,row_bot
     call setup_row
     ld hl,_xf_m8 + 6
     ld de,row_z
@@ -169,6 +174,12 @@ xc_loop:
     or a
     sbc hl,de
     jp c,xc_next                ; dot < threshold (both positive here)
+    call row_bot                ; below the bottom of the screen (with a margin)?
+    push bc                     ; (B, C: the direction, for the rows below)
+    ld bc,(_xf_thr_bot)
+    call cmp_signed
+    pop bc
+    jp c,xc_next
     call row_z
     ld (qz),hl
     call row_x
@@ -269,6 +280,30 @@ xc_next:
 
 ; the row blocks (see above), patched by xf_setup
 row_pre:
+    ld hl,0
+    ld d,0
+    ld e,b
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,c
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,ixl
+    mul d,e
+    add hl,de
+    ld a,h
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    ld h,a
+    ret
+
+row_bot:
     ld hl,0
     ld d,0
     ld e,b

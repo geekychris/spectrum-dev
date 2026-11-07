@@ -31,6 +31,7 @@ static void mover_place(Mover *m, int16_t cell, const V3 *facing)
     int16_t d = v3_dot(facing, DIR(cell));
     V3 t;
     m->from = cell; m->to = -1; m->prev = -1; m->t = 0; m->moving = 0; m->exitk = -1; m->hd_k = -1;
+    m->dc_from = -1;
     v3_scale(&t, DIR(cell), d);
     v3_sub(&t, facing, &t);
     v3_norm(&m->heading, &t);
@@ -41,7 +42,10 @@ void mover_dir(V3 *r, const Mover *m)
     const V3 *a, *b;
     int16_t t;
     V3 p;
+    Mover *mc = (Mover *)m;
     if (!m->moving) { *r = *DIR(m->from); return; }
+    /* port: the same answer for the same position (asked several times a tick) */
+    if (m->dc_from == m->from && m->dc_to == m->to && m->dc_t == m->t) { *r = m->dc_dir; return; }
     t = (int16_t)(m->t >> 2);                            /* Q14 */
     a = DIR(m->from);
     b = DIR(m->to);
@@ -49,6 +53,10 @@ void mover_dir(V3 *r, const Mover *m)
     p.y = a->y + mulq14(b->y - a->y, t);
     p.z = a->z + mulq14(b->z - a->z, t);
     v3_norm(r, &p);
+    mc->dc_from = m->from;
+    mc->dc_to = m->to;
+    mc->dc_t = m->t;
+    mc->dc_dir = *r;
 }
 
 int16_t mover_nearest(const Mover *m) { return m->moving && m->t > 32768 ? m->to : m->from; }
@@ -225,7 +233,47 @@ static int8_t bot_choose(int16_t c)
     }
 }
 
-int8_t bot_exit(int16_t c) { return bot_choose(c); }
+/* port: the test's bot plays with the keys the autopilot would choose: the
+   direction on screen of its next exit (worked out once a cell), or the way
+   back when the original's dodge would turn round (bot_key, main memory) */
+static int16_t bot_cell = -1;
+static int8_t bot_k;
+
+void bot_update(void)
+{
+    V3 t, r, p, gd, u;
+    int16_t dx, dy, d, c;
+    uint8_t i;
+    bot_key = 0;
+    if (!pc_bot || g.state != GS_PLAYING) { bot_cell = -1; return; }
+    t.x = t.y = t.z = 0;
+    if (g.player.moving) {                       /* bot_dodge: a spook close ahead */
+        mover_dir(&p, &g.player);
+        for (i = 0; i < 4; i++) {
+            Ghost *gh = &g.ghost[i];
+            if (!ghost_dangerous(gh) || gh->mode == GM_NEST) continue;
+            mover_dir(&gd, &gh->mv);
+            d = v3_dot(&gd, &p);
+            if (d < 15960) continue;
+            v3_scale(&u, &p, d);
+            v3_sub(&u, &gd, &u);
+            if (v3_zero(&u)) continue;
+            v3_norm(&u, &u);
+            if (v3_dot(&u, &g.player.heading) > 8192) { v3_scale(&t, &g.player.heading, -ONE14); break; }
+        }
+    }
+    if (v3_zero(&t)) {
+        c = g.player.moving ? g.player.to : g.player.from;
+        if (c != bot_cell) { bot_cell = c; bot_k = bot_choose(c); }
+        if (bot_k < 0) return;
+        mz_tan(&t, c, (uint8_t)bot_k);
+    }
+    v3_cross(&r, &g.cam.focus, &g.cam.up);
+    dx = v3_dot(&t, &r);
+    dy = v3_dot(&t, &g.cam.up);
+    if ((dx < 0 ? -dx : dx) > (dy < 0 ? -dy : dy)) bot_key = dx > 0 ? PAD_RIGHT : PAD_LEFT;
+    else bot_key = dy > 0 ? PAD_UP : PAD_DOWN;
+}
 
 static void bot_dodge(void)
 {
@@ -422,10 +470,10 @@ static void ghost_tick(Ghost *gh)
     mover_advance(&gh->mv, speed / 50, ghost_choose, ghost_arrived, gh);
 }
 
-void ghost_world(V3 *r, const Ghost *gh)
+/* the sprite centre for a spook whose direction is n */
+static void ghost_world_n(V3 *r, const Ghost *gh, const V3 *pn)
 {
-    V3 n, t;
-    mover_dir(&n, &gh->mv);
+    V3 n = *pn, t;
     v3_scale(r, &n, PLANET_R + Q8(0.52));
     if (gh->mode == GM_NEST) {
         /* huddle round the nest, bobbing */
@@ -437,6 +485,13 @@ void ghost_world(V3 *r, const Ghost *gh)
         v3_scale(&t, &n, lift);
         v3_add(r, r, &t);
     }
+}
+
+void ghost_world(V3 *r, const Ghost *gh)
+{
+    V3 n;
+    mover_dir(&n, &gh->mv);
+    ghost_world_n(r, gh, &n);
 }
 
 void player_world(V3 *r)
@@ -458,7 +513,7 @@ void game_view(void)
     v3_add(&pv.pfront, &pv.pworld, &t);
     for (i = 0; i < 4; i++) {
         mover_dir(&pv.gdir[i], &g.ghost[i].mv);
-        ghost_world(&pv.gworld[i], &g.ghost[i]);
+        ghost_world_n(&pv.gworld[i], &g.ghost[i], &pv.gdir[i]);
     }
 }
 

@@ -37,6 +37,8 @@ int8_t xf_chat[3];
 int16_t xf_thr;                       /* corners below this dot (Q14) are round the back */
 int16_t xf_thr_wall, xf_thr_crumb;    /* the same for a wall (its corners' mean), a crumb */
 int8_t xf_fwd8[3];                    /* the view direction, Q7 (wall shading) */
+int8_t xf_bot8[3];                    /* the bottom edge's plane: its normal, Q7 */
+int16_t xf_thr_bot;                   /* ... and the corners' dot below which they're under it */
 int8_t xf_m8[3][3];                   /* the rows in Q7 (xform.asm) */
 #ifdef XF_ASM
 void xf_setup(void);                  /* xform.asm: puts this camera into its code */
@@ -95,6 +97,7 @@ void xf_corners(void)
         c->dot = dot;
         c->vis = 0;
         if (dot < xf_thr) continue;
+        if (d[0] * xf_bot8[0] + d[1] * xf_bot8[1] + d[2] * xf_bot8[2] < xf_thr_bot) continue;
         for (r = 0; r < 3; r++)
             q[r] = d[0] * xf_m8[r][0] + d[1] * xf_m8[r][1] + d[2] * xf_m8[r][2];
         for (r = 0; r < 3; r++) {
@@ -219,6 +222,19 @@ static void camera(void)
         xf_m8[1][i] = q7((&cup.x)[i]);
         xf_m8[2][i] = q7((&fwd.x)[i]);
     }
+    /* port: the plane through the camera and the screen's bottom edge, normal
+       focal * up + 96 * forward (/ 219); corners more than 2.5 units below
+       it are skipped (a wall crossing it has both corners within a cell) */
+    {
+        V3 w, a;
+        int16_t wc;
+        v3_scale(&w, &cup, 14723);
+        v3_scale(&a, &fwd, 7182);
+        v3_add(&w, &w, &a);
+        for (i = 0; i < 3; i++) xf_bot8[i] = q7((&w.x)[i]);
+        wc = v3_dot(&w, &rd_campos);                                  /* Q8 */
+        xf_thr_bot = (int16_t)(((int32_t)(wc - Q8(2.5)) << 14) / PLANET_R);
+    }
     xf_setup();
     dsq = mul16(rd_campos.x >> 4, rd_campos.x >> 4) + mul16(rd_campos.y >> 4, rd_campos.y >> 4) +
           mul16(rd_campos.z >> 4, rd_campos.z >> 4);
@@ -277,18 +293,19 @@ static void add_wall(int16_t e)
 static void add_crumb(int16_t c)
 {
     const uint16_t *cc = &rd_cell_corner[c * 4];
-    const Corner *a = CN(cc[0]), *b = CN(cc[1]), *d = CN(cc[2]), *f = CN(cc[3]);
+    const Corner *a = CN(cc[0]), *d = CN(cc[2]);
     int16_t n, x, y, z, r;
-    if (!a->vis || !b->vis || !d->vis || !f->vis) return;
-    if ((a->dot >> 2) + (b->dot >> 2) + (d->dot >> 2) + (f->dot >> 2) < xf_thr_crumb) return;
+    if (!a->vis || !d->vis) return;
+    if ((a->dot >> 1) + (d->dot >> 1) < xf_thr_crumb) return;
     if (a->tx < -512 || a->tx > 767 || a->ty < -512 || a->ty > 703) return;   /* far off screen */
-    z = (a->z >> 2) + (b->z >> 2) + (d->z >> 2) + (f->z >> 2);
+    z = (a->z >> 1) + (d->z >> 1);
     n = add_item(IT_CRUMB, z);
     if (n < 0) return;
-    /* port: 3/4 of the way up the walls (0.56; the original's crumbs float
-       at 0.5, 2/3): x16 = sum b + 3 sum t, no division */
-    x = a->bx + b->bx + d->bx + f->bx + 3 * (a->tx + b->tx + d->tx + f->tx);
-    y = a->by + b->by + d->by + f->by + 3 * (a->ty + b->ty + d->ty + f->ty);
+    /* port: between two corners across the cell, 3/4 of the way up the
+       walls (0.56; the original's crumbs float at 0.5, 2/3): x16 = 2 (sum b
+       + 3 sum t), no division */
+    x = 2 * (a->bx + d->bx + 3 * (a->tx + d->tx));
+    y = 2 * (a->by + d->by + 3 * (a->ty + d->ty));
     r = tsize(z);                                         /* 1/16 px */
     if (r < 8) r = 8;
     it_a[n] = (x - r) >> 4;                  /* left, top, size */
@@ -298,6 +315,7 @@ static void add_crumb(int16_t c)
     it_col[n] = C_CRUMB;
     rd_stats_crumbs++;
 }
+
 #endif
 
 /* the nest: a flat violet disc on the surface (precomputed rim directions);

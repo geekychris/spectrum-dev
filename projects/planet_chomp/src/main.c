@@ -74,6 +74,7 @@ static uint32_t line_clock(void)
     return (uint32_t)f * 312 + (r >= 248 ? r - 248 : r + 64);
 }
 static uint32_t prof_t, prof[4], rprof[5];
+static uint16_t perf_ticks;
 void rd_lap(uint8_t k)
 {
     uint32_t t = line_clock();
@@ -96,6 +97,7 @@ static uint16_t extra_keys(void)
     if (key_down(IN_KEY_SCANCODE_x)) b |= PAD_R;
     if (key_down(IN_KEY_SCANCODE_c)) b |= PAD_C;
     if (key_down(IN_KEY_SCANCODE_h)) b |= PAD_P;
+    if (key_down(IN_KEY_SCANCODE_b)) b |= 0x8000;         /* B: the bot (tests) */
     return b;
 }
 
@@ -146,7 +148,9 @@ int main(void)
         prof_t = line_clock();
         l2_flip();
         act_commit();
-        if (ticks > 4) ticks = 4;
+        lap(3);
+        if (ticks > 8) ticks = 8;                    /* the game's speed holds down to 6 fps */
+        perf_ticks += ticks;
         LOGIC();
         if (entering) {                              /* the initials: the keys are the editor's */
             uint8_t r;
@@ -167,6 +171,12 @@ int main(void)
             held |= extra;
             pressed |= extra & ~extra_last;
             extra_last = extra;
+            if (pressed & 0x8000) {                  /* port: B lets the autopilot play (the test's bot) */
+                pc_bot = !pc_bot;
+                zx_log("pc: bot=%u\n", pc_bot);
+            }
+            held &= 0x7FFF;
+            pressed &= 0x7FFF;
         }
         for (i = 0; i < ticks; i++) {
             game_step(held, pressed);
@@ -186,6 +196,7 @@ int main(void)
             if (g.state == GS_TITLE) zx_log("pc: title\n");
             last_state = g.state;
         }
+        bot_update();
         game_view();
         lap(0);
         l2_copy_to_back(STARS_BANK);
@@ -260,14 +271,17 @@ int main(void)
         HUD();
         if (entering) hud_entry(ed.name, ed.pos, (uint8_t)place);
         else hud_update();
+        if ((frames & 7) == 7)                       /* the test checks the music and effects play */
+            zx_log("pc: ay vol0=%u vol1=%u vol2=%u\n", snd_reg(0, 8) & 15, snd_reg(1, 8) & 15, snd_reg(2, 8) & 15);
         if (++frames == 50) {
             uint16_t f = irq_frames - fps_t0;
-            zx_log("pc: perf fps10=%u lines/frame: logic=%lu stars=%lu draw=%lu walls=%d crumbs=%d\n",
-                   (uint16_t)(500UL * 50 / f), prof[0] / 50, prof[1] / 50, prof[2] / 50, rd_stats_walls,
-                   rd_stats_crumbs);
+            zx_log("pc: perf fps10=%u lines/frame: commit=%lu logic=%lu stars=%lu view=%lu walls=%d crumbs=%d ticks=%u\n",
+                   (uint16_t)(500UL * 50 / f), prof[3] / 50, prof[0] / 50, prof[1] / 50, prof[2] / 50, rd_stats_walls,
+                   rd_stats_crumbs, perf_ticks);
+            perf_ticks = 0;
             zx_log("pc: perf draw lines/frame: camera=%lu corners=%lu crumbs=%lu walls=%lu fill=%lu\n",
                    rprof[0] / 50, rprof[1] / 50, rprof[2] / 50, rprof[3] / 50, rprof[4] / 50);
-            prof[0] = prof[1] = prof[2] = 0;
+            prof[0] = prof[1] = prof[2] = prof[3] = 0;
             rprof[0] = rprof[1] = rprof[2] = rprof[3] = rprof[4] = 0;
             frames = 0;
             fps_t0 = irq_frames;

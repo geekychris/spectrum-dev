@@ -16,11 +16,11 @@ static void place(uint8_t a, const V3 *p, uint8_t tex, int16_t half)
     Act *ac = &act[a];
     int16_t sx, sy, z, d, best = 0x7FFF;
     uint8_t s, k;
-    V3 dir;
     ac->show = 0;
     if (half <= 0) return;
-    v3_norm(&dir, p);
-    if (rd_horizon(&dir) < PLANET_R - Q8(0.5)) return;          /* round the far side */
+    /* round the far side: dir . C < R - 0.5, with p = dir (R + ~0.5) (port: no
+       normalising) */
+    if (v3_dot32(p, &rd_campos) < (int32_t)(PLANET_R - Q8(0.5)) * (PLANET_R + Q8(0.5))) return;   /* (Q16) */
     if (!rd_project(p, &sx, &sy, &z)) return;
     d = (rd_size16(half, z) + 4) >> 3;                          /* pixels across */
     s = 0;
@@ -68,6 +68,8 @@ static void radar_dot(uint8_t i, const V3 *d, const V3 *cr, uint8_t pat)
     dot[i].y = 214 - (int16_t)(mul16(y, 30) >> 14);
     dot[i].pat = pat;
 }
+
+static uint8_t radar_phase;
 
 void rd_sprites(void)
 {
@@ -117,10 +119,15 @@ void rd_sprites(void)
         pop[i].y = 32 + sy - 8 - 8 - g.popup[i].age * 2 / 5;
         pop[i].pat = g.popup[i].pts == 200 ? 1 : g.popup[i].pts == 400 ? 2 : g.popup[i].pts == 800 ? 3 : 4;
     }
-    /* the radar */
+    /* the radar (port: every 4th frame) */
+    i = g.lives - ((g.state == GS_READY || g.state == GS_PLAYING) ? 1 : 0);
+    lives_shown = g.state == GS_TITLE || g.state == GS_OVER ? 0 : i > 8 ? 8 : i;
+    if (g.state == GS_TITLE || g.state == GS_OVER) {
+        for (i = 0; i < DOT_N; i++) dot[i].pat = 0;
+        return;
+    }
+    if (++radar_phase & 3) return;
     for (i = 0; i < DOT_N; i++) dot[i].pat = 0;
-    lives_shown = 0;
-    if (g.state == GS_TITLE || g.state == GS_OVER) return;
     v3_cross(&cr, &g.cam.focus, &g.cam.up);
     v3_norm(&cr, &cr);
     for (i = 0; i < 4; i++)
@@ -133,6 +140,4 @@ void rd_sprites(void)
     dot[n].x = 282;
     dot[n].y = 214;
     dot[n].pat = DOT_HERO + 1;
-    i = g.lives - ((g.state == GS_READY || g.state == GS_PLAYING) ? 1 : 0);
-    lives_shown = i > 8 ? 8 : i;
 }

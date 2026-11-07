@@ -32,7 +32,8 @@ extern const Edge ed_rec[EDGES];                 /* rtab_b.c */
 /* the camera for xform.asm, set by render.c */
 extern vec3 xf_m[3], xf_c;
 extern int8_t xf_chat[3], xf_fwd8[3];
-extern int16_t xf_thr, xf_thr_wall, xf_thr_crumb;
+extern int16_t xf_thr, xf_thr_wall, xf_thr_crumb, xf_thr_bot;
+extern int8_t xf_bot8[3];
 void xf_corners(void);
 
 #ifdef __SDCC

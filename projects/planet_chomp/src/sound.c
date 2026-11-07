@@ -5,7 +5,9 @@
  * snd_tick once per frame that passed.
  */
 #include <stdint.h>
+#include <z80.h>
 #include "aystream.h"
+#include "nextgfx.h"
 #include "game.h"
 #include "sound_data.h"
 #include "sound.h"
@@ -54,3 +56,14 @@ void snd_title(uint8_t on)
 }
 
 void snd_tick(void) { as_tick(); }
+
+/* an AY register of chip c (the test checks the music and effects play) */
+uint8_t snd_reg(uint8_t c, uint8_t r)
+{
+    uint8_t v;
+    ay_chip(c);
+    z80_outp(0xFFFD, r);
+    v = z80_inp(0xFFFD);
+    ay_chip(0);
+    return v;
+}

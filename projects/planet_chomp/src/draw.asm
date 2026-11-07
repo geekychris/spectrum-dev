@@ -92,8 +92,8 @@ ni_b:
 
 ; ---------------------------------------------------------------- crumbs
 
-; void rd_crumbs(void): every crumb between four shown corners on this side of
-; the horizon (page 39, the cells' corners, in slot 3)
+; void rd_crumbs(void): every crumb between two shown corners (across its
+; cell) on this side of the horizon (page 39, the cells' corners, in slot 3)
 _rd_crumbs:
     push ix
     push iy
@@ -110,6 +110,28 @@ cr_loop:
     ld (cr_flag),hl
     or a
     jp z,cr_next
+    ld hl,(cr_cc)               ; both corners shown? (before any sums)
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    ld a,12
+    add a,e
+    ld e,a
+    ld a,(de)
+    or a
+    jp z,cr_next
+    inc hl
+    inc hl
+    inc hl
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    ld a,12
+    add a,e
+    ld e,a
+    ld a,(de)
+    or a
+    jp z,cr_next
     ld hl,0
     ld (s_dot),hl
     ld (s_z),hl
@@ -118,31 +140,29 @@ cr_loop:
     ld (s_tx),hl
     ld (s_ty),hl
     ld hl,(cr_cc)
-    ld b,4
+    ld b,2                      ; two corners across the cell (0 and 2)
 cr_corner:
     ld e,(hl)
     inc hl
     ld d,(hl)
     inc hl
+    inc hl
+    inc hl                      ; (skip the next corner)
     push hl
     push de
     pop iy
     ld a,(iy+12)
     or a
     jp z,cr_hidden
-    ld l,(iy+10)                ; s_dot += dot >> 2
+    ld l,(iy+10)                ; s_dot += dot >> 1
     ld h,(iy+11)
-    sra h
-    rr l
     sra h
     rr l
     ld de,(s_dot)
     add hl,de
     ld (s_dot),hl
-    ld l,(iy+8)                 ; s_z += z >> 2
+    ld l,(iy+8)                 ; s_z += z >> 1
     ld h,(iy+9)
-    srl h
-    rr l
     srl h
     rr l
     ld de,(s_z)
@@ -176,7 +196,7 @@ cr_corner:
     or a
     sbc hl,de
     jp c,cr_next
-    ; 3/4 of the way up: x16 = sum b + 3 sum t (render.c)
+    ; 3/4 of the way up: x16 = 2 (sum b + 3 sum t) over the two corners (render.c)
     ld hl,(s_tx)
     ld d,h
     ld e,l
@@ -184,6 +204,7 @@ cr_corner:
     add hl,de
     ld de,(s_bx)
     add hl,de
+    add hl,hl
     ld (s_bx),hl                ; x16
     ld hl,(s_ty)
     ld d,h
@@ -192,6 +213,7 @@ cr_corner:
     add hl,de
     ld de,(s_by)
     add hl,de
+    add hl,hl
     ld (s_by),hl                ; y16
     ; radius in 1/16 px
     ld hl,(s_z)
@@ -336,6 +358,13 @@ wl_loop:
     inc hl
     ld d,(hl)
     inc hl
+    ld a,e                      ; corner A shown? (records are 16-aligned: +12 doesn't carry)
+    add a,12
+    ld c,a
+    ld b,d
+    ld a,(bc)
+    or a
+    jp z,wl_loop
     ld (w_a),de
     ld e,(hl)
     inc hl

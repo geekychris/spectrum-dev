@@ -30,6 +30,9 @@ typedef struct {
     V3      heading;                /* Q14 */
     int16_t hd_from;                /* port: the edge heading was last set from */
     int8_t  hd_k;
+    int16_t dc_from, dc_to;         /* port: mover_dir's last answer, for that from, to, t */
+    int32_t dc_t;
+    V3      dc_dir;
 } Mover;
 
 typedef struct {
@@ -99,9 +102,12 @@ typedef struct {
 extern PcView pv;
 void game_view(void);
 
-/* port: the autopilot's choice at cell c (the original's bot_choose), for
-   the test's bot, which steers with the keys */
-int8_t bot_exit(int16_t c);
+/* port: for the test's bot, which steers with the keys: with pc_bot set,
+   bot_update (after the logic) leaves the pad direction the autopilot (the
+   original's bot_choose / bot_dodge) wants in bot_key */
+extern uint8_t pc_bot;
+extern uint16_t bot_key;
+void bot_update(void);
 
 /* the original's sfx.h (sound.c) */
 enum { SFX_CRUMB_A, SFX_CRUMB_B, SFX_KEY, SFX_EAT, SFX_DEATH, SFX_START, SFX_CLEAR, SFX_EXTRA,
