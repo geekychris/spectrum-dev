@@ -78,47 +78,27 @@ void tm_font(uint8_t tile, const uint8_t *font, uint8_t n, uint8_t fg, uint8_t b
     }
 }
 
-static uint8_t px[32][32];
-
-/* the glyph's pixels as n x n blocks of pen, offset by (off, off), clipped */
-static void blocks(const uint8_t *glyph, uint8_t n, uint8_t size, uint8_t off, uint8_t pen)
+void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow)
 {
-    uint8_t gx, gy, y0, x0, i, j;
-    for (gy = 0, y0 = off; gy < 8; gy++, y0 += n) {
-        uint8_t bits = glyph[gy];
-        for (gx = 0, x0 = off; bits; gx++, x0 += n, bits <<= 1) {
-            if (!(bits & 0x80)) continue;
-            for (j = y0; j < y0 + n && j < size; j++)
-                for (i = x0; i < x0 + n && i < size; i++) px[j][i] = pen;
-        }
-    }
-}
-
-void tm_glyphnx(uint8_t tile, const uint8_t *glyph, uint8_t n, uint8_t fg, uint8_t shadow, uint8_t off)
-{
-    static uint8_t def[32];
-    uint8_t *d, x, y, t, size;
-    if (n < 1 || n > 4) return;
-    size = n << 3;
+    static uint8_t px[16][16];
+    uint8_t *d, x, y, t;
     memset(px, 0, sizeof(px));
-    if (shadow) blocks(glyph, n, size, off, shadow);
-    blocks(glyph, n, size, 0, fg);
-    for (t = 0; t < n * n; t++) {
-        uint8_t ox = (t % n) << 3, oy = (t / n) << 3;
+    for (y = 0; y < 16; y++)
+        for (x = 0; x < 16; x++)
+            if (glyph[y >> 1] & (0x80 >> (x >> 1))) {
+                if (shadow && x < 14 && y < 14 && !px[y + 2][x + 2]) px[y + 2][x + 2] = shadow;
+                px[y][x] = fg;
+            }
+    for (t = 0; t < 4; t++) {
+        static uint8_t def[32];
+        uint8_t ox = (t & 1) << 3, oy = (t & 2) << 2;
         d = def;
-        for (y = 0; y < 8; y++) {
-            const uint8_t *r = &px[oy + y][ox];
-            for (x = 0; x < 8; x += 2) *d++ = r[x] << 4 | r[x + 1];
-        }
+        for (y = 0; y < 8; y++)
+            for (x = 0; x < 8; x += 2) *d++ = px[oy + y][ox + x] << 4 | px[oy + y][ox + x + 1];
         map_in();
         memcpy(def_ptr(tile + t), def, 32);
         map_out();
     }
-}
-
-void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow)
-{
-    tm_glyphnx(tile, glyph, 2, fg, shadow, 2);
 }
 
 void tm_put(uint8_t col, uint8_t row, uint8_t tile, uint8_t pal)
