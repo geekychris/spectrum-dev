@@ -15,7 +15,7 @@ the games in `projects/`:
 
 ## What the games did on each
 
-**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander): every pixel is drawn by the CPU, and
+**48K** (Nova Defense, Frank the Frog, Rock Blaster, Uranus Lander, Sky Knights): every pixel is drawn by the CPU, and
 the CPU is slow, so the work goes into drawing less:
 
 - sprites pre-shifted into 8 copies so a draw is byte moves, written in
@@ -23,18 +23,24 @@ the CPU is slow, so the work goes into drawing less:
   lane objects)
 - colour from attributes: objects are laid out on 8-pixel rows so each lane
   or row has its own colours (Frank's lanes are two character rows)
-- only what moved is redrawn (Nova's shields, Frank's trails), and Frank
-  draws half the lanes each frame
+- only what moved is redrawn (Nova's shields, Frank's trails, Sky Knights'
+  knights), and Frank draws half the lanes each frame
 - vector graphics as XOR wireframes (Rock Blaster, sdk `line48`): drawing a
   shape twice erases it, so each frame redraws only the shapes that moved,
   straight onto the screen; shapes are compiled polygons (each edge's octant
   and length worked out at start-up) and the ship has one for each of 128
   angles
+- Sky Knights keeps the original's 320 x 256 world and 16-bit fixed point
+  and only scales the drawing; its every-frame loops are assembly that
+  calls the original C for rare events, checked against the C tick for tick
 - tables built at start-up can go in the RAM below the program
-  (0x5D00-0x7FFF once the BASIC loader is done), as Rock Blaster's do
+  (0x5D00-0x7FFF once the BASIC loader is done), as Rock Blaster's and Sky
+  Knights' do; it is contended, so code stays out of it (Sky Knights' C ran
+  ~40% slower there)
 - the game logic runs at a fixed 50 Hz while the screen updates when it can
-  (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40, Uranus Lander ~26),
-  so the games play at the original speed
+  (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40, Uranus Lander ~26,
+  Sky Knights 50 down to 15 with eight enemies), so the games play at the
+  original speed
 - sound on the beeper (which stops the CPU), or on the AY on a 128K (Rock
   Blaster plays the original's MOD there through `modplay`)
 - Uranus Lander draws its terrain once per level from a heightmap, renders

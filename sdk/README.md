@@ -45,6 +45,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | `line48.h` | `line48.asm`, `line48.c` | 48K lines in asm: eight octant Bresenham loops (~80 T-states a pixel), XOR / OR / CLEAR, `line_draw`, `line_clip` (int16, clipped), `line_poly` (wraps around the screen: x mod 256, y mod 192), `plot_list`; compiled polygons (`poly_compile` / `poly_draw`, ~200 T-states an edge less) and an XOR display list (`poly_sync`: redraw only what moved). Row table at 0xF200-0xF3FF |
 | `vec48.h` | `vec48.c` | vector shapes for line48: `vec_rotate`, `vec_scale`, rotation tables (`vec_rot_table`, compiled: `vec_poly_table`) |
 | `hit48.h` | `hit48.asm`, `hit48.c` | circle collisions in asm: `hit_first(x, y, r, list, n)` against a list of {x, y, r, id} (16-bit coordinates) |
+| `sprclip.h` | `sprclip.asm` | 48K: XOR a pre-shifted sprite at a signed x, clipped at both edges and the bottom (objects that wrap or slide off the left); ~2300 T-states for 16 x 16; `asm_sprc_xor` for assembly callers |
 | `modplay.h` | `modplay.c` | plays a MOD converted by `tools/mod2ay.py`: four channels routed to TurboSound chips, tone / noise / kick instruments; leaves free channels to `ay_sfx` |
 | `fixmath.h` | `fixmath.asm`, `fixmath.c` | 16-bit fixed point for physics: `mul16` (16x16 -> 32, MUL on the Z80N), `mulq14`, `mulq8`, `isqrt32`, `div_q14`; inline C on a host compiler for host tests |
 | | `fixmath_sin14.c`, `fixmath_muls.asm` | `fix_sin14` / `fix_cos14` (Q14 table), `muls` (fast multiply by a small factor, shift-and-add) |

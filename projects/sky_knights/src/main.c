@@ -737,7 +737,8 @@ int main(void)
         /* draw what the last tick left */
         if (gs.state == STATE_PLAYING) { draw_sprites(); draws++; }
         else if (gs.state == STATE_TITLE) title_anim();
-        if (hud_check) { hud(0); hud_check = 0; }
+        if (hud_check && (gs.state == STATE_PLAYING || gs.state == STATE_WAVE_INTRO)) hud(0);
+        hud_check = 0;
 
         rd_end = rd_n + ticks;
         while (rd_n != rd_end) {

@@ -12,6 +12,7 @@
 #include "line48.h"
 #include "vec48.h"
 #include "hit48.h"
+#include "sprclip.h"
 
 #define FRAMES frame_ticks       /* counted by the SDK's IM 2 handler */
 
@@ -141,6 +142,14 @@ int main(void)
     spr_xor(100, 50, bar_pre, 2, 4);
     spr_xor(100, 50, bar_pre, 2, 4);
     spr_xor(250, 60, bar_pre, 2, 4);         /* clipped at the right edge */
+    /* sprclip.h: signed x, clipped at both edges and the bottom */
+    sprc_xor(-5, 70, bar_pre, 2, 4);
+    sprc_xor(250, 80, bar_pre, 2, 4);
+    sprc_xor(120, 90, bar_pre, 2, 4);
+    sprc_xor(120, 90, bar_pre, 2, 4);        /* erased again */
+    sprc_xor(-24, 100, bar_pre, 2, 4);       /* all off the left: nothing */
+    sprc_xor(256, 100, bar_pre, 2, 4);       /* all off the right: nothing */
+    sprc_xor(60, 190, bar_pre, 2, 4);        /* two lines left at the bottom */
     text_big(2, 10, "BIG");
     text_num(2, 14, 1234567, 8);
     gfx_fill_rect(20, 100, 4, 8, 0xAA);

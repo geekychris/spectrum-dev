@@ -163,6 +163,14 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   no frame missed in the test (bot match to full time, two-player match,
   replays). SDK: input2, nextsplit, sprg_show_ex/sprg_hide,
   palfx_load_bytes, copper lists by DMA; tests in projects/splittest.
+- **Sky Knights** (48K): the original's rules in its 320 x 256 world with 1/64-pixel
+  16-bit fixed point, drawn at 4/5 x 3/4; one or two players (input2). zsdcc's C
+  was 5-10x too slow for the per-frame work, so physics, the enemy/pod/joust loops,
+  the sprite pass and the attribute colouring are assembly calling the original C
+  for rare events; the test plays the bot's recorded ticks on a build with the C
+  loops (PHYS_IN_C) and requires the same game. Logic 50 Hz from a 64-frame input
+  ring sampled by the interrupt; screen 48-50 fps at wave 1, 15-18 with eight
+  enemies. SDK: sprclip (signed-x XOR sprites, sdktest checks).
 
 ### Cleanup (2026-11-06)
 

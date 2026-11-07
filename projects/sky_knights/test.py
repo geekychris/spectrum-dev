@@ -13,7 +13,8 @@ recorded and replayed twice (every frame hash must match). Then:
   ticks back and must log the same game, move for move
 - the 128K: the AY plays the melody
 
-Screenshots go to screenshots/; `--debug` prints the bot's state now and then.
+Screenshots go to screenshots/; `--debug` prints the bot's state now and
+then; `--gif` also makes docs/images/sky_knights.gif from the bot's game.
 """
 import random
 import re
@@ -123,10 +124,10 @@ def bot_game(e, careful_frames=6000):
         log += new
         if DEBUG and t % 250 == 0:
             print("   t", t, g["score"], g["wave"], p, len(g["enemies"]), len(g["eggs"]))
-        if "play" not in shots and t > 400 and len(g["enemies"]) >= 2:
+        if "play" not in shots and g["state"] == 1 and p["alive"] and len(g["enemies"]) >= 3 and p["y"] < 180:
             e.screenshot(SHOTS / "play.png")
             shots.add("play")
-        if "pod" not in shots and g["eggs"] and t > 300:
+        if "pod" not in shots and g["state"] == 1 and len(g["eggs"]) >= 2:
             e.screenshot(SHOTS / "pod.png")
             shots.add("pod")
         if "intro" not in shots and "state=intro wave=2" in log:
@@ -252,6 +253,16 @@ if ok:
           next((f"{a!r} vs {b!r}" for a, b in zip(asm_log.splitlines(), c_log.splitlines()) if a != b), "-"))
     print(f"  the bot's game from its {len(tape)} ticks of input: {asm_log.count('joust won')} jousts won, "
           f"{asm_log.count('knight down')} lost, {asm_log.count('pod caught')} pods, game over: {'gameover' in asm_log}")
+
+if ok and "--gif" in sys.argv:
+    with Emulator() as e:                     # the bot's game again, from its ticks
+        e.load(TAP)
+        e.run_until("sky: ready", 3000)
+        play_tape(e, tape)
+        e.run_until("sky: state=playing", 600)
+        e.run(150)
+        e.record_video(ROOT / "docs" / "images" / "sky_knights.gif", frames=500, every=2)
+        print("  docs/images/sky_knights.gif")
 
 with Emulator(machine="128k") as e:
     e.load(TAP)

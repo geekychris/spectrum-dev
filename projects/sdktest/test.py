@@ -215,6 +215,12 @@ for machine in ("48k", "128k"):
               and not px(14, 23) and not px(12, 21) and not px(29, 21))
         check("XOR twice erases", not any(px(x, y) for x in range(100, 117) for y in range(50, 54)))
         check("clipped sprite at the right edge", px(250, 60) and px(255, 60))
+        check("sprclip: off the left edge", px(0, 70) and px(10, 70) and not px(11, 70)
+              and px(10, 71) and not px(0, 71) and not px(9, 71))
+        check("sprclip: off the right edge", px(250, 80) and px(255, 80) and px(250, 81) and not px(251, 81))
+        check("sprclip: XOR twice erases", not any(px(x, y) for x in range(118, 140) for y in range(90, 94)))
+        check("sprclip: wholly off screen draws nothing", not any(px(x, 100) for x in list(range(0, 8)) + list(range(248, 256))))
+        check("sprclip: clipped at the bottom", px(60, 190) and px(75, 190) and px(60, 191) and not px(61, 191))
         check("big text drawn", sum(px(x, y) for x in range(16, 64) for y in range(80, 96)) > 100)
         ink = lambda x, y: ula.getpixel((x, y)) == (0xFF, 0xFF, 0)   # yellow ink there
         check("fill_rect pattern 0xAA", ink(160, 100) and not ink(161, 100))

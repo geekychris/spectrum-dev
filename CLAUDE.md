@@ -180,6 +180,15 @@ Details: docs/emulator-harness.md.
   (0x6000-0x7FFF) is free: `ORG := 24576` gives a C program 8K more (rotoball).
 - `./zx shot --until X --frames N` can grab a frame before the program has drawn its first
   screen; check with a Python `Emulator` and `run(n)` before chasing a missing layer.
+- 0x4000-0x7FFF is contended on the 48K/128K: code there ran ~40% slower while the screen
+  is drawn (Sky Knights at ORG 24576). Keep code from 32768 up; put tables there instead.
+- A 48K misses an interrupt now and then without any DI: the INT pulse lasts 32 T-states
+  and an instruction that straddles it (IX/IY ones take 19-23) hides it. Frame counts
+  drift by build; compare builds tick for tick (Sky Knights' tick tape), not by frame.
+- `ldir` with BC = 0 copies 64K: a zero-width rectangle wiped the IM 2 table (and the
+  game crashed into the ROM a few frames later). Guard widths of 0 in asm loops.
+- zsdcc pushes a char argument as one byte (`push af; inc sp`): an asm function with
+  (int16, char, ptr, char, char) finds them at sp+2, +4, +5, +7, +8.
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 - zsdcc: `long + 0x8000` became unsigned (`0x8000` is an unsigned int), so `(WORD)((x + 0x8000) >> 16) > 256`
   was true for x = -0.7: write `0x8000L`, and compare through a local. A function returning a pointer found
