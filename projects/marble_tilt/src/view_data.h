@@ -15,4 +15,5 @@
 extern const uint16_t view_lists[8];       /* each level's list in VIEW_LIST_PAGE (address in slot 2) */
 extern const uint8_t view_bump_page[8];    /* 0: no bumpers; 256 bytes a tilt, 32 a page */
 extern const uint16_t view_palette[128];   /* RGB333, Layer 2 0..127 */
+extern const uint8_t view_sky8[16];        /* the void's bands as fallback colours (the border) */
 #endif

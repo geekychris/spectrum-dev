@@ -225,21 +225,25 @@ static void draw_help(void)
     hud_clear();
     hud_gauge_hide();
     hud_panel(0, 0, 40, 32);
+    hud_on_panel = 1;
     hud_big_centre(BIG_BANNER, 12, tl.help == 1 ? "HOW TO PLAY" : "CONTROLS", TX_YELLOW);
     for (k = 0; k < 12; k++) hud_text(1, 6 + k * 2, help_lines[tl.help - 1][k], TX_WHITE);
     hud_text(1, 30, tl.help == 1 ? "PAGE 1 OF 2" : "PAGE 2 OF 2", TX_GREY);
     hud_text(18, 30, "H: NEXT  FIRE: PLAY", TX_YELLOW);
+    hud_on_panel = 0;
 }
 
 static void draw_hiscores(uint8_t row)
 {
     uint8_t k;
     hud_panel(8, row, 24, 9);
+    hud_on_panel = 1;
     hud_ctext(row + 1, "BEST MARBLES", TX_YELLOW);
     for (k = 0; k < HS_ENTRIES; k++) {
         sprintf(tmp, "%u  %s  %6lu", k + 1, hs_table[k].name, hs_table[k].score);
         hud_ctext(row + 3 + k, tmp, k == 0 ? TX_GREEN : TX_WHITE);
     }
+    hud_on_panel = 0;
 }
 
 static void draw_title(uint8_t blink)
@@ -251,11 +255,13 @@ static void draw_title(uint8_t blink)
         return;
     }
     hud_panel(5, 25, 30, 7);
+    hud_on_panel = 1;
     sprintf(tmp, "LEVEL %u: %s", tl.start_level, mt_level_names[tl.start_level - 1]);
     hud_ctext(26, tmp, TX_GREEN);
     hud_ctext(28, "PRESS FIRE TO PLAY", blink ? TX_YELLOW : TX_WHITE);
     sprintf(tmp, "BEST %lu   H: HOW TO PLAY", hs_table[0].score);
     hud_ctext(30, tmp, TX_GREY);
+    hud_on_panel = 0;
 }
 
 static void draw_entry(void)
@@ -264,6 +270,7 @@ static void draw_entry(void)
     char c[2] = { 0, 0 };
     hud_clear();
     hud_panel(6, 9, 28, 12);
+    hud_on_panel = 1;
     hud_ctext(10, "A HIGH SCORE!", TX_GREEN);
     sprintf(tmp, "%ld  PLACE %u", game.score, ed_place + 1);
     hud_ctext(12, tmp, TX_WHITE);
@@ -274,6 +281,7 @@ static void draw_entry(void)
         hud_text(18 + k * 2, 17, k == ed.pos ? "-" : " ", TX_YELLOW);
     }
     hud_ctext(19, "UP/DOWN OR TYPE, FIRE", TX_GREY);
+    hud_on_panel = 0;
 }
 
 /* the play screen's lines that change: redrawn when their values do */
@@ -334,12 +342,14 @@ static void draw_play(uint8_t blink)
     if (tl.state == TS_OVER && (hud_dirty || blink != shown_blink)) {
         shown_blink = blink;
         hud_panel(6, 10, 28, 11);
+        hud_on_panel = 1;
         hud_big_centre(BIG_BANNER, 88, game.won ? "ALL THROUGH" : "TIME UP", game.won ? TX_GREEN : TX_RED);
         sprintf(tmp, "LEVEL %u  FALLS %d", game.level, game.falls);
         hud_ctext(15, tmp, TX_YELLOW);
         sprintf(tmp, "SCORE %ld", game.score);
         hud_ctext(17, tmp, TX_WHITE);
         if (tl.state_timer == 0) hud_ctext(19, "PRESS FIRE", TX_YELLOW);
+        hud_on_panel = 0;
     }
 }
 

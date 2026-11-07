@@ -25,7 +25,7 @@ import os
 import struct
 import sys
 
-from geom import (BUMPER_H, BUMPER_R, GATE_OPEN_H, HALF, MT_CELL, MT_N, TILTS, View, WALL_H, a3_cos, a3_sin,
+from geom import (BUMPER_H, tdiv, BUMPER_R, GATE_OPEN_H, HALF, MT_CELL, MT_N, TILTS, View, WALL_H, a3_cos, a3_sin,
                   tilt_value)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -66,7 +66,7 @@ def mix(a, b, k, n):
     out = 0
     for sh in (8, 4, 0):
         ca, cb = (a >> sh) & 15, (b >> sh) & 15
-        out |= (ca + (cb - ca) * k // n) << sh
+        out |= (ca + tdiv((cb - ca) * k, n)) << sh
     return out
 
 
@@ -446,10 +446,21 @@ def main():
            '#include "view_data.h"', '']
     out.append("const uint16_t view_lists[8] = { " + ", ".join(f"0x{a:04X}" for a in starts) + " };")
     out.append("const uint8_t view_bump_page[8] = { " + ", ".join(str(bump_pages.get(lv, 0)) for lv in range(8)) + " };")
+    # the sky is also the border's (the copper's fallback colour, 8-bit
+    # RRRGGGBB): Layer 2 gets the same colours, the 8-bit ones widened as
+    # the Next does (blue's low bit = either of its two bits)
+    # port: plat_sky's 16 steps from 0x225 to 0x001 in 12-bit colour; the
+    # Next's 8-bit fallback colour has three that fit (navy, dark blue, black)
+    sky8 = [0x25] * 5 + [0x01] * 4 + [0x00] * 7
+    pal9 = [rgb9(c) for c in pal[:128]]
+    for k, c8 in enumerate(sky8):
+        b2 = c8 & 3
+        pal9[k] = (c8 >> 5) << 6 | ((c8 >> 2) & 7) << 3 | (b2 << 1) | (1 if b2 else 0)
     out.append("const uint16_t view_palette[128] = {")
     for i in range(0, 128, 16):
-        out.append("    " + ", ".join(f"0x{rgb9(c):03X}" for c in pal[i:i + 16]) + ",")
+        out.append("    " + ", ".join(f"0x{c:03X}" for c in pal9[i:i + 16]) + ",")
     out.append("};")
+    out.append("const uint8_t view_sky8[16] = { " + ", ".join(f"0x{c:02X}" for c in sky8) + " };")
     with open(os.path.join(PROJ, "src", "view_data.c"), "w") as f:
         f.write("\n".join(out) + "\n")
     with open(os.path.join(PROJ, "src", "view_data.h"), "w") as f:
@@ -470,6 +481,7 @@ def main():
 extern const uint16_t view_lists[8];       /* each level's list in VIEW_LIST_PAGE (address in slot 2) */
 extern const uint8_t view_bump_page[8];    /* 0: no bumpers; 256 bytes a tilt, 32 a page */
 extern const uint16_t view_palette[128];   /* RGB333, Layer 2 0..127 */
+extern const uint8_t view_sky8[16];        /* the void's bands as fallback colours (the border) */
 #endif
 ''')
     for lv in range(8):

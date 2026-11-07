@@ -23,16 +23,18 @@
 #include "view.h"
 #include "hud.h"
 #include "sound.h"
+#include "view_data.h"
 
 /* the border: the original's sky, a band each 16 lines (copper, fallback colour) */
 static void sky(void)
 {
-    static const uint8_t band[16] = { 0x26, 0x26, 0x26, 0x26, 0x25, 0x25, 0x25, 0x21, 0x21, 0x21, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00 };
     uint8_t k;
+    zx_border(INK_BLACK);
+    pal_set8(0, 16, L2_TRANSPARENT);         /* the border's ULA colour transparent: the fallback shows */
     copper_begin();
     for (k = 0; k < 16; k++) {
         copper_wait(L2Y_TO_LINE(k * 16), 0);
-        copper_move(0x4A, band[k]);
+        copper_move(0x4A, view_sky8[k]);
     }
     copper_end();
 }

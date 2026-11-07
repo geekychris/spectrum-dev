@@ -53,7 +53,8 @@ static uint16_t key_of(uint8_t level, uint8_t gates, uint8_t tilt)
     return (uint16_t)level << 9 | (uint16_t)gates << 8 | tilt;
 }
 
-/* banks 48.. exist on a 2 MB Next: write each one's number, read them back */
+/* banks 48.. exist on a 2 MB Next: write each one's number, read them back
+   (on a 1 MB Next, ZEsarUX's default, the pages above 95 are one page) */
 static uint8_t big_ram(void)
 {
     uint8_t b, ok = 1, saved = ZXN_READ_REG(0x53);
@@ -88,12 +89,18 @@ void view_init(void)
     for (i = 0; i < view_slots; i++) slot_key[i] = NO_KEY;
 }
 
+/* the nearest step: round(t * 5 / MT_TILT_MAX) (geom.py tilt_step).
+   port: zsdcc got this wrong as (t * 5 +- MT_TILT_MAX / 2) / MT_TILT_MAX
+   with a ?: (0 came out as 2), so it counts instead */
 int8_t view_step(fix t)
 {
-    /* the nearest step: t * 5 / MT_TILT_MAX, rounded (geom.py tilt_step) */
-    int32_t v = t * VIEW_TILTS;
-    v += v >= 0 ? MT_TILT_MAX / 2 : -(MT_TILT_MAX / 2);
-    return (int8_t)(v / MT_TILT_MAX);
+    int32_t w = t * VIEW_TILTS;
+    int8_t k = 0;
+    if (w >= 0)
+        while (w >= MT_TILT_MAX / 2) { w -= MT_TILT_MAX; k++; }
+    else
+        while (w <= -(MT_TILT_MAX / 2)) { w += MT_TILT_MAX; k--; }
+    return k;
 }
 
 static void load_tilt(uint8_t level, uint8_t t)
@@ -185,7 +192,10 @@ static void work(void)
 void view_update(const MTGame *g)
 {
     uint8_t r = (uint8_t)(view_step(g->roll) + VIEW_TILTS), pt = (uint8_t)(view_step(g->pitch) + VIEW_TILTS), i;
-    want_key = key_of((uint8_t)g->level, (uint8_t)g->gates_open, r * (2 * VIEW_TILTS + 1) + pt);
+    {
+        uint16_t k = key_of((uint8_t)g->level, (uint8_t)g->gates_open, r * (2 * VIEW_TILTS + 1) + pt);
+        want_key = k;
+    }
     if (shown != 0xFF && slot_key[shown] == want_key) {
         pending = 0xFF;
         return;

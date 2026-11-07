@@ -22,6 +22,7 @@
 #include "view_data.h"
 
 #define T_FONT   1                       /* tiles 1..96: characters 32..127 */
+#define T_PFONT  112                     /* 112..207: the same on a panel (pen 3 behind) */
 #define T_PANEL  97                      /* pen 3 */
 #define T_EDGE   98                      /* 99..105: the panel's border (top, bottom, left, right, corners) */
 #define S_GAUGE  2                       /* sprites 2..10 the ring, 11 the dot */
@@ -39,14 +40,14 @@ static const uint16_t ink_rgb[7] = {
 
 /* a 4-bit tile from an 8 x 8 glyph: pen 1 the glyph, pen 2 its shadow a
    pixel down and right (g_text_shadow) */
-static void shadow_tile(uint8_t tile, const uint8_t *g)
+static void shadow_tile(uint8_t tile, const uint8_t *g, uint8_t bg)
 {
     uint8_t def[32], y, x, *d = def;
     for (y = 0; y < 8; y++) {
         uint8_t row = g[y], sh = y ? g[y - 1] >> 1 : 0;
         for (x = 0; x < 8; x += 2, d++) {
             uint8_t m0 = 0x80 >> x, m1 = 0x40 >> x;
-            uint8_t a = row & m0 ? 1 : sh & m0 ? 2 : 0, b = row & m1 ? 1 : sh & m1 ? 2 : 0;
+            uint8_t a = row & m0 ? 1 : sh & m0 ? 2 : bg, b = row & m1 ? 1 : sh & m1 ? 2 : bg;
             *d = a << 4 | b;
         }
     }
@@ -74,7 +75,10 @@ void hud_init(void)
     };
     static const uint8_t br[8] = { 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0xFF, 0xFF };
     tm_init();
-    for (k = 0; k < 96; k++) shadow_tile(T_FONT + k, rom_font + k * 8);
+    for (k = 0; k < 96; k++) {
+        shadow_tile(T_FONT + k, rom_font + k * 8, 0);
+        shadow_tile(T_PFONT + k, rom_font + k * 8, 3);
+    }
     fill_tile(T_PANEL, 3);
     for (k = 0; k < 7; k++) tm_font(T_EDGE + k, edges[k], 1, 4, 3);
     tm_font(T_EDGE + 7, br, 1, 4, 3);
@@ -99,7 +103,12 @@ void hud_clear(void)
     for (g = 0; g < BIG_GROUPS; g++) hud_big(g, 0, 0, "", 0);
 }
 
-void hud_text(uint8_t col, uint8_t row, const char *s, uint8_t ink) { tm_print(col, row, s, T_FONT, ink); }
+uint8_t hud_on_panel;
+
+void hud_text(uint8_t col, uint8_t row, const char *s, uint8_t ink)
+{
+    tm_print(col, row, s, hud_on_panel ? T_PFONT : T_FONT, ink);
+}
 
 void hud_ctext(uint8_t row, const char *s, uint8_t ink)
 {
