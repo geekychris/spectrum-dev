@@ -36,8 +36,8 @@
 #define PEN_GREEN  28
 #define PEN_CYAN   29
 
-extern const uint16_t rail_palette[32];
 extern uint16_t render_polys;
+extern uint8_t render_tracer;
 void render_init(void);
 void render_scene(const CRGame *g);     /* the sky and the canyon into the back buffer */
 

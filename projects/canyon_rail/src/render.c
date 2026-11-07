@@ -23,7 +23,7 @@
 #define PAIR_AHEAD 600                  /* port: slabs in pairs from here on */
 
 
-uint16_t render_polys;
+
 
 typedef struct { int16_t x, y, z; } P3;
 
@@ -189,5 +189,13 @@ void render_scene(const CRGame *g)
                 if (((const Place *)a->p)->spire & 2) spire(a, b, 1);
             }
         }
+    if (render_tracer) {
+        /* the tracer, from the gun to the sight (the original's hud) */
+        static int16_t t[6];
+        t[0] = VIEW_W / 2 - 3; t[1] = VIEW_ROWS;
+        t[2] = VIEW_W / 2 + 3; t[3] = VIEW_ROWS;
+        t[4] = SX(g->sx); t[5] = SY(g->sy) / 2;
+        l2p_poly(t, 3, render_tracer);
+    }
     l2p_end();
 }

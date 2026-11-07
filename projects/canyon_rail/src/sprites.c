@@ -22,6 +22,7 @@
 #include "persp.h"
 #include "nextgfx.h"
 #include "palfx.h"
+#include "front.h"
 
 #define MAX_OBJ 32
 #define HALF    64                      /* 4-bit patterns in each half of the pattern memory */
@@ -182,4 +183,39 @@ void spr_hide_all(void)
 {
     nattr = 0;
     spr_present();
+}
+
+/* ---------- the objects: everything but the canyon, as sprites ---------- */
+void spr_objects(const CRGame *g)
+{
+    int k;
+    int32_t x, y, z;
+    spr_begin();
+    if (rl.state == RS_PLAY || rl.state == RS_OVER) spr_screen(SV_SIGHT, SX(g->sx), SY(g->sy));
+    for (k = 0; k < MAX_BURSTS; k++) {
+        const Burst *b = &rl.burst[k];
+        if (b->t > 0) spr_world(SV_BURST, (uint8_t)(b->t - 1), b->x, b->y, b->z, (uint8_t)(b->size * (4 + b->t) / 14));
+    }
+    for (k = 0; k < CR_MAX_BOLTS; k++) {
+        if (!g->bolt[k].alive) continue;
+        cr_bolt_pos(g, k, &x, &y, &z);
+        spr_world(SV_BOLT, 0, x, y, z, 1);
+    }
+    for (k = 0; k < g->ntg; k++) {
+        const Target *t = &g->tg[k];
+        int32_t ahead = t->s - g->cam_s;
+        if (!t->alive || ahead < 20 || ahead > 1300) continue;
+        cr_target_pos(g, k, &x, &y, &z);
+        spr_world(t->type == TG_TURRET ? SV_TURRET : t->type == TG_DRONE ? SV_DRONE : SV_POD, 0, x, y, z, 1);
+    }
+    if (g->cam_s + 1300 > CR_LEN) {
+        int32_t bs = CR_LEN + 450;
+        for (k = 0; k < CR_NODES; k++) {
+            if (g->node_hp[k] <= 0) continue;
+            cr_node_pos(g, k, &x, &y, &z);
+            spr_world(SV_NODE, (uint8_t)((g->boss_angle >> 13) & 7), x, y, z - 30, 1);
+        }
+        spr_world(SV_CORE, (uint8_t)((g->boss_angle / 3 >> 13) & 7), cr_path_x(bs), cr_path_y(bs) + 90, bs, 1);
+    }
+    spr_end();
 }

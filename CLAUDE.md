@@ -74,6 +74,11 @@ Details: docs/emulator-harness.md.
   to left (store rnd16() results first); for the 48K, `((int32_t)a << 14) / d`
   came out wrong (fixmath.c writes it as a multiply). Profile with breakpoints + `get-tstates-partial`
   before guessing, and move real hot loops to asm.
+- zsdcc moved a store to a `static volatile` byte above an earlier load of it in an
+  interrupt handler: `keys_latched |= now & ~keys_prev; keys_prev = now;` came out as
+  `keys_latched |= 0` (Canyon Rail: P/B/H never seen). Keep ISR-only state in a plain
+  static; check the asm of interrupt code. With `--opt-code-size` it also pushed garbage
+  for a 32-bit `seed++` used as a call argument: do the `++` in its own statement.
 - zsdcc also miscompiled `dz = (o->z - c->z) >> 4` (int32_t fields through pointers: byte 2
   of the subtraction was never loaded) and once emitted an impossible `ld iyl,l` for
   `z = ((int32_t)i << 7) + c->dz[side]` (assembler "syntax error" in the .asm line). Compare
