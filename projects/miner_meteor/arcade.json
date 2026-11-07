@@ -1,0 +1,7 @@
+{
+  "title": "Miner Meteor",
+  "ready": "miner: ready",
+  "description": "Collect every key in the cavern and reach the exit before the air runs out, past spikes, conveyors, collapsing floors and guardians. Six caverns.",
+  "controls": "O/P walk, Q or SPACE jump, Kempston",
+  "picture": "screenshots/play.png"
+}
