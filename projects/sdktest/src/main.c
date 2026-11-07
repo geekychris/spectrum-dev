@@ -123,6 +123,14 @@ int main(void)
         int16_t d1 = div_q14(-3, 4), d2 = div_q14(100, 100);
         zx_log("sdk: fixmath %ld %ld %ld %d %d %d %u %u %u %d %d\n", m1, m2, m3, q1, q2, q3, s1, s2, s3, d1, d2);
     }
+    {   /* isqrt32 near the top of its range (roots of 32768 and more) */
+        static const uint32_t v[8] = {0xFFFE0001UL, 0xFFFE0000UL, 0x80000000UL, 0x40000000UL,
+                                      0x3FFFFFFFUL, 0xC0000000UL, 4232000000UL, 1073676289UL};
+        uint8_t k;
+        zx_log("sdk: isqrt32");
+        for (k = 0; k < 8; k++) zx_log(" %u", isqrt32(v[k]));
+        zx_log("\n");
+    }
     rnd_seed(1);
     {   /* sdcc evaluates arguments right to left: call in order first */
         uint16_t r1 = rnd16(), r2 = rnd16(), r3 = rnd16(), r4 = rnd16(), r5 = rnd_range(10);

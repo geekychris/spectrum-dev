@@ -191,6 +191,10 @@ for machine in ("48k", "128k"):
         check("atan2", (val(log, "atan11"), val(log, "atan-1-1"), val(log, "atan01"), val(log, "atan-10"))
               == ("32", "160", "64", "128"))
         check("isqrt16", val(log, "isqrt") == "100,255,1")
+        iv = [0xFFFE0001, 0xFFFE0000, 0x80000000, 0x40000000, 0x3FFFFFFF, 0xC0000000, 4232000000, 1073676289]
+        exp_sq = "isqrt32 " + " ".join(str(math.isqrt(v)) for v in iv)
+        check("isqrt32 is floor(sqrt) over the whole range", exp_sq in log,
+              f"{exp_sq} vs {[l for l in log.splitlines() if 'isqrt32' in l]}")
         exp = xorshift(1, 5)
         check("fixmath: mul16 / mulq14 / mulq8 / isqrt32 / div_q14", "fixmath -370200 1073741824 -65534 -5 5115 -301 65535 300 1 -12288 16384" in log, [l for l in log.splitlines() if "fixmath" in l])
         check("xorshift rnd matches Python", val(log, "rnd") == ",".join(map(str, exp[:4]))
