@@ -41,7 +41,7 @@ turns, the level-complete and game-over timers, the camera. The levels are the
 original's files (`tools/levels/`), packed. The logic runs at 50 ticks a
 second, as on the Amiga. Changes are marked `port:` in the source:
 
-- **Jump force.** The original's `JUMP_FORCE` of -78 jumps 14 pixels, but its
+- **Jump force** (details and evidence: `ORIGINAL_BUGS.md`). The original's `JUMP_FORCE` of -78 jumps 14 pixels, but its
   levels need 32 (level 1's pipes) to 48 (level 3's climbs from platform to
   platform): no one could get past the first pipe. (The ST port reached level
   2 for its screenshot by poking the player's x.) `tools/solve.c` plays the

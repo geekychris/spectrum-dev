@@ -32,8 +32,8 @@
  *                          gfx (spr_preshift() output), w (bytes), h (lines),
  *                          ink/keep (cell attr = (tile attr & keep) | ink),
  *                          on; the module sees what changed
- *   cs_nspr                how many of cs_spr[] the game uses (CS_MAX_SPR after
- *                          cs_init; fewer is faster)
+ *   cs_nspr                how many of cs_spr[] the game uses (CS_MAX_SPR = 16 after
+ *                          cs_init: set it to what you use, the passes walk them all)
  *   cs_update()            compose and write the cells that changed
  *
  *   cs_scroll(dc, fill)    scroll the room dc cells left (dc > 0: the view moves
