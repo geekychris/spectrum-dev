@@ -102,7 +102,7 @@ int main(void)
                 uint32_t v;
                 x ^= x << 13; x ^= x >> 17; x ^= x << 5;
                 v = (k & 3) == 0 ? x >> (k & 31) : (k & 3) == 1 ? x & 0xFFFF : x;
-                sum = sum * 31 + isqrt32(v & 0x3FFFFFFFUL);   /* (isqrt32: exact below 2^30) */
+                sum = sum * 31 + isqrt32(v);
                 sumf = sumf * 31 + isqrt32_fast(v);
             }
             zx_log("sdk: isqrt sum=%lu\n", sum);
