@@ -12,6 +12,9 @@ static const mod_song *song;
 static voice_state vs[4];
 static uint16_t row;
 static uint8_t tick, mixer[3];
+/* the chips the song's routes use: a 128K ignores the chip select, so
+   touching chips 1 and 2 there would overwrite chip 0 (all tones off) */
+static uint8_t chips;
 
 static void reg(uint8_t chip, uint8_t r, uint8_t v)
 {
@@ -28,8 +31,12 @@ void modplay_start(const mod_song *s)
     tick = 0;
     memset(vs, 0, sizeof vs);
     mixer[1] = mixer[2] = 0x3F;
+    chips = 1;
+    for (c = 0; c < 4; c++)
+        if (s->route[c] != 0xFF) chips |= 1 << (s->route[c] >> 4);
     for (c = 1; c < 3; c++)
-        for (r = 0; r < 14; r++) reg(c, r, r == 7 ? 0x3F : 0);
+        if (chips & (1 << c))
+            for (r = 0; r < 14; r++) reg(c, r, r == 7 ? 0x3F : 0);
     z80_outp(0xFFFD, 0xFF);
 }
 
@@ -89,6 +96,7 @@ void modplay_tick(void)
         mixer[chip] = m;
     }
     ay_mixer = mixer[0];
-    for (c = 0; c < 3; c++) reg(c, 7, mixer[c]);
+    for (c = 0; c < 3; c++)
+        if (chips & (1 << c)) reg(c, 7, mixer[c]);
     z80_outp(0xFFFD, 0xFF);
 }
