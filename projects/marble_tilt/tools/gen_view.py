@@ -292,10 +292,9 @@ def rgb24_9(c9):
 
 def render(level, ri, pi, gates_open=True):
     """the host's picture of the board the Next draws: the same polygons
-    through sdk/tools/l2fill.py (l2fill's rows, pixel for pixel)"""
+    through fillmodel.py (l2poly's rows, to a pixel at some edges)"""
     from PIL import Image
-    sys.path.insert(0, os.path.join(PROJ, "..", "..", "sdk", "tools"))
-    from l2fill import fill
+    from fillmodel import fill
     pal, _ = palette9()
     canvas = [[(y + 32) // 16] * 256 for y in range(192)]
     pts = project_all(level, ri, pi)

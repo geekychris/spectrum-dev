@@ -4,7 +4,7 @@
  * The board: tools/gen_view.py works out on the host where every corner of
  * the board lands on the screen for each tilt step the original eases
  * through (its camera, its tilt drawn double: geom.py), and each level's
- * polygons in draw order. port: the Next fills those polygons (l2fill)
+ * polygons in draw order. port: the Next fills those polygons (l2poly)
  * instead of projecting them; a board takes about three frames of the
  * CPU, so
  *   - boards are kept: a cache of Layer 2 screens (four on a 1 MB Next,
@@ -27,7 +27,7 @@
 #include <arch/zxn.h>
 #include "zxgame.h"
 #include "nextgfx.h"
-#include "l2fill.h"
+#include "l2poly.h"
 #include "zxlog.h"
 #include "fix16.h"
 #include "view.h"
@@ -38,7 +38,10 @@
 
 uint16_t view_draws, view_hits;
 uint8_t view_slots;
-static uint8_t vt[2048 + 256];           /* the tilt being drawn: grid int16 x, y; bumpers uint8 */
+/* the tilt being drawn: grid int16 x, y; bumpers uint8. In bank 20 above
+   its code (VT_ADDR, checked by the Makefile): main memory is full */
+#define VT_ADDR 0x3700
+#define vt ((uint8_t *)VT_ADDR)
 static int16_t xy[16];
 
 /* the board cache: each slot is a 256 x 192 Layer 2 screen (three 16K
@@ -189,7 +192,7 @@ static void work(void)
     }
     skip = draw_key & 0x100 ? 2 : 1;             /* gates open: skip the shut ones */
     ZXN_WRITE_MMU2(VIEW_LIST_PAGE);
-    l2f_begin();
+    l2p_begin();
     while (*draw_p && frame_ticks == t0) {
         const uint8_t *p = draw_p;
         uint8_t n = *p & 15, kind = *p >> 4, col = p[1], i;
@@ -207,9 +210,9 @@ static void work(void)
                 *o++ = vt[off + 1];
             }
         }
-        l2f_poly(xy, n, col);
+        l2p_poly(xy, n, col);
     }
-    l2f_end();
+    l2p_end();
     more = *draw_p;
     ZXN_WRITE_MMU2(SLOT2_PAGE);
     board_lines += (raster_line() + 312 - l0) % 312;

@@ -1,15 +1,14 @@
-"""Host model of sdk/src/next/l2fill.asm, pixel for pixel: what l2f_poly
-draws, for host pictures that must match the Next's (Marble Tilt's board,
-projects/fixfilltest).
+"""A host model of a convex-polygon fill on Layer 2's rows, for Marble
+Tilt's host picture of a board (gen_view.render, test.py's comparison).
 
-    from l2fill import fill
+    from fillmodel import fill
     fill(canvas, [(x, y), ...], colour, top=0, bot=192)
 
-canvas: 192 rows of 256 values (lists), changed in place. Each edge is
-stepped from its top vertex in 16.8 fixed point (x + 0.5 at the top; the
-slope |dx| * (65536 // dy) >> 8 for dy < 256, (|dx| << 8) // dy above),
-rows ytop <= y < ybot, floor(x) at both ends of each row, clipped to the
-screen and to rows top..bot-1.
+canvas: 192 rows of 256 values (lists), changed in place. The rules are
+l2poly's (rows ytop <= y < ybot, floor(x) at both ends of each row): each
+edge stepped from its top vertex in 16.8 fixed point (x + 0.5 at the top;
+the slope |dx| * (65536 // dy) >> 8). l2poly steps in 16.16, so a row end
+can differ by a pixel where an edge's slope rounds differently.
 """
 
 

@@ -1,14 +1,8 @@
-"""SDK modules fix16 (and fixmath's isqrt32) and l2fill (./zx test fixfilltest), against Python models:
-
-fix16: 2000 pseudo-random pairs (small, medium, full-range and edge values)
-through fmul, fdiv, a3_angle, fhypot, fsqrt and fsin, hashed; the model is
-the amiga3d engine's 64-bit definitions.
-l2fill: polygons (a triangle, an edge taller than 255 rows, one starting
-above the screen, the other winding, an octagon, a thin sliver, one clipped
-to rows 60..69 with huge coordinates) drawn in order; the first and last
-pixel of rows of each, against a model of l2fill's stepping (16.8 slopes
-from a reciprocal table, edges from their top vertex, rows ytop <= y < ybot,
-floor(x) at both ends)."""
+"""SDK module fix16 (and fixmath's isqrt32) (./zx test fix16test), against a
+Python model: 2000 pseudo-random pairs (small, medium, full-range and edge
+values) through fmul, fdiv, a3_angle, fhypot, fsqrt and fsin, hashed; the
+model is the amiga3d engine's 64-bit definitions. isqrt32 on values up to
+2^32 - 1."""
 import re
 import sys
 from pathlib import Path
@@ -19,7 +13,7 @@ sys.path.insert(0, str(ROOT / "tools" / "zxdev" / "src"))
 from zxdev.emu import Emulator  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-NEX = HERE / "build" / "fixfilltest.nex"
+NEX = HERE / "build" / "fix16test.nex"
 failures = []
 
 
@@ -125,31 +119,6 @@ def fix16_hash():
     return h[0]
 
 
-# ---- l2fill's model: sdk/tools/l2fill.py ----
-sys.path.insert(0, str(ROOT / "sdk" / "tools"))
-from l2fill import fill as l2fill  # noqa: E402
-
-
-def first_last(canvas, y, c):
-    xs = [x for x in range(256) if canvas[y][x] == c]
-    return (xs[0], xs[-1]) if xs else (-1, -1)
-
-
-def pairs(v):
-    return list(zip(v[0::2], v[1::2]))
-
-
-main = (HERE / "src" / "main.c").read_text()
-SHAPES = {}
-for name, body in re.findall(r"static const int16_t (\w+)\[\] = \{([^}]*)\}", main):
-    SHAPES[name] = pairs([int(v) for v in body.split(",")])
-ORDER = re.findall(r"\{ (\w+), (\d+), \{ (\d+), (\d+), (\d+), (\d+) \} \}", main)
-
-canvas = [[0] * 256 for _ in range(192)]
-for k, (name, n, *rows) in enumerate(ORDER):
-    l2fill(canvas, SHAPES[name], 1 + k)
-l2fill(canvas, SHAPES["big"], 9, 60, 70)
-
 with Emulator(machine="next") as e:
     e.load(NEX)
     check("runs", e.run_until("ff: done", 2000))
@@ -162,18 +131,6 @@ with Emulator(machine="next") as e:
     want = f"{fix16_hash():08X}"
     check(f"fix16: fmul, fdiv, a3_angle, fhypot, fsqrt, fsin over 2000 pairs = the 64-bit model ({want})",
           m is not None and m.group(1) == want, m.group(1) if m else "missing")
-    for k, (name, n, *rows) in enumerate(ORDER):
-        ok, got_all = True, []
-        for r in rows:
-            m = re.search(rf"ff: poly {k} row {r} (-?\d+)\.\.(-?\d+)", log)
-            got = (int(m.group(1)), int(m.group(2))) if m else None
-            exp = first_last(canvas, int(r), 1 + k)
-            got_all.append((r, got, exp))
-            ok = ok and got == exp
-        check(f"l2fill: {name} ({n} vertices) rows {', '.join(rows)}", ok, str([g for g in got_all if g[1] != g[2]]))
-    m = re.search(r"ff: clip r59=(-?\d+) r60=(-?\d+)\.\.(-?\d+) r70=(-?\d+)", log)
-    check("l2fill: rows clipped to l2f_top..l2f_bot, huge coordinates",
-          m is not None and m.groups() == ("-1", "0", "255", "-1"), m.groups() if m else "missing")
 
-print(f"{'FAIL' if failures else 'PASS'}: fixfilltest")
+print(f"{'FAIL' if failures else 'PASS'}: fix16test")
 sys.exit(1 if failures else 0)

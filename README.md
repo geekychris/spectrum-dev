@@ -270,7 +270,7 @@ card. NextZXOS is never included (its licence wants the whole distribution).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `fixfilltest`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `fix16test`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 

@@ -2,11 +2,12 @@
  * Marble Tilt for the Spectrum Next: memory map, start-up, the 50 Hz loop.
  *
  *   0x0000-0x3FFF  bank 20: the rules (mt_core.c) and the board's small
- *                  tables (view_data.c, marble_data.c), over the ROM
+ *                  tables (view_data.c, marble_data.c), over the ROM;
+ *                  0x3700- the vertex buffer of the board being drawn
  *   0x4000-0x5FFF  bank 5's first page (the tilemap); the board's tables
  *                  are mapped here while a board is drawn
  *   0x6000-0x7FFF  page 44: the game shell and the text (game.c, hud.c);
- *                  Layer 2's pages are mapped here briefly (view.c, l2fill,
+ *                  Layer 2's pages are mapped here briefly (view.c, l2poly,
  *                  which put it back)
  *   0x8000-0xEFFF  the drawing (view.c), the sound, the SDK, the variables;
  *                  0xF000- the IM 2 table, the stack

@@ -56,12 +56,14 @@ Changed (marked `port:` in the code):
   ~500 points per frame. So `tools/gen_view.py` runs the original's camera
   (`tools/geom.py`, integer for integer) on the host. It does this for
   every tilt step the original eases through (11 x 11). The Next fills the
-  polygons with `l2fill`. Fewer, bigger polygons than the original's runs:
-  the floor runs on under walls, and stacked walls are one block. The
-  picture is the same, and `test.py` checks the Next's Layer 2 against the
-  host's picture pixel for pixel.
+  polygons with the SDK's `l2poly`. Fewer, bigger polygons than the
+  original's runs: the floor runs on under walls, and stacked walls are one
+  block (about 8,000 T-states a polygon plus 760 a row went on each of
+  them; half as many polygons was the big saving). The picture is the
+  same, and `test.py` checks the Next's Layer 2 against the host's picture
+  (all but a few edge pixels).
 - **Boards are cached and drawn in the background.** A new board takes
-  about three frames of CPU (850-1050 raster lines). So finished boards
+  about three frames of CPU (770-1050 raster lines). So finished boards
   are kept in spare RAM: four Layer 2 screens on a 1 MB Next (as ZEsarUX
   is), 25 on a 2 MB one. One is shown by pointing NextReg 0x12 at it. A new
   board is drawn in the time each frame has left over, while the marble,
@@ -120,7 +122,7 @@ What it uses beyond a 48K/128K Spectrum, and why:
 | **copper** | the sky's bands in the border (the fallback colour, NextReg 0x4A) | the original's copper gradient, with no CPU time |
 | **zxnDMA** | clearing the void's bands, long polygon spans, sprite pattern uploads | ~2 T-states a byte |
 | **MMU banking** | the rules and small tables in bank 20 over the ROM, the game shell in page 44 at 0x6000, the board's tables (40 pages) mapped in while drawing, Layer 2 pages for drawing and for the marble's mask | the code alone is ~33K against 28K free at 0x8000, plus 330K of tables |
-| **Z80N `MUL`** | fix16's 32 x 32 multiplies and divisions (the rules), l2fill's slopes, the cell lookups | the original's 16.16 arithmetic, exactly, at a usable speed |
+| **Z80N `MUL`** | fix16's 32 x 32 multiplies and divisions (the rules), l2poly's slopes, the cell lookups | the original's 16.16 arithmetic, exactly, at a usable speed |
 | **TurboSound** (3 AY chips) | the tune on chips 0 and 1, the effects on chip 2 (host-made register streams) | music and effects at once |
 | **raster line** (NextReg 0x1E/0x1F) | timing a board's drawing | the `board=` figure in the perf log |
 
@@ -155,16 +157,16 @@ checked in. Remake them with `python3 tools/gen_view.py` and
 ## SDK modules this game added
 
 - `fix16.h`: the amiga3d engine's 16.16 fixed point, bit for bit
-  (`fmul`/`fdiv` in Z80N asm). Tests: `projects/fixfilltest` against a
+  (`fmul`/`fdiv` in Z80N asm). Tests: `projects/fix16test` against a
   Python model, `sdk/tools/test_fix16.c` (the asm's C model against
   64-bit).
-- `l2fill.h`: convex polygons for scenes of many small ones, into any
-  Layer 2 bank. `sdk/tools/l2fill.py` is its pixel-exact host model.
-  Test: `projects/fixfilltest`.
 - A fix to `fixmath.h`'s `isqrt32`, which was one too big for some values
   of 2^31 and over. `spr_pattern_dma` (a pattern by DMA, in a file of its own).
-- It also uses `l2poly`/`persp` (from ScAIry Fun's branch) only through
-  `geomtest`.
+- The board is drawn with ScAIry Fun's `l2poly`. A polygon module of this
+  port's own (`l2fill`, edge tables) measured no faster
+  (~8,700 T-states a polygon, ~720 a row) and was removed so the SDK has
+  one. Its fill rules live on as `tools/fillmodel.py`, the host picture's
+  model.
 
 ## Test
 
@@ -175,8 +177,8 @@ checked in. Remake them with `python3 tools/gen_view.py` and
   state hash is the original's `tests/vectors.h`.
 - Title: the music plays on two TurboSound chips. Kempston right/left
   choose the level, and fire starts.
-- The board on Layer 2 equals the host's projection through l2fill's
-  model, pixel for pixel.
+- The board on Layer 2 equals the host's projection (`tools/fillmodel.py`)
+  except for fewer than 100 edge pixels (31 differ at the start board).
 - P tilts the board fully right and the board shown follows. Q tilts it
   away.
 - B: the original's autopilot rolls level 1 to the exit and scores, then
