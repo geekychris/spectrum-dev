@@ -120,6 +120,15 @@ $(OUT): $(OBJS) $(SDK_LIB) $(wildcard zpragma.inc)
 	 b=$$(v __BSS_head); be=$$(v __BSS_END_tail); c=$$(v __CODE_head); \
 	 if [ -n "$$b" ] && [ $$((0x$$b)) -lt $$((0x$$c)) ] && [ $$((0x$$be)) -gt $$((0x$$c)) ]; then \
 	   echo "error: $(NAME)'s BSS (0x$$b-0x$$be) runs into its code at 0x$$c"; rm -f $@; exit 1; fi
+	@# Banked sections (--codesegBANK_n / PAGE_n) must fit their 16K bank / 8K page
+	@# from where they are linked; the linker doesn't say when they overflow.
+	@m=$(BUILD)/$(NAME).map; v() { awk -v s="$$1" '$$1 == s {print $$3}' $$m | tr -d '$$'; }; \
+	 for s in $$(awk '$$1 ~ /^__(BANK|PAGE)_[0-9]+_size$$/ {print $$1}' $$m); do \
+	   n=$${s%_size}; sz=$$(v $$s); hd=$$(v $${n}_head); \
+	   case $$n in __BANK_*) u=16384;; *) u=8192;; esac; \
+	   lim=$$((u - (0x$$hd & (u - 1)))); \
+	   if [ $$((0x$$sz)) -gt $$lim ]; then \
+	     echo "error: $(NAME): $${n#__} is $$((0x$$sz)) bytes, $$((0x$$sz - lim)) more than fits from 0x$$hd"; rm -f $@; exit 1; fi; done
 
 # every object depends on all headers: simple and safe for small projects
 HDRS := $(wildcard $(SRC_DIR)/*.h) $(wildcard $(SDK_DIR)/include/*.h)
