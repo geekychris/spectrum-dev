@@ -175,8 +175,8 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
 - **Miner Meteor** (48K): the original's rules (`game.cpp`) at 50 Hz on the
   half-size cavern (one 16-px tile per character cell), its six caverns
   through a level file; sprites composed per cell over the tiles (no flicker,
-  per-cell colour), belts redrawn a few lines a cell, a quarter a frame; 48 fps
-  over the demo (39.8 in cavern 6, 50 in the light ones); beeper effects a chunk
+  per-cell colour), belts redrawn a few lines a cell, a quarter a frame; 46.5 fps
+  over the demo (33.5 in cavern 6, 50 in the light ones); beeper effects a chunk
   a frame, AY tune on a 128K; a host-side search over `game_tick()` makes the
   demo and the test bot's routes; the bot feeds keys per logic tick from a
   breakpoint. SDK: `tmap` (tile maps), `plat` (platformer collision, the
@@ -216,9 +216,9 @@ READMEs; docs/48k-vs-next.md.
 
 - Frank's redraw stays ~19 fps: the floor is ~5K T-states per lane object
   (about 17 a frame); moving draw_lane's loop to asm would give ~20 fps.
-- Miner Meteor's cavern 6 draws ~40 fps: three guardians and the miner move
-  every frame (~10 cells composed, ~2,500 T-states each) and the logic is
-  ~14K T-states a tick in C.
+- Miner Meteor's caverns 4 and 6 draw 33-36 fps: three guardians and the miner
+  move every frame (~10 cells composed, ~2,500 T-states each), the logic is
+  ~14K T-states a tick in C and `input_read` ~15K (with `input_fast`).
 
 ## Arcade (2026-11-06)
 

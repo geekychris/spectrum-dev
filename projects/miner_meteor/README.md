@@ -69,11 +69,12 @@ Changes are marked `port:`:
   redrawn, so the sprites never flicker. Colour is per cell: a sprite gives
   the cells it covers its ink and keeps the paper. That's the classic clash,
   and it only shows where the miner passes a key or the exit.
-- **Speed.** It draws 48 frames a second on average over the demo. By cavern:
-  2: 49.6, 3: 49.9, 4: 45.7, 5: 50.0, 6: 39.8 fps; cavern 1 is ~50. Cavern 6
-  moves three guardians and the miner every frame over belts and crumbling
-  floors. When a frame is late the logic runs twice, so the game always plays
-  at the original's speed.
+- **Speed.** It draws 46.5 frames a second on average over the demo. By
+  cavern: 2: 49.6, 3: 49.8, 4: 36.4, 5: 50.0, 6: 33.5 fps; cavern 1 is ~50.
+  Caverns 4 and 6 move three guardians and the miner every frame (about ten
+  cells composed). When a frame is late the logic runs twice, so the game
+  always plays at the original's speed. The biggest single cost left is the
+  SDK's `input_read`, ~15,000 T-states a frame (with `input_fast`).
 - **Where the time went.** zsdcc's code for pointers to structs was the
   surprise. The first `cs_update`, a loop over 8 sprite structs, took 17,000
   T-states doing nothing. The sprite pass, the cell composer, the dirty-cell
