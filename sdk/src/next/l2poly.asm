@@ -7,7 +7,7 @@ SECTION code_user
 
 PUBLIC _l2p_begin, _l2p_end, _l2p_poly, _l2p_span, _l2p_band, _l2p_rect
 PUBLIC _l2p_top, _l2p_bot, _l2p_xmin, _l2p_xmax
-PUBLIC l2p_fill                 ; for other asm: B = y, DE = x0, HL = x1 (clipped here), colour in l2p_col
+PUBLIC l2p_fill, l2p_col        ; for other asm: B = y, DE = x0, HL = x1 (clipped here), colour in l2p_col
 EXTERN _l2_back
 EXTERN l_z80n_muls_32_16x16     ; HL * DE -> DEHL (signed)
 EXTERN _l2p_slope_div           ; C: int32_t l2p_slope_div(int16_t dx, int16_t dy)  (dx << 16) / dy

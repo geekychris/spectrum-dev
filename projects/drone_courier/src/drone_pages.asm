@@ -1,0 +1,32 @@
+; made by tools/gen_drone.py: the drone's sprite frames, into banks by the .nex
+
+SECTION BANK_25
+BINARY "gfx/bank_25.bin"
+SECTION BANK_26
+BINARY "gfx/bank_26.bin"
+SECTION BANK_27
+BINARY "gfx/bank_27.bin"
+SECTION BANK_28
+BINARY "gfx/bank_28.bin"
+SECTION BANK_29
+BINARY "gfx/bank_29.bin"
+SECTION BANK_30
+BINARY "gfx/bank_30.bin"
+SECTION BANK_31
+BINARY "gfx/bank_31.bin"
+SECTION BANK_32
+BINARY "gfx/bank_32.bin"
+SECTION BANK_33
+BINARY "gfx/bank_33.bin"
+SECTION BANK_34
+BINARY "gfx/bank_34.bin"
+SECTION BANK_35
+BINARY "gfx/bank_35.bin"
+SECTION BANK_36
+BINARY "gfx/bank_36.bin"
+SECTION BANK_37
+BINARY "gfx/bank_37.bin"
+SECTION BANK_38
+BINARY "gfx/bank_38.bin"
+SECTION BANK_39
+BINARY "gfx/bank_39.bin"

@@ -1,0 +1,7 @@
+{
+  "title": "Drone Courier",
+  "ready": "dc: ready",
+  "description": "Fly a parcel drone over a 3D city: collect at the depot, land on customers' roofs against the clock.",
+  "controls": "Q/A/O/P or cursor fly, SPACE climb, ENTER pause, B autopilot, H help, Kempston",
+  "picture": "screenshots/flying.png"
+}
