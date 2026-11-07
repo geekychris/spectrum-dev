@@ -49,6 +49,8 @@ struct {
     uint8_t left, fps, help, paused;
     uint16_t broken, paddle_hits, overruns, lines;
     uint8_t caps, parts, wide, plough;
+    int16_t vx, vy, vz;                 /* 1/256 units a tick */
+    uint8_t start_level, entry_pos;
 } probe;
 
 volatile uint8_t selftest_req;          /* test.py sets it: run the original's tests */
@@ -310,6 +312,8 @@ static void update_probe(uint8_t fps)
     probe.broken = (uint16_t)game.broken; probe.paddle_hits = (uint16_t)game.paddle_hits;
     probe.overruns = frame_overruns; probe.lines = scene_lines;
     probe.wide = game.wide_t != 0; probe.plough = game.plough_t != 0;
+    probe.vx = (int16_t)game.vx; probe.vy = (int16_t)game.vy; probe.vz = (int16_t)game.vz;
+    probe.start_level = br.start_level; probe.entry_pos = entry_ed.pos;
     {
         uint8_t k, n = 0;
         for (k = 0; k < BB_MAX_CAPS; k++) n += game.cap[k].active != 0;
@@ -336,7 +340,7 @@ int main(void)
     frame_init();
     frame_hook = input_sample;
     input_latch(1);
-    hs_init(2000);
+    hs_init(500);
     br.start_level = 1;
     to_title();
     zx_log("bb: ready kempston=%u\n", input_kempston);
@@ -363,7 +367,8 @@ int main(void)
         draws++;
         if (fps_frames >= 250) {            /* the frames drawn a second */
             fps = (uint8_t)((uint16_t)draws * 50 / fps_frames);
-            zx_log("bb: fps=%u lines=%u state=%u overruns=%u\n", fps, scene_lines, br.state, frame_overruns);
+            zx_log("bb: fps=%u lines=%u state=%u overruns=%u ay=%u,%u,%u,%u\n", fps, scene_lines, br.state, frame_overruns,
+                   snd_reg(0, 7), snd_reg(0, 9), snd_reg(1, 7), snd_reg(1, 8));
             draws = 0;
             fps_frames = 0;
             if (br.state == BS_TITLE) hud_title_page ^= 1;

@@ -44,6 +44,9 @@
  *                               nothing that runs meanwhile (interrupts) may
  *                               need what the windows normally hold.
  *
+ * Spans of 40 pixels or more, copies and fills go by the zxnDMA (dma.c),
+ * shorter spans by LDIR.
+ *
  * Test: projects/nextlibtest (l2wpoly checks).
  */
 #ifndef L2WPOLY_H

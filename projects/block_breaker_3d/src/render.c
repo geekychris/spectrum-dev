@@ -85,6 +85,7 @@ static Box cell_box[BB_CELLS];          /* each cell's box on the screen */
 static uint8_t shown[BB_CELLS];         /* the pen each cell was drawn with (0: empty) */
 static int16_t dx0 = 32767, dy0, dx1, dy1;   /* the dirty rectangle (dx0 > dx1: none) */
 static const BBGame *cur;
+static int16_t zlo, zhi, zlo_y, zhi_y;  /* the brick block's box on the screen */
 
 /* layer l's depths in bz_tab: the front, its face (1 nearer), the back */
 #define ZI_FACE(l)  ((l) * 2)
@@ -146,7 +147,8 @@ static void redraw(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
     int8_t l;
     uint8_t pass, i;
     l2wp_copy(L2_PAGE, CLEAN_PAGE, x0, y0, x1, y1);
-    l2wp_fill(Z_PAGE, x0, y0, x1, y1, 0xFF);
+    /* the depth plane only holds bricks: clear it where they can be */
+    l2wp_fill(Z_PAGE, x0 > zlo ? x0 : zlo, y0 > zlo_y ? y0 : zlo_y, x1 < zhi ? x1 : zhi, y1 < zhi_y ? y1 : zhi_y, 0xFF);
     l2wp_target(L2_PAGE, Z_PAGE);
     l2wp_clip(x0, y0, x1, y1);
     for (l = BB_LAYERS - 1; l >= 0; l--)
@@ -220,8 +222,6 @@ static void ring(int16_t z)
 
 static uint8_t dyn;                     /* masked patterns made this frame */
 static uint8_t mbuf[128];
-static int16_t zlo, zhi;                /* the brick block's box on the screen */
-static int16_t zlo_y, zhi_y;
 
 static int16_t clampz(int32_t z)
 {
@@ -240,7 +240,7 @@ static void put(int16_t x, int16_t y, uint8_t pat, uint8_t pal, uint8_t flags, i
 {
     if (key > 19 && x + 16 > zlo && x < zhi && y + 16 > zlo_y && y < zhi_y && dyn < 128 - SPR_DYN) {
         uint8_t slot = SPR_DYN + dyn;
-        uint8_t left;
+        uint16_t left;
         ZXN_WRITE_MMU2(SPR_PAGE + (pat >> 6));
         left = spl_zmask(mbuf, (const uint8_t *)0x4000 + ((uint16_t)(pat & 63) << 7), x, y,
                          key > 255 ? 255 : (uint8_t)key, Z_PAGE);

@@ -53,6 +53,12 @@ with Emulator(machine="next") as e:
     check("TurboSound stream: attenuation", "ay atten r8=8" in log, line("ay atten"))
     check("TurboSound stream: wait + end", "ay end busy=0 r8=0" in log, line("ay end"))
     check("isometric sort", "iso 1 0 2 behind=1" in log, line("iso"))
+    check("l2wpoly rectangle and triangle (vertical spans, edges)", "l2wp rect 7 7 4 4 tri 8 8 4 4" in log, line("l2wp rect"))
+    check("l2wpoly triangle the other way round", "l2wp tri2 9 9 4" in log, line("l2wp tri2"))
+    check("l2wpoly clipping", "l2wp clip 9 4 4 4" in log, line("l2wp clip"))
+    check("l2wpoly depth plane and plane copy", "l2wp depth 50 255 10 copy 51 4" in log, line("l2wp depth"))
+    check("nextsprl depth mask (100 pixels behind, none with a nearer key)", "spl zmask 156 0 1 256" in log, line("spl zmask"))
+    check("nextsprl list skips off-screen sprites", "spl count=1" in log, line("spl count"))
 
     e.run(3)
     im = e.screenshot(border=True)
@@ -66,6 +72,8 @@ with Emulator(machine="next") as e:
     check("copper: second (half) palette below", near(at(ox + 150, oy + 200), (0, 36, 36)), str(at(ox + 150, oy + 200)))
     check("sprite group drawn (grey)", near(at(ox + 220, oy + 110), (146, 146, 146)), str(at(ox + 220, oy + 110)))
     check("sprite group masked corner shows Layer 2", near(at(ox + 200, oy + 101), (36, 73, 109)), str(at(ox + 200, oy + 101)))
+    check("nextsprl 4-bit sprite with a palette offset (red)", near(at(ox + 247, oy + 147), (219, 0, 0), 50), str(at(ox + 247, oy + 147)))
+    check("tilemap 3x glyph (tm_glyphnx)", any(near(at(ox + 160 + dx, oy + 48 + dy), (219, 0, 0), 50) for dx in range(24) for dy in range(24)))
     check("tilemap glyph in red", any(near(at(ox + 80 + dx, oy + 32 + dy), (219, 0, 0), 50) for dx in range(16) for dy in range(16)))
 
 print(f"{'FAIL' if failures else 'PASS'}: nextlibtest")

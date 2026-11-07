@@ -7,7 +7,7 @@
 #include "nextsprl.h"
 #include "l2wpoly.h"
 
-uint8_t spl_count;
+uint8_t spl_count, spl_first;
 static uint8_t shown;                   /* sprites the last list showed */
 static uint8_t attr[SPL_MAX * 5];
 static uint8_t zero[64];
@@ -32,7 +32,7 @@ void spl_begin(void) { spl_count = 0; }
 uint8_t spl_add(int16_t x, int16_t y, uint8_t pat, uint8_t pal, uint8_t flags)
 {
     uint8_t *a;
-    if (spl_count >= SPL_MAX) return 0;
+    if (spl_first + spl_count >= SPL_MAX) return 0;
     if (x <= -16 || x >= 320 || y <= -16 || y >= 256) return 1;
     a = attr + spl_count * 5;
     a[0] = (uint8_t)x;
@@ -47,10 +47,10 @@ uint8_t spl_add(int16_t x, int16_t y, uint8_t pat, uint8_t pal, uint8_t flags)
 void spl_end(void)
 {
     if (spl_count) {
-        z80_outp(0x303B, 0);
+        z80_outp(0x303B, spl_first);
         dma_to_port(0x57, attr, (uint16_t)spl_count * 5);
     }
-    if (shown > spl_count) hide(spl_count, shown - spl_count);
+    if (shown > spl_count) hide(spl_first + spl_count, shown - spl_count);
     shown = spl_count;
 }
 
@@ -60,9 +60,10 @@ void spl_patterns(uint8_t pat, const uint8_t *src, uint8_t n)
     dma_to_port(0x5B, src, (uint16_t)n << 7);
 }
 
-uint8_t spl_zmask(uint8_t *dst, const uint8_t *src, int16_t x, int16_t y, uint8_t key, uint8_t zpage)
+uint16_t spl_zmask(uint8_t *dst, const uint8_t *src, int16_t x, int16_t y, uint8_t key, uint8_t zpage)
 {
-    uint8_t c, r, page = 0xFF, p, left = 0, mask;
+    uint8_t c, r, page = 0xFF, p, mask;
+    uint16_t left = 0;
     int16_t sx;
     uint8_t r0 = 0, r1 = 16;
     memcpy(dst, src, 128);

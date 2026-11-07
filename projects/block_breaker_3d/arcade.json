@@ -1,0 +1,7 @@
+{
+  "title": "Block Breaker 3D",
+  "ready": "bb: ready",
+  "description": "Breakout down a tunnel: steer the ball into a block of bricks 3 deep, 8 levels, capsules, tough and steel bricks.",
+  "controls": "QAOP/cursors/joystick move, SPACE serve, ENTER pause, B autopilot, H help",
+  "picture": "screenshots/play.png"
+}

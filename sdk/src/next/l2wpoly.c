@@ -3,6 +3,9 @@
 #include <string.h>
 #include <arch/zxn.h>
 #include "l2wpoly.h"
+#include "nextgfx.h"
+
+#define DMA_MIN 40                      /* spans this long go by DMA (~2 T-states a byte + ~450), shorter by LDIR (21) */
 
 uint8_t l2wp_key = 0;
 uint8_t l2wp_tslot = 3, l2wp_trestore = 11, l2wp_zslot = 0, l2wp_zrestore = 0xFF;
@@ -65,8 +68,13 @@ static void spans(int16_t x0, int16_t x1, uint8_t colour)
         {
             uint16_t off = ((uint16_t)(x & 31) << 8) + (uint16_t)y0;
             uint16_t n = (uint16_t)(y1 - y0);
-            memset(TWIN + off, colour, n);
-            if (zpage) memset(ZWIN + off, l2wp_key, n);
+            if (n >= DMA_MIN) {
+                dma_fill(TWIN + off, colour, n);
+                if (zpage) dma_fill(ZWIN + off, l2wp_key, n);
+            } else {
+                memset(TWIN + off, colour, n);
+                if (zpage) memset(ZWIN + off, l2wp_key, n);
+            }
         }
     }
     done();
@@ -134,7 +142,7 @@ void l2wp_copy(uint8_t dst, uint8_t src, int16_t x0, int16_t y0, int16_t x1, int
             TMAP(dst + p);
             ZMAP(src + p);
         }
-        memcpy(TWIN + off, ZWIN + off, (uint16_t)(y1 - y0));
+        dma_copy(TWIN + off, ZWIN + off, (uint16_t)(y1 - y0));
     }
     done();
 }
@@ -151,7 +159,7 @@ void l2wp_fill(uint8_t page0, int16_t x0, int16_t y0, int16_t x1, int16_t y1, ui
     for (x = x0; x < x1; x++) {
         p = (uint8_t)(x >> 5);
         if (p != page) { page = p; TMAP(page0 + p); }
-        memset(TWIN + ((uint16_t)(x & 31) << 8) + (uint16_t)y0, v, (uint16_t)(y1 - y0));
+        dma_fill(TWIN + ((uint16_t)(x & 31) << 8) + (uint16_t)y0, v, (uint16_t)(y1 - y0));
     }
     done();
 }

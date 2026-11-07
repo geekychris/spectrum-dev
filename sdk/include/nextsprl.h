@@ -8,7 +8,9 @@
  *   spl_init()                  4-bit transparency: pen 0 (NextReg 0x4B = 0;
  *                               8-bit sprites then use index 0 too), all
  *                               sprites hidden
- *   spl_begin()                 start the frame's list (sprite 0 first)
+ *   spl_begin()                 start the frame's list (sprite spl_first
+ *                               first; spl_first, default 0, leaves the
+ *                               sprites below it to other code)
  *   spl_add(x, y, pat, pal, flags)
  *                               one sprite with its top-left at (x, y) on the
  *                               320 x 256 sprite plane: 4-bit pattern pat
@@ -43,13 +45,13 @@
 
 #define SPL_MAX 128
 
-extern uint8_t spl_count;
+extern uint8_t spl_count, spl_first;
 
 extern void spl_init(void);
 extern void spl_begin(void);
 extern uint8_t spl_add(int16_t x, int16_t y, uint8_t pat, uint8_t pal, uint8_t flags);
 extern void spl_end(void);
 extern void spl_patterns(uint8_t pat, const uint8_t *src, uint8_t n);
-extern uint8_t spl_zmask(uint8_t *dst, const uint8_t *src, int16_t x, int16_t y, uint8_t key, uint8_t zpage);
+extern uint16_t spl_zmask(uint8_t *dst, const uint8_t *src, int16_t x, int16_t y, uint8_t key, uint8_t zpage);
 
 #endif

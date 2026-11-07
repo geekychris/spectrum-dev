@@ -78,25 +78,38 @@ void tm_font(uint8_t tile, const uint8_t *font, uint8_t n, uint8_t fg, uint8_t b
     }
 }
 
+static uint8_t px[32][32];
+
+/* the glyph's pixels as n x n blocks of pen, offset by (off, off), clipped */
+static void blocks(const uint8_t *glyph, uint8_t n, uint8_t size, uint8_t off, uint8_t pen)
+{
+    uint8_t gx, gy, y0, x0, i, j;
+    for (gy = 0, y0 = off; gy < 8; gy++, y0 += n) {
+        uint8_t bits = glyph[gy];
+        for (gx = 0, x0 = off; bits; gx++, x0 += n, bits <<= 1) {
+            if (!(bits & 0x80)) continue;
+            for (j = y0; j < y0 + n && j < size; j++)
+                for (i = x0; i < x0 + n && i < size; i++) px[j][i] = pen;
+        }
+    }
+}
+
 void tm_glyphnx(uint8_t tile, const uint8_t *glyph, uint8_t n, uint8_t fg, uint8_t shadow, uint8_t off)
 {
-    static uint8_t px[32][32];
     static uint8_t def[32];
     uint8_t *d, x, y, t, size;
     if (n < 1 || n > 4) return;
     size = n << 3;
     memset(px, 0, sizeof(px));
-    for (y = 0; y < size; y++)
-        for (x = 0; x < size; x++)
-            if (glyph[y / n] & (0x80 >> (x / n))) {
-                if (shadow && x + off < size && y + off < size && !px[y + off][x + off]) px[y + off][x + off] = shadow;
-                px[y][x] = fg;
-            }
+    if (shadow) blocks(glyph, n, size, off, shadow);
+    blocks(glyph, n, size, 0, fg);
     for (t = 0; t < n * n; t++) {
         uint8_t ox = (t % n) << 3, oy = (t / n) << 3;
         d = def;
-        for (y = 0; y < 8; y++)
-            for (x = 0; x < 8; x += 2) *d++ = px[oy + y][ox + x] << 4 | px[oy + y][ox + x + 1];
+        for (y = 0; y < 8; y++) {
+            const uint8_t *r = &px[oy + y][ox];
+            for (x = 0; x < 8; x += 2) *d++ = r[x] << 4 | r[x + 1];
+        }
         map_in();
         memcpy(def_ptr(tile + t), def, 32);
         map_out();
