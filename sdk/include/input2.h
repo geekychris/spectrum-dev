@@ -27,7 +27,10 @@
  * if you accept the clash (or not at all).
  *
  * Presses are seen between updates: a tap shorter than the game's frame
- * can be lost (zxgame.h's input_latch covers one player's taps).
+ * can be lost, unless latched (input2_latch.c): frame_hook = in2_sample
+ * (it reads the keys and Kempstons every interrupt), then
+ * in2_scan_latched() in place of in2_scan(): a key that was down at any
+ * interrupt since the last scan counts as down in this one.
  * Works on the 48K/128K too (no Kempston 2 there).
  */
 #ifndef INPUT2_H
@@ -55,6 +58,8 @@ extern void in2_init(void);
 extern void in2_scan(void);
 extern uint8_t in2_bits(uint16_t src);
 extern void in2_update(in2_pad *p);
+extern void in2_sample(void);            /* frame_hook: latch what is down */
+extern void in2_scan_latched(void);      /* in2_scan() plus what in2_sample saw since */
 /* a key from the last scan: half-row 0..7 (0xFEFE = 0 .. 0x7FFE = 7), bit mask */
 #define in2_key(row, mask) (!(in2_rows[row] & (mask)))
 #endif
