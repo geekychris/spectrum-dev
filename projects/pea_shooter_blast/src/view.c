@@ -41,6 +41,10 @@ static int8_t shown_level = -1;
 
 /* ------------------------------------------------------------ the playfield */
 
+/* TODO: move this ring onto sdk l2scroll.h (one band, rows 0-255, this
+   column() as its fill, the scroll register from l2s_offset()) once it is on
+   main (Lunar Rider); see PROGRESS.md */
+
 /* map pixel column mx of level lvl into its Layer 2 column (mx mod 320) */
 static void column(uint8_t lvl, int16_t mx)
 {

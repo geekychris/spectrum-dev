@@ -389,6 +389,19 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   (one pattern set in eight colours by palette offset), name tags in the
   scrolled tilemap, the original's MODs and effects on TurboSound. ~49 fps.
   Two zsdcc problems found (xcc `__moduint`, inline `strncpy`; CLAUDE.md).
+- **Pea Shooter Blast** (Next): the original's game.c and levels.c unchanged
+  (its types are already the Z80's sizes; a scripted game hashes the same as
+  the original's code on the host), the rules in a bank over the ROM, the 6K
+  level maps in a page (--bssseg). Layer 2 hardware scroll as a ring of 320
+  columns (only new columns drawn), redrawn 256-colour tiles, a copper
+  gradient per level, 4-bit sprites (zoomed explosion flashes), tilemap HUD,
+  the original's MOD via mod2ay and its effects on TurboSound. 50 fps (48.8
+  mean in the test), logic 50 Hz. Original bug: levels 1 and 3 can't be
+  finished (jump too low for its walls, a metal block shutting level 1;
+  tools/reach.c searches every way through): jump 4.5 and a doorway.
+  SDK: tmtext (projects/texttest), nextsprl spl_scale, spl_zmask in nextsprl_z.c.
+  TODO: move its game-local scroller (view.c view_playfield) onto sdk l2scroll.h
+  once Lunar Rider has merged it.
 
 - **Orbital Patrol** (Next): the original's game.c and main-loop states unchanged
   in 32-bit 8.8, on its own 320 x 256 (Layer 2): the playfield scrolled by the
