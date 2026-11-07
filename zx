@@ -17,6 +17,7 @@
 #   ./zx symbols <project> [regex]
 #   ./zx devbench [--port 3580] [--open]                    web UI + REST + MCP over HTTP
 #   ./zx arcade [--no-build] [--image-only] [--list]   every game + a menu on an SD image, in a window
+#   ./zx release [--no-build]   per-game zips + manifest.json for a GitHub release (dist/release/)
 #   ./zx clean <project>
 #   ./zx selftest                build + test everything (do this before saying "done")
 #   ./zx zxdev ...               raw access to the zxdev CLI
@@ -49,6 +50,7 @@ case "$cmd" in
            need_zxdev; exec "$ZXDEV" "$cmd" "$@" ;;
   replay)  need_zxdev; need_emu; exec "$ZXDEV" replay "$@" ;;
   arcade)  need_zxdev; need_emu; exec "$ZXDEV" arcade "$@" ;;
+  release) need_zxdev; need_emu; exec "$PY" "$ROOT/scripts/package_release.py" "$@" ;;
   run|serve|log|shot|symbols|video|record)
            need_zxdev; need_emu
            if [ $# -ge 1 ] && [ -f "$ROOT/projects/$1/Makefile" ]; then
@@ -121,6 +123,6 @@ case "$cmd" in
            fi
            [ "$fails" -eq 0 ] && ok "all pass" || die "$fails check(s) failed" ;;
   zxdev)   need_zxdev; exec "$ZXDEV" "$@" ;;
-  help|-h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help|-h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//' ;;
   *)       die "unknown command '$cmd' (./zx help)" ;;
 esac

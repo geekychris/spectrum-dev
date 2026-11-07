@@ -243,6 +243,18 @@ a Play button per game) and the MCP tools (`arcade_games`, `arcade_play(game)`)
 all come from those files. How the card, the menu, loading and returning
 work: [projects/arcade/README.md](projects/arcade/README.md).
 
+## Releases
+
+```sh
+./zx release              # build every arcade game, then dist/release/: <game>-spectrum.zip,
+                          # spectrum-games.zip and manifest.json (for the website's /games/ page)
+gh release create games-YYYY-MM-DD dist/release/*.zip dist/release/manifest.json
+```
+
+Each zip holds the `.tap` and a `.sna` (48K games) or the `.nex` (Next games)
+and a README; `spectrum-games.zip` adds the arcade's files for a real Next's
+card. NextZXOS is never included (its licence wants the whole distribution).
+
 ## Repository layout
 
 | | |
