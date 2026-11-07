@@ -98,8 +98,8 @@ What it uses beyond a 48K/128K Spectrum, and why:
 ## Frame rate
 
 The logic always runs at the original's 50 steps a second (fixed timestep,
-up to 8 steps a frame). The picture is redrawn when it can: about **6-7
-frames a second** while playing (the profiler's `pc: perf` lines, in a
+up to 8 steps a frame). The picture is redrawn when it can: about **4.5-6.5
+frames a second** while playing (4.0-5.3 in the test's bot game) (the profiler's `pc: perf` lines, in a
 frame of 312 raster lines of ~1800 T-states: corners ~380, crumbs ~230,
 wall list ~300, polygon fill ~900, logic ~40 a step). The 3DO renderer on a
 16 MHz Falcon managed 1 fps and on a 32 MHz 68060 about 9.
@@ -150,7 +150,7 @@ host comparison. `.venv/bin/python projects/planet_chomp/tools/profile.py
 
 ## Known issues
 
-- 6-7 frames a second: playable (the game runs at its real speed) but
+- 4.5-6.5 frames a second: playable (the game runs at its real speed) but
   jerky. The profile is now flat across the transform, the lists and the
   fill.
 - Sprites are always over the walls: a spook behind a wall shows in front

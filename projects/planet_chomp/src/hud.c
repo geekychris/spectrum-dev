@@ -176,7 +176,8 @@ static void play_update(void)
         tm_fill(0, 10, TM_COLS, 2, 0, 0);
         tm_fill(0, 13, TM_COLS, 2, 0, 0);
         tm_fill(0, 18, TM_COLS, 2, 0, 0);
-        tm_fill(0, 21, 30, 1, 0, 0);
+        tm_fill(0, 21, TM_COLS, 1, 0, 0);
+        tm_print(32, 21, "RADAR", T_PRINT, P_DIM);
         if (msg == MSG_READY || msg == MSG_READY1) big(18, "READY!", P_YELLOW);
         if (msg == MSG_READY1) ctext(21, "EAT EVERY CRUMB - GRAB A KEY", P_DIM);
         if (msg == MSG_CLEAR) big(10, "PLANET CLEARED!", P_YELLOW);

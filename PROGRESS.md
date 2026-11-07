@@ -199,7 +199,7 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   the lattice corners, walls as quads from their corners, crumbs and walls in
   depth buckets, a clipped quad filler (draw.asm); sprites from the original's
   textures at 10 sizes; tilemap HUD and radar; TurboSound effects and a title
-  tune; high-score table. Logic 50 Hz, picture 6-7 fps. SDK: vec3, isqrt32 3x.
+  tune; high-score table. Logic 50 Hz, picture 4.5-6.5 fps. SDK: vec3, isqrt32 3x.
 
 - **Marble Tilt** (Next): the original's amiga3d rules unchanged on 16.16
   (`fix16.h`, the engine's fixed point bit for bit: the original's whole
