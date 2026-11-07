@@ -145,6 +145,15 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   SDK: l2rle, nextspr (masks in asm), isosort, nextcopper, nexttile, palfx,
   aystream, zxrle, dma_to_port; projects/nextlibtest.
 
+- **Rock Blaster** (48K): the original's logic (ship in 16.16, the rest in
+  16-bit 1/128 px, world 320 x 240 shown at 0.8), XOR wireframes straight onto
+  the screen redrawn only where they moved, compiled polygons, the object
+  loops in asm; logic 50 Hz, screen 12-39 fps (half the rocks a frame when
+  busy); beeper effects, the original's MOD on a 128K's AY. SDK: `line48`
+  (lines, wrapped polygons, compiled polygons, `poly_sync`, points),
+  `vec48` (rotation tables), `hit48` (circle collisions), `text_xor`; a faster
+  `input_read` (table decode); `modplay` fixed on a single-AY 128K.
+
 ### Cleanup (2026-11-06)
 
 SDK modules pulled out of the games, each with a test (sdktest,

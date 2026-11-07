@@ -54,26 +54,60 @@ mw_one:
     ld h,(ix+1)
     ld e,(ix+4)
     ld d,(ix+5)
-    add hl,de
-    ld de,W7
-    call wrap
+    add hl,de                   ; x + dx, wrapped (see wrap)
+    ld a,h
+    cp 0xF0
+    jr nc,mw_xu
+    cp W7 / 256
+    jr c,mw_xs
+    ld a,h
+    sub W7 / 256
+    ld h,a
+    jr mw_xs
+mw_xu:
+    ld a,h
+    add a,W7 / 256
+    ld h,a
+mw_xs:
     ld (ix+0),l
     ld (ix+1),h
-    call px7
-    ld (ix+9),l
-    ld (ix+10),h
+    ld a,l                      ; px = x >> 7
+    rla
+    ld a,h
+    rla
+    ld (ix+9),a
+    ld a,0
+    rla
+    ld (ix+10),a
     ld l,(ix+2)
     ld h,(ix+3)
     ld e,(ix+6)
     ld d,(ix+7)
-    add hl,de
-    ld de,H7
-    call wrap
+    add hl,de                   ; y + dy, wrapped
+    ld a,h
+    cp 0xF0
+    jr nc,mw_yu
+    cp H7 / 256
+    jr c,mw_ys
+    ld a,h
+    sub H7 / 256
+    ld h,a
+    jr mw_ys
+mw_yu:
+    ld a,h
+    add a,H7 / 256
+    ld h,a
+mw_ys:
     ld (ix+2),l
     ld (ix+3),h
-    call px7
-    ld (ix+11),l
-    ld (ix+12),h
+    ld a,l
+    rla
+    ld a,h
+    rla
+    ld (ix+11),a
+    ld a,0
+    rla
+    ld (ix+12),a
     ld hl,(_mw_hits)            ; collecting the rocks' circles (hit48)?
     ld a,h
     or l
@@ -81,7 +115,7 @@ mw_one:
     pop hl
     pop de
     pop bc
-    jr mw_skip
+    jp mw_skip
 
 ; append {px, py, radius, slot} at mw_hits for the rock at IX (slot = 24 - B
 ; of the caller, which is on the stack above our return address and HL)

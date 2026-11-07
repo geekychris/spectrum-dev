@@ -163,6 +163,14 @@ Details: docs/emulator-harness.md.
   there yet. Run a frame (or wait for the `\n`) before parsing values out of it.
 - The linker pulls whole SDK files: adding a function to a file a game links can push it over
   0xF000 (Boing Pinball has ~20 bytes spare). Put new functions in their own file.
+- On a 48K, 0x5D00-0x7FFF is free once a C program runs (the BASIC loader is done with):
+  put tables built at start-up there when 0x8000-0xF000 is full (Rock Blaster's lowmem.h).
+  It is contended memory, so keep hot loops' data above 0x8000.
+- A plain 128K has one AY and ignores the TurboSound chip select: writing "chip 1/2"
+  registers overwrites chip 0's (modplay now only touches the chips a song routes to).
+- To profile, sample: stop at random (frame, T-state) points with `run_to` and histogram
+  the PC by the map's labels (local `l_func_NNNNN` labels locate C hot spots in
+  `zcc -S` output); breakpoint-to-return timings include any interrupt in between.
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 
 

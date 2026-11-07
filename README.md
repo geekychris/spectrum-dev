@@ -193,6 +193,7 @@ They are part of `./zx selftest`.
 |---|---|---|
 | [Nova Defense](projects/nova_defense/README.md) | 48K `.tap` | ![](docs/images/nova_defense.gif) |
 | [Frank the Frog](projects/frank_the_frog/README.md) | 48K `.tap` | ![](docs/images/frank_the_frog.gif) |
+| [Rock Blaster](projects/rock_blaster/README.md) | 48K `.tap`: XOR vector wireframes, the original's MOD on a 128K's AY | ![](docs/images/rock_blaster.gif) |
 | [StakAttack](projects/stakattack/README.md) | Next `.nex`: Layer 2, hardware sprites, TurboSound music | ![](docs/images/stakattack.gif) |
 | [Boing Pinball](projects/boing_pinball/README.md) | Next `.nex`: the original's physics and rules in 16-bit, 320x256 Layer 2, sprites, banked code | ![](docs/images/boing_pinball.gif) |
 | [Spectral Keep](projects/spectral_keep/README.md) | Next `.nex`: isometric rooms on 320x256 Layer 2, sprites masked behind scenery, tilemap HUD, copper, DMA, TurboSound, banked code | ![](docs/images/spectral_keep.gif) |
@@ -203,7 +204,8 @@ How the two machines compare as targets, and what each game uses:
 The shared game layer is in `sdk/include/zxgame.h` (8.8 fixed point, trig,
 random numbers, IM 2 frame timer, latched input with Kempston support,
 beeper/AY sound and music, 48K sprites/text, high scores and the initials
-editor), `fixmath.h` (16-bit fixed point, Z80N MUL), `font5.h`, `modplay.h`
+editor), `line48.h` / `vec48.h` (48K lines, wireframe polygons, rotation
+tables), `hit48.h` (circle collisions), `fixmath.h` (16-bit fixed point, Z80N MUL), `font5.h`, `modplay.h`
 (MOD music), `nextgfx.h` (Layer 2 in both modes, sprites, palettes,
 TurboSound, DMA), the Next modules `l2rle.h` (RLE pictures), `nextspr.h`
 (sprite groups and masking), `isosort.h`, `nextcopper.h`, `nexttile.h`
@@ -243,7 +245,7 @@ work: [projects/arcade/README.md](projects/arcade/README.md).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `stakattack`, `boing_pinball`, `spectral_keep`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktestnext`, `nextlibtest`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `rock_blaster`, `stakattack`, `boing_pinball`, `spectral_keep`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktestnext`, `nextlibtest`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 

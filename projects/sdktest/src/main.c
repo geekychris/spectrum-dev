@@ -11,6 +11,7 @@
 #include "zxtext.h"
 #include "line48.h"
 #include "vec48.h"
+#include "hit48.h"
 
 #define FRAMES frame_ticks       /* counted by the SDK's IM 2 handler */
 
@@ -74,6 +75,14 @@ static void line_tests(void)
         vec_rot_table(arrow, 5, 256, 2, tab);
         zx_log("sdk: rottab=%d,%d,%d,%d at250=%d\n", tab[5].x, tab[5].y, tab[10].x, tab[15].y,
                (int)(vec_rot_at(tab, 5, 2, 250) - tab));
+    }
+    {
+        static const hit_circle circ[4] = {{100, 100, 10, 0}, {300, -50, 20, 1}, {-200, 80, 5, 2}, {150, 100, 8, 3}};
+        static const int16_t q[8][3] = {{105, 104, 2}, {325, -50, 4}, {320, -45, 4}, {-200, 80, 0},
+                                        {156, 106, 2}, {1000, 1000, 5}, {-197, 84, 0}, {400, 100, 3}};
+        uint8_t r[8];
+        for (i = 0; i < 8; i++) r[i] = hit_first(q[i][0], q[i][1], (uint8_t)q[i][2], circ, 4);
+        zx_log("sdk: hit=%u,%u,%u,%u,%u,%u,%u,%u\n", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
     }
     zx_log("sdk: lines drawn\n");
     /* cost: 50 XOR octagons */

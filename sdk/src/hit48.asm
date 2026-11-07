@@ -14,47 +14,57 @@ _hit_scan:
     ld b,a
     ld c,0                      ; index
 hs_loop:
-    push hl                     ; this entry
-    ; reach = hit_r + r
-    ld de,4
-    add hl,de
-    ld a,(_hit_r)
-    add a,(hl)
-    ld (reach),a
-    pop hl
-    push hl
-    ; |dx|
-    ld de,(_hit_x)
-    ld a,e
+    ; |dx| = |hit_x - x|, rejected unless < 256
+    ld a,(_hit_x)
     sub (hl)
     ld e,a
     inc hl
-    ld a,d
+    ld a,(_hit_x + 1)
     sbc a,(hl)
+    inc hl                      ; HL = y
+    jr z,hs_dxok
+    inc a
+    jr nz,hs_far                ; < -256 or >= 256
+    xor a
+    sub e
+    jr z,hs_far                 ; -256
+    ld e,a
+hs_dxok:
+    ; reach = hit_r + r; reject when |dx| >= reach
     inc hl
-    call abs_ad                 ; A:E = dx -> E = |dx| if < 256, else CF
-    jr c,hs_next
-    ld a,(reach)
+    inc hl
+    ld a,(_hit_r)
+    add a,(hl)
+    dec hl
+    dec hl
     cp e
-    jr c,hs_next
-    jr z,hs_next                ; |dx| >= reach
+    jr c,hs_far
+    jr z,hs_far
+    ld (reach),a
     ld a,e
     ld (adx),a
     ; |dy|
-    ld de,(_hit_y)
-    ld a,e
+    ld a,(_hit_y)
     sub (hl)
     ld e,a
     inc hl
-    ld a,d
+    ld a,(_hit_y + 1)
     sbc a,(hl)
-    call abs_ad
-    jr c,hs_next
+    dec hl
+    jr z,hs_dyok
+    inc a
+    jr nz,hs_far
+    xor a
+    sub e
+    jr z,hs_far
+    ld e,a
+hs_dyok:
     ld a,(reach)
     cp e
-    jr c,hs_next
-    jr z,hs_next
+    jr c,hs_far
+    jr z,hs_far
     ; dx^2 + dy^2 < reach^2
+    push hl
     ld a,e
     call square                 ; HL = dy^2
     push hl
@@ -68,37 +78,19 @@ hs_loop:
     pop de                      ; DE = dx^2 + dy^2
     or a
     sbc hl,de                   ; reach^2 - d^2 > 0: hit
-    jr z,hs_next
-    jr c,hs_next
     pop hl
+    jr z,hs_far
+    jr c,hs_far
     ld l,c
     ld h,0
     ret
-hs_next:
-    pop hl
-    ld de,6
+hs_far:                         ; HL = this entry's y
+    ld de,4
     add hl,de
     inc c
     djnz hs_loop
 hs_none:
     ld hl,0xFF
-    ret
-
-; A (high), E (low) = a signed 16-bit difference -> E = its magnitude, CF
-; set if it is 256 or more
-abs_ad:
-    bit 7,a
-    jr z,ab_pos
-    ld d,a
-    xor a
-    sub e
-    ld e,a
-    ld a,0
-    sbc a,d                     ; A:E = -value
-ab_pos:
-    or a
-    ret z                       ; < 256 (CF clear from OR)
-    scf
     ret
 
 ; HL = A * A (A < 128)

@@ -40,6 +40,10 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext` and `project
 | | `gfx48.c`, `spr_blit.asm` | 48K screen: row table, pre-shifted sprites (xor/or/clear/store), rects, tiles, attributes, big text, numbers |
 | | `hiscore.c` | high-score table, the initials editor (`hs_edit_*`, any screen) |
 | | `hiscore48.c` | the table and the initials screen on the 48K screen (`hs_draw`, `hs_enter`) |
+| | `text_xor.c` | `text_xor`: ROM-font text XORed onto any pixel line (8x8 or 8x16), for HUDs over XOR graphics |
+| `line48.h` | `line48.asm`, `line48.c` | 48K lines in asm: eight octant Bresenham loops (~80 T-states a pixel), XOR / OR / CLEAR, `line_draw`, `line_clip` (int16, clipped), `line_poly` (wraps around the screen: x mod 256, y mod 192), `plot_list`; compiled polygons (`poly_compile` / `poly_draw`, ~200 T-states an edge less) and an XOR display list (`poly_sync`: redraw only what moved). Row table at 0xF200-0xF3FF |
+| `vec48.h` | `vec48.c` | vector shapes for line48: `vec_rotate`, `vec_scale`, rotation tables (`vec_rot_table`, compiled: `vec_poly_table`) |
+| `hit48.h` | `hit48.asm`, `hit48.c` | circle collisions in asm: `hit_first(x, y, r, list, n)` against a list of {x, y, r, id} (16-bit coordinates) |
 | `modplay.h` | `modplay.c` | plays a MOD converted by `tools/mod2ay.py`: four channels routed to TurboSound chips, tone / noise / kick instruments; leaves free channels to `ay_sfx` |
 | `fixmath.h` | `fixmath.asm`, `fixmath.c` | 16-bit fixed point for physics: `mul16` (16x16 -> 32, MUL on the Z80N), `mulq14`, `mulq8`, `isqrt32`, `div_q14`; inline C on a host compiler for host tests |
 | `font5.h` | `font5.c` | a 5x7 font for drawing text yourself (Layer 2, a dot-matrix display), `font5_width` |

@@ -159,6 +159,13 @@ def check_lines(e):
     exp = f"rot={rot[0][0]},{rot[0][1]},{rot[1][0]},{rot[1][1]},{rot[4][0]},{rot[4][1]}"
     check("vec_rotate matches Python", exp in log, f"{exp} vs {val(log, 'rot')}")
     check("vec_rot_table + vec_rot_at", "rottab=0,10,-10,-10 at250=0" in log, val(log, "rottab"))
+    circ = [(100, 100, 10), (300, -50, 20), (-200, 80, 5), (150, 100, 8)]
+    qs = [(105, 104, 2), (325, -50, 4), (320, -45, 4), (-200, 80, 0), (156, 106, 2), (1000, 1000, 5),
+          (-197, 84, 0), (400, 100, 3)]
+    exp = [next((k for k, (cx, cy, cr) in enumerate(circ)
+                 if abs(x - cx) < r + cr and abs(y - cy) < r + cr and (x - cx) ** 2 + (y - cy) ** 2 < (r + cr) ** 2), 255)
+           for x, y, r in qs]
+    check("hit48: hit_first matches Python", "hit=" + ",".join(map(str, exp)) in log, f"{exp} vs {val(log, 'hit')}")
     check("line48: 50 XOR octagons", e.run_until("sdk: 50 octagons", 400))
     e.run(1)
     print("   ", re.findall(r"50 octagons frames=\d+", e.log(0)))

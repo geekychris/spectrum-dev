@@ -15,7 +15,7 @@ the games in `projects/`:
 
 ## What the games did on each
 
-**48K** (Nova Defense, Frank the Frog): every pixel is drawn by the CPU, and
+**48K** (Nova Defense, Frank the Frog, Rock Blaster): every pixel is drawn by the CPU, and
 the CPU is slow, so the work goes into drawing less:
 
 - sprites pre-shifted into 8 copies so a draw is byte moves, written in
@@ -25,9 +25,18 @@ the CPU is slow, so the work goes into drawing less:
   or row has its own colours (Frank's lanes are two character rows)
 - only what moved is redrawn (Nova's shields, Frank's trails), and Frank
   draws half the lanes each frame
+- vector graphics as XOR wireframes (Rock Blaster, sdk `line48`): drawing a
+  shape twice erases it, so each frame redraws only the shapes that moved,
+  straight onto the screen; shapes are compiled polygons (each edge's octant
+  and length worked out at start-up) and the ship has one for each of 128
+  angles
+- tables built at start-up can go in the RAM below the program
+  (0x5D00-0x7FFF once the BASIC loader is done), as Rock Blaster's do
 - the game logic runs at a fixed 50 Hz while the screen updates when it can
-  (Nova 35-48 fps, Frank about 19), so the games play at the original speed
-- sound on the beeper (which stops the CPU), or on the AY on a 128K
+  (Nova 35-48 fps, Frank about 19, Rock Blaster 12-39), so the games play at
+  the original speed
+- sound on the beeper (which stops the CPU), or on the AY on a 128K (Rock
+  Blaster plays the original's MOD there through `modplay`)
 
 **Next** (StakAttack, Boing Pinball, Spectral Keep): the hardware does what the CPU did on
 the 48K:
