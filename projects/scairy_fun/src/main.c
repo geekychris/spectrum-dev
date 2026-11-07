@@ -19,32 +19,25 @@
 #include "render.h"
 #include "sprites.h"
 #include "game.h"
+#include "modplay.h"
+#include "palfx.h"
 uint8_t render_skip;                    /* profiling (render.c) */
+extern const mod_song scairy_song;      /* music.c (in page 39 for 0xF200, see main) */
 
 World world;
+uint8_t sfx_queue;
 
-/* time in raster lines (312 a frame) since `from`, for profiling */
-static uint32_t now_lines(void)
-{
-    uint8_t f = frame_ticks;
-    uint16_t l = ((uint16_t)(ZXN_READ_REG(0x1E) & 1) << 8) | ZXN_READ_REG(0x1F);
-    if (f != frame_ticks) return now_lines();
-    return (uint32_t)f * 312 + l;
-}
-static uint16_t lines_since(uint32_t t0)
-{
-    int32_t d = (int32_t)(now_lines() - t0);
-    if (d < 0) d += 256L * 312;
-    return (uint16_t)d;
-}
-static uint32_t t_sim, t_draw;
 static volatile uint16_t frames50;               /* 50 Hz frames, from the interrupt */
-static void on_frame(void) { frames50++; }
 
 void map_sim(void)
 {
     ZXN_WRITE_MMU0(32); ZXN_WRITE_MMU1(33);
     ZXN_WRITE_MMU2(34); ZXN_WRITE_MMU3(35);
+}
+
+void map_front(void)
+{
+    ZXN_WRITE_MMU0(40); ZXN_WRITE_MMU1(41);
 }
 
 void map_render(void)
@@ -104,55 +97,123 @@ void set_palette(int route, int glare)
     }
 }
 
+
+/* the effects (game.c sfx(): queued, started here so only the interrupt writes
+   to the AY), on chip 0; the music on chips 1 and 2 */
+static void start_sfx(uint8_t id)
+{
+    switch (id) {
+    case SFX_CHIME_ON:  ay_sfx(0, AY_NOTE(72), 13, 1, -3); break;
+    case SFX_CHIME_OFF: ay_sfx(0, AY_NOTE(67), 13, 1, 4); break;
+    case SFX_BLIP:      ay_sfx(1, AY_NOTE(84), 11, 2, 0); break;
+    case SFX_SAVE:      ay_sfx(0, AY_NOTE(76), 15, 1, -6); break;
+    case SFX_SCRAPE:    ay_sfx(2, 0, 12, 2, 0); break;
+    case SFX_CONE:      ay_sfx(1, AY_NOTE(88), 12, 3, 8); break;
+    case SFX_CRASH:     ay_sfx(2, 0, 15, 1, 0); ay_sfx(0, AY_NOTE(40), 14, 1, 12); break;
+    case SFX_SPLASH:    ay_sfx(2, 0, 14, 1, 0); break;
+    case SFX_ALERT:     ay_sfx(1, AY_NOTE(81), 14, 1, 0); break;
+    case SFX_SIREN:     ay_sfx(1, AY_NOTE((frames50 >> 3) & 1 ? 79 : 74), 10, 1, 0); break;
+    case SFX_KEY:       ay_sfx(1, AY_NOTE(79), 10, 3, 0); break;
+    }
+}
+
+static void on_frame(void)
+{
+    frames50++;
+    input_sample();
+    modplay_tick();
+    if (sfx_queue) {
+        start_sfx(sfx_queue);
+        sfx_queue = 0;
+    }
+    sound_tick();
+}
+
+/* the simulation steps due: fixed 25 Hz (the original's), at most 4 at a time */
+static uint8_t acc;
+
 int main(void)
 {
-    uint8_t acc = 0, t;
-    uint16_t frames = 0, fstart;
-    uint16_t tstart = frames50;
+    uint8_t t, fr;
+    unsigned in;
+    uint16_t loops = 0, tstart;
+
     next_init();
+    ZXN_WRITE_REG(0x15, 0x13);                      /* tilemap over sprites over Layer 2 */
+    /* the music's data, linked at 0xF200 and loaded into page 39: copy it up there */
+    ZXN_WRITE_MMU3(39);
+    memcpy((void *)0xF200, (const void *)0x7200, 0xFE00 - 0xF200);
+    ZXN_WRITE_MMU3(11);
+    /* the ROM's font for the tilemap (ui_font), into page 39's first 768 bytes */
+    ZXN_WRITE_MMU3(39);
+    memcpy((void *)0x6000, (const void *)0x3D00, 768);
+    ZXN_WRITE_MMU3(11);
     frame_init();
+    input_init();
+    input_latch(1);
+    ay_init();
     frame_hook = on_frame;
     l2_init();
     spr_init();
     map_render();
     render_init();
     spr_setup();
-    set_palette(0, 0);                  /* the tables are in the renderer's bank */
+    set_palette(0, 0);
+    map_front();
+    ui_font();
+    game_init();
     map_sim();
     world_init(&world);
+    modplay_start(&scairy_song);
     zx_log("scairy: ready\n");
-    fstart = frame_count;
+    tstart = frames50;
     for (;;) {
+        static uint8_t pal_route = 0xFF, pal_glare = 0xFF;
         t = frame_wait();
         l2_flip();
         map_render();
         spr_show_frame();
+        if (world.route != pal_route || world.glare != pal_glare) {
+            set_palette(world.route, world.glare);  /* (in the vertical blank) */
+            pal_route = world.route;
+            pal_glare = world.glare;
+        }
+        map_front();
+        fr = game_input();
+        in = game_in;                               /* (game.c's variables are in bank 20) */
+        if (game_reset) {
+            game_reset = 0;
+            map_sim();
+            world_init(&world);
+            acc = 0;
+        }
         acc += t;
-        if (acc > 8) acc = 8;           /* the original's: at most 4 steps a frame */
-        map_sim();
-        {
-        uint32_t t0 = now_lines();
-        while (acc >= 2 && !(render_skip & 128)) {
-            Event e;
-            world_update(&world, 0);
-            while (world_pop_event(&world, &e)) ;
-            acc -= 2;
+        if (acc > 8) acc = 8;                       /* the original's: at most 4 steps a frame */
+        if (fr & FR_PLAY) {
+            map_sim();
+            while (acc >= 2 && !(render_skip & 128)) {
+                world_update(&world, in);
+                acc -= 2;
+                map_front();
+                game_events();                      /* sounds, the log */
+                map_sim();
+            }
+        } else acc = 0;
+        if (fr & FR_3D) {
+            map_render();
+            camera_follow(&world);
+            render_world(&world);
+        } else {
+            map_render();
+            spr_hide_all();
         }
-        t_sim += lines_since(t0);
-        t0 = now_lines();
-        map_render();
-        camera_follow(&world);
-        render_world(&world);
-        t_draw += lines_since(t0);
-        }
-        if (++frames == 20) {
-            zx_log("scairy: fps*10=%u polys=%u seg=%d sim=%u draw=%u lines/frame\n",
-                   (uint16_t)(10000U / (frames50 - tstart)), render_polys, seg_of(world.car.z),
-                   (uint16_t)(t_sim / 20), (uint16_t)(t_draw / 20));
-            t_sim = t_draw = 0;
+        map_front();
+        game_draw();
+        if (++loops == 50) {
+            uint16_t f = frames50 - tstart;
+            zx_log("scairy: fps*10=%u seg=%d\n", (uint16_t)(5000UL * 50 / 10 / f), seg_of(world.car.z));
+            loops = 0;
             tstart = frames50;
-            frames = 0;
-            fstart = frame_count;
         }
     }
 }

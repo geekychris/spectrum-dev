@@ -21,5 +21,6 @@ void spr_add_world(const World *w, uint8_t kind, int32_t z, int16_t d, int16_t y
 void spr_segment_done(int seg, int16_t road_top);      /* drawn far to near: what covers what */
 void spr_frame_end(const World *w);                     /* the order, the patterns, the list */
 void spr_show_frame(void);                              /* after the flip: send it */
+void spr_hide_all(void);
 
 #endif

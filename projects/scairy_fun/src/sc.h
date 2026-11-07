@@ -71,14 +71,18 @@ enum { SIDE_GRASS, SIDE_LEVEE, SIDE_DROP, SIDE_WALL, SIDE_CLIFF, SIDE_MEDIAN,
 #define SF_FINISH    0x40
 #define SF_CONES     0x80               /* seg.closed lanes are coned off */
 
+/* port: packed to 10 bytes (was 14) for the Z80's memory: the routes' values
+ * fit (cx -336..2280, dir -60..60, ghost 0..150; tools/check_trace.sh's host
+ * build and the Z80's give the original's results), and every expression
+ * that uses them works in int or int32_t as before */
 typedef struct {
-    int32_t cx;                          /* centre line x at the segment start */
+    int16_t cx;                          /* centre line x at the segment start (port: int16_t) */
     int16_t y;                           /* road height */
-    int16_t dir;                         /* cx change to the next segment */
+    int8_t dir;                          /* cx change to the next segment (port: int8_t) */
     uint8_t side[2];                     /* SIDE_*, left and right */
     uint8_t flags;
     uint8_t closed;                      /* bit n: our lane n coned off */
-    int16_t ghost;                       /* SF_GHOST: old line offset from the right road edge */
+    uint8_t ghost;                       /* SF_GHOST: old line offset from the right road edge (port: uint8_t) */
 } Seg;
 
 /* hazards and bait */

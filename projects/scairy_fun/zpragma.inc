@@ -3,3 +3,5 @@
 #pragma output CRT_ORG_BANK_17 = 0x224000
 #pragma output CRT_ORG_BANK_18 = 0x240000
 #pragma output CRT_ORG_PAGE_38 = 0x264000
+#pragma output CRT_ORG_BANK_20 = 0x280000
+#pragma output CRT_ORG_PAGE_39 = 0x27F200

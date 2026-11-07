@@ -19,22 +19,7 @@
 #include "sc.h"
 #include "world_int.h"
 
-const char *const msg_text[MSG_COUNT] = {
-    "", "AUTOPILOT ENGAGED", "AUTOPILOT DISENGAGED", "I HAD THAT.",
-    "GOOD CATCH.", "RECALCULATING...", "THAT IS A ROAD. PROBABLY.",
-    "OBSTACLE DETECTED!", "KEEP YOUR HANDS ON THE WHEEL", "OOPS.",
-    "UPDATE INSTALLED. I AM BETTER NOW.", "AUTOPILOT UNAVAILABLE",
-    "WELCOME TO SCAIRY FUN", "WATER DETECTED. PROCEEDING ANYWAY.",
-    "YOU HAVE ARRIVED.", "CAMERA BLINDED", "I AM VERY PATIENT.",
-    "TICKET: FAILED TO YIELD", "TOW TRUCK ON ITS WAY", "POLICY CANCELLED"
-};
-
-const char *const ev_name[EV_COUNT] = {
-    "none", "ap_on", "ap_off", "unavailable", "save", "needless", "scrape",
-    "cone", "debris", "rearend", "crash", "splash", "roll", "ticket",
-    "respawn", "phantom", "blinded", "aquaplane", "arrived", "game_over",
-    "mult_up", "siren", "route_start", "hit_animal", "say", "win"
-};
+/* port: msg_text and ev_name are in game.c, the front end that shows them */
 
 const char *const hz_names[HZ_COUNT] = {
     "none", "flood", "ghost", "phantom", "cones", "glare", "siren", "debris",

@@ -243,3 +243,9 @@ void spr_show_frame(void)
     }
     nattr_shown = nattr;
 }
+
+void spr_hide_all(void)
+{
+    nattr = 0;
+    spr_show_frame();
+}

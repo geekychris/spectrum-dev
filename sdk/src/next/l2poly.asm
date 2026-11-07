@@ -1192,9 +1192,9 @@ cmp_eq:
 ; ---------------------------------------------------------------- the unrolled fill
 
 ; DE = destination, A = colour: stores from DE upwards; entered 2 * n bytes
-; before lf_unroll_end to store n bytes.
+; before lf_unroll_end to store n bytes (n < SPAN_DMA).
 lf_unroll:
-    REPT 255
+    REPT SPAN_DMA
     ld (de),a
     inc e
     ENDR
