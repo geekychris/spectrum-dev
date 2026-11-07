@@ -10,7 +10,8 @@
  *   0x0000-0x3FFF  bank 40: the rules (game.c), over the ROM; the tiles'
  *                  page while columns are drawn
  *   0x4000-0x5FFF  page 82: levels.c and the level maps; bank 5 (the
- *                  tilemap) and sound streams while they are written / read
+ *                  tilemap) and sound streams while they are written / read;
+ *                  page 88 (the title's picture, the sprite list) while drawn
  *   0x6000-0x7FFF  page 84: the HUD, the fonts, the palettes, the test
  *                  probe, the song; Layer 2 columns and sprite patterns while drawn;
  *                  page 86 (the state hash) during the scripted run

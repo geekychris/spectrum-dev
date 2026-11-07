@@ -19,12 +19,15 @@ $(OBJDIR)/state_hash.c.o: EXTRA_CFLAGS += --codesegPAGE_86 --constsegPAGE_86 --d
 # the banked parts must fit their 8K pages / 16K bank
 all: pages-check
 pages-check: $(OUT)
-	@for p in PAGE_82:8192 PAGE_84:8192 PAGE_86:8192 BANK_40:16384; do s=$${p%:*}; max=$${p#*:}; \
+	@for p in PAGE_82:8192 PAGE_84:8192 PAGE_86:8192 PAGE_88:8192 BANK_40:16384; do s=$${p%:*}; max=$${p#*:}; \
 	  head=$$(awk "/^__$${s}_head/ {print \$$3}" $(BUILD)/$(NAME).map | tr -d '$$'); \
 	  tail=$$(awk "/^__$${s}_tail/ {print \$$3}" $(BUILD)/$(NAME).map | tr -d '$$'); \
 	  if [ $$(( 0x$$tail - 0x$$head )) -gt $$max ]; then \
 	    echo "error: $$s holds $$(( 0x$$tail - 0x$$head )) bytes, over $$max"; rm -f $(OUT); exit 1; fi; done
 .PHONY: pages-check
+
+# the title's picture and the sprite list: page 88, at 0x4000 while they run
+$(OBJDIR)/title.c.o $(OBJDIR)/sprites.c.o: EXTRA_CFLAGS += --opt-code-size --codesegPAGE_88 --constsegPAGE_88 --datasegPAGE_88 --bsssegPAGE_88
 
 # main memory is full (28K below the IM 2 table): its files for size too
 $(OBJDIR)/view.c.o $(OBJDIR)/main.c.o $(OBJDIR)/sound.c.o: EXTRA_CFLAGS += --opt-code-size

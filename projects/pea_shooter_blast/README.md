@@ -66,11 +66,11 @@ What it uses beyond a 48K/128K Spectrum, and why:
 |---|---|---|
 | **28 MHz** | the original's rules in 16.16 fixed point (32-bit arithmetic in zsdcc's library calls) at 50 steps a second | a step takes about 170K T-states, more than two frames' worth at 3.5 MHz |
 | **Layer 2, 320 x 256 x 8 bpp** | the playfield at the original's resolution and 256 colours | the original's 16-colour 320 x 256 screen, shaded, with no attribute clash |
-| **Layer 2 hardware scrolling** (NextReg 0x16 / 0x71) | the side-scrolling: the 320 columns are a ring, and only the map columns coming into view are drawn (4 at most a frame, each 16 copies of a 16-byte tile column) | the original redraws 22 x 16 tiles every frame; here scrolling costs almost nothing |
+| **Layer 2 hardware scrolling** (NextReg 0x16 / 0x71, sdk l2scroll) | the side-scrolling: the 320 columns are a ring, and only the map columns coming into view are drawn (4 at most a frame, each 16 copies of a 16-byte tile column) | the original redraws 22 x 16 tiles every frame; here scrolling costs almost nothing |
 | **copper** | a vertical gradient behind each level: Layer 2's pen 0 changes every 4 lines | a background with depth for no CPU time and no pixels |
 | **hardware sprites, 4-bit, zoomed** | the tank, enemies, the boss (2 x 2) and its health bar, bullets, powerups, up to 32 particles, and explosion flashes (squares zoomed 2x or 4x up to 61 pixels) | nothing that moves is drawn into the playfield, so nothing has to be restored; palette offsets colour the particles |
 | **tilemap** (40 x 32, over everything) | the HUD, GAME OVER and LEVEL CLEAR, the title's text and the high scores, with big letters at 2-3x | the text stays put while the playfield scrolls under it |
-| **MMU banking** | the rules in bank 40 at 0x0000 (over the ROM), the levels and their 6K maps in page 82 at 0x4000, the HUD, fonts, palettes and test probe in page 84 at 0x6000, the state hash in page 86 | zsdcc's code for the original's rules is 15K, and with everything else it is about 64K, against the 28K free at 0x8000 |
+| **MMU banking** | the rules in bank 40 at 0x0000 (over the ROM), the levels and their 6K maps in page 82 at 0x4000, the HUD, fonts, palettes, song and test probe in page 84 at 0x6000, the title picture and the sprite list in page 88 (at 0x4000 while they run), the scripted hash run in page 86 | zsdcc's code for the original's rules is 15K, and with everything else it is about 64K, against the 28K free at 0x8000 |
 | **TurboSound** (3 AY chips) | the MOD's lead, bass and drums on chip 0, its echo channel on chip 1, the effects on chip 2 | music and effects at once |
 | **zxnDMA** | sprite patterns and attributes, Layer 2 clears | ~2 T-states a byte |
 
@@ -90,8 +90,8 @@ What it uses beyond a 48K/128K Spectrum, and why:
 
 ## Frame rate
 
-In the test's game the picture is drawn at **48.8 frames a second** on
-average (lowest 5-second sample 46, most samples 50), and the logic runs at the original's 50
+In the test's game the picture is drawn at **48.5 frames a second** on
+average (lowest 5-second sample 45, most samples 50), and the logic runs at the original's 50
 steps. A frame costs about 170K T-states for the rules, 57K for the
 sprites and 27K for the HUD, out of 560K. The late frames are a new level
 (the levels and a whole screen of columns) and the title.
