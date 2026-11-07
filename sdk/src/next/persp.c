@@ -65,4 +65,14 @@ void persp_xs(const int16_t *xs, uint8_t n, int16_t bx, uint16_t s, int16_t cx, 
         *out++ = clamp(cx, persp_mul((int16_t)x, s));
     }
 }
+
+void persp_ys(const int16_t *ys, uint8_t n, int16_t by, uint16_t s, int16_t cy, int16_t *out)
+{
+    while (n--) {
+        int32_t y = (int32_t)*ys++ + by;
+        if (y > 32767) y = 32767;
+        if (y < -32767) y = -32767;
+        *out++ = clamp(cy, -persp_mul((int16_t)y, s));
+    }
+}
 #endif

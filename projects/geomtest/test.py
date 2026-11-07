@@ -42,6 +42,13 @@ with Emulator(machine="next") as e:
     # persp: scale = fov * 4096 / z, (v * s) >> 12 floored, points offset, clamped to +-16000
     has("persp s=589 m=143,-144 130,73 145,80 -4184,-2803")
     has("scale %d %d %d" % (0x12345 // 7, 0x12345 // 300, 65535))   # 16- and 24-round divisions
+    # persp_xs / persp_ys match the one-point calls; persp_mul floors and saturates at +-32767
+    # (-32768 fits), over signs, 4096 boundaries and the 16-bit extremes
+    vs = [0, 1, -1, 7, -7, 4095, -4095, 4097, -4097, 1000, -1000, 16000, -16000, 32767, -32767, -32768, 300, -301]
+    ss = [1, 589, 4096, 4097, 20000, 32767]
+    mul = lambda v, s: max(-32767, min(32767, (v * s) >> 12)) if (v * s) >> 12 != -32768 else -32768
+    total = sum(mul(v, s) * (i + 1) * (j + 1) for j, s in enumerate(ss) for i, v in enumerate(vs))
+    has("persp batch bad=0 mulsum=%d" % total)
 
 print(f"{'FAIL' if failures else 'PASS'}: geomtest")
 sys.exit(1 if failures else 0)

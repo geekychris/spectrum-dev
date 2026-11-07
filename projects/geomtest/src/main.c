@@ -119,6 +119,25 @@ int main(void)
         persp_xy(pts, 3, 20, -92, s, 128, 59, out);
         zx_log("geo: persp s=%u m=%d,%d %d,%d %d,%d %d,%d\n", s, persp_mul(1000, s), persp_mul(-1000, s),
                out[0], out[1], out[2], out[3], out[4], out[5]);
+        {
+            /* persp_xs / persp_ys against persp_x1 / persp_y1, and persp_mul at its edges */
+            static const int16_t vs[] = { 0, 1, -1, 7, -7, 4095, -4095, 4097, -4097, 1000, -1000,
+                                          16000, -16000, 32767, -32767, -32768, 300, -301 };
+            static const uint16_t ss[] = { 1, 589, 4096, 4097, 20000, 32767 };
+            static int16_t xo[18], yo[18];
+            uint8_t i, j, bad = 0;
+            int32_t sum = 0;
+            for (j = 0; j < 6; j++) {
+                persp_xs(vs, 18, 37, ss[j], 128, xo);
+                persp_ys(vs, 18, -45, ss[j], 40, yo);
+                for (i = 0; i < 18; i++) {
+                    if (xo[i] != persp_x1(vs[i], 37, ss[j], 128)) bad++;
+                    if (yo[i] != persp_y1(vs[i], -45, ss[j], 40)) bad++;
+                    sum += persp_mul(vs[i], ss[j]) * (int32_t)(i + 1) * (j + 1);
+                }
+            }
+            zx_log("geo: persp batch bad=%u mulsum=%ld\n", bad, (long)sum);
+        }
         persp_k = 0x12345UL;                     /* low bits set: both division paths */
         zx_log("geo: scale %u %u %u\n", persp_scale(7), persp_scale(300), persp_scale(1));
     }

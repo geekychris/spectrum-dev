@@ -2,9 +2,8 @@
 
 SECTION code_user
 
-PUBLIC _persp_mul, _persp_xy, _persp_xs, _persp_scale, _persp_x1, _persp_y1
+PUBLIC _persp_mul, _persp_xy, _persp_xs, _persp_ys, _persp_scale, _persp_x1, _persp_y1
 EXTERN _persp_k
-EXTERN l_z80n_muls_32_16x16     ; HL * DE -> DEHL (signed)
 
 ; int16_t persp_mul(int16_t v, uint16_t s)     (v * s) >> 12, floor; s < 32768
 ; (saturates at +-32767 if the result needs more than 16 bits)
@@ -20,30 +19,107 @@ _persp_mul:
     ld d,(hl)
     ld l,a
     ld h,b
-pmul:                           ; HL = v, DE = s -> HL; uses A, B, DE
-    call l_z80n_muls_32_16x16   ; DEHL = v * s
-    ; bits 12..27 = (D:E:H) >> 4; it fits if bits 27..31 are all the same
+pmul:                           ; HL = v, DE = s -> HL; uses A, BC, DE
+    ; |v| x s by four 8 x 8 MULs (s < 32768, so |v| x s < 2^31); then >> 12,
+    ; floor: a negative v gives -ceil(|v| x s / 4096)
+    ld a,h
+    ld (pm_neg),a               ; bit 7: v < 0
+    rla
+    jr nc,pm_pos
+    xor a
+    sub l
+    ld l,a
+    sbc a,a
+    sub h
+    ld h,a                      ; HL = |v| (32768 for -32768)
+pm_pos:
+    ld b,h
+    ld c,l                      ; BC = |v|
+    ld h,d
+    ld l,e                      ; HL = s
+    ld d,b
+    ld e,l
+    mul d,e                     ; vh x sl
+    push de
+    ld d,c
+    ld e,h
+    mul d,e                     ; vl x sh
+    push de
+    ld d,b
+    ld e,h
+    mul d,e                     ; vh x sh: bits 16..31
     ld a,d
-    sra a
-    sra a
-    sra a                       ; A = D >> 3 (bits 27..31, sign extended)
-    jr z,pm_ok
-    inc a
-    jr nz,pm_sat
-pm_ok:
-    ld b,4
-pm_sh:
-    sra d
-    rr e
+    ld b,e
+    ld d,c
+    ld e,l
+    mul d,e                     ; vl x sl: bits 0..15
+    ld c,e                      ; C = bits 0..7
+    ld l,d
+    ld h,b                      ; A:H:L = Q = the product >> 8 (so far)
+    pop de
+    add hl,de
+    adc a,0
+    pop de
+    add hl,de
+    adc a,0                     ; A:H:L = Q
+    ld b,a
+    ld a,(pm_neg)
+    rla
+    ld a,b
+    jr nc,pm_shift
+    ld de,15                    ; negative: ceil = (Q + 15 + (bits 0..7 != 0)) >> 4
+    inc c
+    dec c
+    jr z,pm_r0
+    inc e
+pm_r0:
+    add hl,de
+    adc a,0
+pm_shift:
+    cp 8
+    jr nc,pm_big                ; >= 32768 x 16
+    srl a
     rr h
-    djnz pm_sh
-    ld l,h
-    ld h,e
+    rr l
+    srl a
+    rr h
+    rr l
+    srl a
+    rr h
+    rr l
+    srl a
+    rr h
+    rr l                        ; HL = |result| < 32768
+    ld a,(pm_neg)
+    rla
+    ret nc
+    xor a
+    sub l
+    ld l,a
+    sbc a,a
+    sub h
+    ld h,a
     ret
-pm_sat:
-    bit 7,d
+pm_big:
+    ld b,a
+    ld a,(pm_neg)
+    rla
+    jr c,pm_bign
     ld hl,32767
-    ret z
+    ret
+pm_bign:
+    ld a,b                      ; |result| = 32768 exactly: -32768 fits
+    cp 8
+    jr nz,pm_nsat
+    ld a,h
+    or a
+    jr nz,pm_nsat
+    ld a,l
+    cp 16
+    jr nc,pm_nsat
+    ld hl,-32768
+    ret
+pm_nsat:
     ld hl,-32767
     ret
 
@@ -170,6 +246,58 @@ pxs_loop:
     dec (hl)
     jr nz,pxs_loop
 pxs_done:
+    pop ix
+    ret
+
+; void persp_ys(const int16_t *ys, uint8_t n, int16_t by, uint16_t s, int16_t cy, int16_t *out)
+; out[i] = cy - persp_mul(ys[i] + by, s), clamped to +-16000 (persp_y1 for n heights)
+_persp_ys:
+    push ix
+    ld ix,0
+    add ix,sp
+    ld l,(ix+4)
+    ld h,(ix+5)
+    ld (px_src),hl
+    ld l,(ix+13)
+    ld h,(ix+14)
+    ld (px_dst),hl
+    ld a,(ix+6)
+    or a
+    jr z,pys_done
+    ld (px_n),a
+pys_loop:
+    ld hl,(px_src)
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld (px_src),hl
+    ld l,(ix+7)
+    ld h,(ix+8)
+    call add_sat
+    ld e,(ix+9)
+    ld d,(ix+10)
+    call pmul
+    xor a                       ; HL = -HL
+    sub l
+    ld l,a
+    sbc a,a
+    sub h
+    ld h,a
+    ld e,(ix+11)
+    ld d,(ix+12)
+    call add_clamp
+    ex de,hl
+    ld hl,(px_dst)
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    inc hl
+    ld (px_dst),hl
+    ld hl,px_n
+    dec (hl)
+    jr nz,pys_loop
+pys_done:
     pop ix
     ret
 
@@ -365,3 +493,4 @@ SECTION bss_user
 px_src: defs 2
 px_dst: defs 2
 px_n:   defs 1
+pm_neg: defs 1                  ; pmul: bit 7 = the sign of v
