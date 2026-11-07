@@ -135,67 +135,103 @@ def floor_colour(ch, row):
 
 def polys(level):
     """[(kind, colour, [vertex...])], kind 0 always, 1 gates open, 2 gates shut.
-    Order (painter's): the slab's edge, the floor in runs a row at a time,
-    then row by row from the far edge the blocks, gates and bumpers, each
-    row's from the outside in (the original sorts by depth; this order
-    gives the same picture for this camera)"""
+    Order (painter's): the slab's edge, the floor, then row by row from the
+    far edge the blocks, gates and bumpers, each row's from the outside in
+    (the original sorts by depth; this order gives the same picture for
+    this camera).
+    port: fewer, bigger polygons than the original's runs (the Next's time
+    goes on each polygon and each row of one): the floor runs on under
+    walls, gates and bumpers (which hide it), the start, the exit,
+    checkpoints and sand are drawn over it, and walls stacked over several
+    rows with the same columns are one block"""
     cells = LEVELS[level]
     out = [(0, C_EDGE, [gv(0, 12, 0), gv(0, 12, 12), EDGE + 1, EDGE])]
+    special = {"Z": C_SAND, "C": C_CP, "E": C_EXIT, "S": C_START}
     for r in range(MT_N):
         c = 0
-        while c < MT_N:
-            col = floor_colour(cells[r][c], r)
+        while c < MT_N:                      # the floor's runs between holes
+            if cells[r][c] == " ":
+                c += 1
+                continue
+            e = c + 1
+            while e < MT_N and cells[r][e] != " ":
+                e += 1
+            out.append((0, C_FLOOR + (r & 1), [gv(0, r, c), gv(0, r, e), gv(0, r + 1, e), gv(0, r + 1, c)]))
+            c = e
+        c = 0
+        while c < MT_N:                      # the special cells over it
+            col = special.get(cells[r][c])
             if col is None:
                 c += 1
                 continue
             e = c + 1
-            while e < MT_N and floor_colour(cells[r][e], r) == col:
+            while e < MT_N and special.get(cells[r][e]) == col:
                 e += 1
             out.append((0, col, [gv(0, r, c), gv(0, r, e), gv(0, r + 1, e), gv(0, r + 1, c)]))
             c = e
     bl = bumpers(level)
+    # wall runs, merged down the rows while the same columns continue and
+    # nothing stands beside them in the rows above the last
+    runs = {}
     for r in range(MT_N):
-        items = []                   # (|x| of the inner side, the polygons)
         c = 0
         while c < MT_N:
+            if cells[r][c] != "#":
+                c += 1
+                continue
+            e = c + 1
+            while e < MT_N and cells[r][e] == "#":
+                e += 1
+            runs[(r, c)] = e
+            c = e
+    blocks = []                              # (r0, r1, c, e): rows r0..r1
+    used = set()
+    for (r, c), e in sorted(runs.items()):
+        if (r, c) in used:
+            continue
+        r1 = r
+        while (runs.get((r1 + 1, c)) == e and
+               all(cells[r1][k] not in "#GB" for k in (c - 1, e) if 0 <= k < MT_N)):
+            r1 += 1
+            used.add((r1, c))
+        blocks.append((r, r1, c, e))
+    for r in range(MT_N):
+        items = []                   # (|x| of the inner side, the polygons)
+        for c in range(MT_N):
             ch = cells[r][c]
             x0, x1 = -HALF + c * MT_CELL, -HALF + (c + 1) * MT_CELL
             if ch == "G":
                 ps = []
                 for kind, h, top in ((1, GATE_OPEN_H, K_GOPEN), (2, WALL_H, K_GSHUT)):
-                    ps += block(r, c, c + 1, h, top, K_GOPEN, True, kind)
+                    ps += block(r, r, c, c + 1, h, top, K_GOPEN, True, kind)
                 items.append((min(abs(x0), abs(x1)), ps))
-                c += 1
             elif ch == "B":
                 items.append((min(abs(x0), abs(x1)), bumper(r, c, bl.index((r, c)))))
-                c += 1
-            elif ch == "#":
-                e = c + 1
-                while e < MT_N and cells[r][e] == "#":
-                    e += 1
-                near = r == MT_N - 1 or any(cells[r + 1][k] != "#" for k in range(c, e))
-                xe = -HALF + e * MT_CELL
-                items.append((0 if x0 < 0 < xe else min(abs(x0), abs(xe)), block(r, c, e, WALL_H, K_WTOP, K_WSIDE, near, 0)))
-                c = e
-            else:
-                c += 1
+        for r0, r1, c, e in blocks:
+            if r1 != r:
+                continue
+            x0, xe = -HALF + c * MT_CELL, -HALF + e * MT_CELL
+            near = r1 == MT_N - 1 or any(cells[r1 + 1][k] != "#" for k in range(c, e))
+            items.append((0 if x0 < 0 < xe else min(abs(x0), abs(xe)), block(r0, r1, c, e, WALL_H, K_WTOP, K_WSIDE, near, 0)))
         for _, ps in sorted(items, key=lambda t: -t[0]):
             out += ps
     return out
 
 
-def block(r, c0, c1, h, top, side, near, kind):
-    """render.c block(): the near side, the end facing the middle, the top"""
-    base = 32 + r * 8
+def block(r0, r1, c0, c1, h, top, side, near, kind):
+    """render.c block() for rows r0..r1: the near side, the end facing the
+    middle, the top; coloured as row r0 (the marble's mask: a block hides
+    the marble when it starts on a nearer row than the marble's)"""
+    base = 32 + r0 * 8
     x0, x1 = -HALF + c0 * MT_CELL, -HALF + c1 * MT_CELL
     ps = []
     if near:
-        ps.append((kind, base + side, [gv(0, r + 1, c0), gv(0, r + 1, c1), gv(h, r + 1, c1), gv(h, r + 1, c0)]))
+        ps.append((kind, base + side, [gv(0, r1 + 1, c0), gv(0, r1 + 1, c1), gv(h, r1 + 1, c1), gv(h, r1 + 1, c0)]))
     if x1 < 0:
-        ps.append((kind, base + side, [gv(0, r + 1, c1), gv(0, r, c1), gv(h, r, c1), gv(h, r + 1, c1)]))
+        ps.append((kind, base + side, [gv(0, r1 + 1, c1), gv(0, r0, c1), gv(h, r0, c1), gv(h, r1 + 1, c1)]))
     if x0 > 0:
-        ps.append((kind, base + side, [gv(0, r + 1, c0), gv(0, r, c0), gv(h, r, c0), gv(h, r + 1, c0)]))
-    ps.append((kind, base + top, [gv(h, r, c0), gv(h, r, c1), gv(h, r + 1, c1), gv(h, r + 1, c0)]))
+        ps.append((kind, base + side, [gv(0, r1 + 1, c0), gv(0, r0, c0), gv(h, r0, c0), gv(h, r1 + 1, c0)]))
+    ps.append((kind, base + top, [gv(h, r0, c0), gv(h, r0, c1), gv(h, r1 + 1, c1), gv(h, r1 + 1, c0)]))
     return ps
 
 

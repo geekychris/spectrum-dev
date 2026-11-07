@@ -14,7 +14,7 @@ void view_update(const MTGame *g);
 void view_work(void);                    /* draw until the next frame interrupt */
 uint8_t view_flip(void);                 /* after frame_wait: show a board that is ready */
 extern uint8_t view_slots, view_roll, view_pitch;
-extern uint16_t view_hits;
+extern uint16_t view_hits, view_board_lines;
 /* the marble and its shadow (sprites 0 and 1), masked by what is in front */
 void view_marble(const MTGame *g);
 void view_hide_marble(void);

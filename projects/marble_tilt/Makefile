@@ -4,8 +4,9 @@ ZX_SDK ?= ../../sdk
 include $(ZX_SDK)/project.mk
 
 # memory map: see src/main.c; the link addresses are in zpragma.inc
-# the rules: 16K bank 20 at 0x0000 (over the ROM)
-$(OBJDIR)/mt_core.c.o: EXTRA_CFLAGS += --codesegBANK_20 --constsegBANK_20 --datasegBANK_20
+# the rules and the board's small tables: 16K bank 20 at 0x0000 (over the ROM)
+$(OBJDIR)/mt_core.c.o $(OBJDIR)/view_data.c.o $(OBJDIR)/marble_data.c.o: \
+	EXTRA_CFLAGS += --codesegBANK_20 --constsegBANK_20 --datasegBANK_20
 # the game shell and the text: 8K page 44 at 0x6000
 $(OBJDIR)/game.c.o $(OBJDIR)/hud.c.o: EXTRA_CFLAGS += --codesegPAGE_44 --constsegPAGE_44 --datasegPAGE_44
 

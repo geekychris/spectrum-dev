@@ -1,7 +1,8 @@
 /*
  * Marble Tilt for the Spectrum Next: memory map, start-up, the 50 Hz loop.
  *
- *   0x0000-0x3FFF  bank 20: the rules (mt_core.c), over the ROM
+ *   0x0000-0x3FFF  bank 20: the rules (mt_core.c) and the board's small
+ *                  tables (view_data.c, marble_data.c), over the ROM
  *   0x4000-0x5FFF  bank 5's first page (the tilemap); the board's tables
  *                  are mapped here while a board is drawn
  *   0x6000-0x7FFF  page 44: the game shell and the text (game.c, hud.c);
@@ -45,9 +46,10 @@ int main(void)
     next_init();
     spr_init();
     ZXN_WRITE_REG(0x15, 0x33);               /* sprites on, over the border; order U S L */
-    view_init();                             /* l2_init clears through slots 0-1 and puts the ROM back */
+    l2_init();                               /* clears through slots 0-1 and puts the ROM back */
     ZXN_WRITE_MMU0(40);
     ZXN_WRITE_MMU1(41);
+    view_init();
     ZXN_WRITE_MMU3(44);
     hud_init();
     sky();

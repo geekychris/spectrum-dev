@@ -160,7 +160,10 @@ fix mt_cell_z(int row) { return (fix)((MT_N / 2 - row) * MT_CELL - MT_CELL / 2) 
 static int cell_of(int32_t v)
 {
     if (v < 0) return -1;
-    return v < 32768L ? (int)((uint16_t)v / MT_CELL) : (int)(v / MT_CELL);
+#ifdef __SDCC
+    if (v < 2759) return (int)(mulu16((uint16_t)v, 1639) >> 16);     /* v / 40, exact below 2759 */
+#endif
+    return (int)(v / MT_CELL);
 }
 int mt_col_of(fix x) { return cell_of((int32_t)HI(x) + MT_N / 2 * MT_CELL); }
 int mt_row_of(fix z) { return cell_of(MT_N / 2 * MT_CELL - (int32_t)HI(z)); }

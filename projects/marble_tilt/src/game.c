@@ -409,8 +409,8 @@ void game_frame(uint8_t frames)
     fps_frames += frames;
     while (frames--) snd_tick();
     if (fps_frames >= 100) {
-        zx_log("mt: perf loops=%u ticks=%u frames=%u flips=%u drawn=%u cached=%u\n", fps_loops, fps_ticks,
-               fps_frames, fps_flips, view_draws, view_hits);
+        zx_log("mt: perf loops=%u ticks=%u frames=%u flips=%u drawn=%u cached=%u board=%u\n", fps_loops,
+               fps_ticks, fps_frames, fps_flips, view_draws, view_hits, view_board_lines);
         fps_flips = 0;
         fps_frames = fps_loops = fps_ticks = 0;
     }
