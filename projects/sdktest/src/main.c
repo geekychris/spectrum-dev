@@ -9,6 +9,8 @@
 #include "zxlog.h"
 #include "fixmath.h"
 #include "zxtext.h"
+#include "line48.h"
+#include "vec48.h"
 
 #define FRAMES frame_ticks       /* counted by the SDK's IM 2 handler */
 
@@ -18,6 +20,58 @@ static uint8_t bar_pre[8 * 3 * 4];
 
 static const ay_note tune[] = {{0, 0}};
 
+/* line48 / vec48: test.py compares the screen with a model of the same
+   Bresenham, then the program clears it and goes on */
+static const vec_pt octagon[8] = {{-6, -14}, {6, -16}, {16, -6}, {14, 3}, {10, 14}, {-3, 16}, {-14, 8}, {-16, -5}};
+static const vec_pt arrow[5] = {{10, 0}, {-7, -6}, {-4, -2}, {-4, 2}, {-7, 6}};
+static const uint8_t fan_end[16][2] = {
+    {90, 157}, {88, 170}, {82, 182}, {68, 187}, {60, 187}, {50, 186}, {35, 175}, {30, 160},
+    {30, 157}, {31, 140}, {40, 130}, {55, 127}, {60, 127}, {72, 128}, {85, 136}, {89, 150},
+};
+static const uint8_t dots[8] = {5, 5, 6, 5, 250, 190, 7, 200};   /* the last is off screen */
+
+static void line_tests(void)
+{
+    uint8_t i, f0, f1;
+    vec_pt rot[5];
+    line48_init();
+    line_mode = LINE_OR;
+    for (i = 0; i < 16; i++) line_draw(60, 157, fan_end[i][0], fan_end[i][1]);
+    line_draw(100, 125, 100, 125);                               /* one pixel */
+    line_clip(-40, 100, 300, 110);                               /* clipped both ends */
+    line_clip(-10, -10, -1, 50);                                 /* off screen */
+    line_clip(250, 180, 270, 200);                               /* clipped at the corner */
+    plot_list(dots, 4);
+    line_mode = LINE_XOR;
+    line_poly(128, 2, octagon, 8, 1);                            /* wraps to the bottom */
+    line_poly(190, 128, octagon, 8, 1);
+    line_poly(196, 132, octagon, 8, 1);                          /* overlaps, then both go */
+    line_poly(190, 128, octagon, 8, 1);
+    line_poly(196, 132, octagon, 8, 1);
+    line_poly(220, 60, arrow, 5, 0);                             /* open polyline */
+    vec_rotate(arrow, 5, 32, 205, rot);
+    line_mode = LINE_OR;
+    line_poly(160, 60, rot, 5, 1);
+    text_xor(0, 3, "XOR", 1);
+    text_xor(0, 3, "XOR", 1);
+    text_xor(4, 3, "AB", 0);
+    zx_log("sdk: rot=%d,%d,%d,%d,%d,%d\n", rot[0].x, rot[0].y, rot[1].x, rot[1].y, rot[4].x, rot[4].y);
+    {
+        vec_pt tab[4 * 5];
+        vec_rot_table(arrow, 5, 256, 2, tab);
+        zx_log("sdk: rottab=%d,%d,%d,%d at250=%d\n", tab[5].x, tab[5].y, tab[10].x, tab[15].y,
+               (int)(vec_rot_at(tab, 5, 2, 250) - tab));
+    }
+    zx_log("sdk: lines drawn\n");
+    /* cost: 50 XOR octagons */
+    line_mode = LINE_XOR;
+    frame_wait();
+    f0 = frame_ticks;
+    for (i = 0; i < 50; i++) line_poly(60, 60, octagon, 8, 1);
+    f1 = frame_ticks;
+    zx_log("sdk: 50 octagons frames=%u\n", (uint8_t)(f1 - f0));
+}
+
 int main(void)
 {
     uint8_t i, f0;
@@ -26,6 +80,8 @@ int main(void)
     gfx_init();
     screen_clear(PAPER_WHITE | INK_BLACK, INK_BLUE);
     frame_init();
+    line_tests();
+    screen_clear(PAPER_WHITE | INK_BLACK, INK_BLUE);
     input_init();
     ay_init();
 

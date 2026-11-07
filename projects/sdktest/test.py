@@ -38,10 +38,136 @@ def val(log, key):
     return m.group(1) if m else None
 
 
+# ---- a model of line48.asm (same Bresenham, same wrap) for the line tests
+def trunc_div(a, b):
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+
+def wrap_row(y):
+    y &= 255
+    return y if y < 192 else (y - 192 if y < 224 else y - 64)
+
+
+def model_line(scr, x0, y0, x1, y1, mode, skip=False, signed=False):
+    def axis(a0, a1):
+        raw = (a1 - a0) & 255
+        neg = raw >= 128 if signed else a1 < a0
+        return ((-raw) & 255 if neg else raw), (-1 if neg else 1)
+    adx, sx = axis(x0, x1)
+    ady, sy = axis(y0, y1)
+    major, minor = (adx, ady) if adx >= ady else (ady, adx)
+    n = major + 1 - (1 if skip else 0)
+    err, x, y = major >> 1, x0, y0
+    for _ in range(n):
+        p = (x & 255, wrap_row(y))
+        if mode == "xor":
+            scr ^= {p}
+        else:
+            scr.add(p)
+        err -= minor
+        if adx >= ady:
+            x += sx
+            if err < 0:
+                err += major
+                y += sy
+        else:
+            y += sy
+            if err < 0:
+                err += major
+                x += sx
+
+
+def model_poly(scr, cx, cy, pts, closed, mode):
+    v = [((cx + x) & 255, (cy + y) & 255) for x, y in pts]
+    for a, b in zip(v, v[1:]):
+        model_line(scr, *a, *b, mode, skip=True, signed=True)
+    if closed:
+        model_line(scr, *v[-1], *v[0], mode, skip=True, signed=True)
+    else:
+        model_line(scr, *v[-1], *v[-1], mode, signed=True)
+
+
+def model_clip(scr, x0, y0, x1, y1):
+    def code(x, y):
+        return (1 if x < 0 else 2 if x > 255 else 0) | (4 if y < 0 else 8 if y > 191 else 0)
+    c0, c1 = code(x0, y0), code(x1, y1)
+    while c0 | c1:
+        if c0 & c1:
+            return
+        c = c0 or c1
+        if c & 4:
+            x, y = x0 + trunc_div((x1 - x0) * (0 - y0), y1 - y0), 0
+        elif c & 8:
+            x, y = x0 + trunc_div((x1 - x0) * (191 - y0), y1 - y0), 191
+        elif c & 1:
+            x, y = 0, y0 + trunc_div((y1 - y0) * (0 - x0), x1 - x0)
+        else:
+            x, y = 255, y0 + trunc_div((y1 - y0) * (255 - x0), x1 - x0)
+        if c == c0:
+            x0, y0, c0 = x, y, code(x, y)
+        else:
+            x1, y1, c1 = x, y, code(x, y)
+    model_line(scr, x0, y0, x1, y1, "or")
+
+
+SIN = [round(math.sin(2 * math.pi * a / 256) * 256) for a in range(256)]
+
+
+def model_rotate(pts, angle, scale):
+    s, c = SIN[angle & 255], SIN[(angle + 64) & 255]
+    return [(((x * c - y * s) * scale + 0x8000) >> 16, ((x * s + y * c) * scale + 0x8000) >> 16) for x, y in pts]
+
+
+OCTAGON = [(-6, -14), (6, -16), (16, -6), (14, 3), (10, 14), (-3, 16), (-14, 8), (-16, -5)]
+ARROW = [(10, 0), (-7, -6), (-4, -2), (-4, 2), (-7, 6)]
+FAN = [(90, 157), (88, 170), (82, 182), (68, 187), (60, 187), (50, 186), (35, 175), (30, 160),
+       (30, 157), (31, 140), (40, 130), (55, 127), (60, 127), (72, 128), (85, 136), (89, 150)]
+
+
+def model_lines_screen():
+    scr = set()
+    for x, y in FAN:
+        model_line(scr, 60, 157, x, y, "or")
+    model_line(scr, 100, 125, 100, 125, "or")
+    model_clip(scr, -40, 100, 300, 110)
+    model_clip(scr, -10, -10, -1, 50)
+    model_clip(scr, 250, 180, 270, 200)
+    scr |= {(5, 5), (6, 5), (250, 190)}
+    for c in ((128, 2), (190, 128), (196, 132), (190, 128), (196, 132)):
+        model_poly(scr, *c, OCTAGON, True, "xor")
+    model_poly(scr, 220, 60, ARROW, False, "xor")
+    model_poly(scr, 160, 60, model_rotate(ARROW, 32, 205), True, "or")
+    return scr
+
+
+def check_lines(e):
+    check("line48: reaches the line tests", e.run_until("sdk: lines drawn", 4000))
+    ula = e.screenshot(layer="ula")
+    got = {(x, y) for y in range(192) for x in range(256) if ula.getpixel((x, y)) == (0, 0, 0)}
+    text = {p for p in got if 32 <= p[0] < 48 and 3 <= p[1] < 11}
+    want = model_lines_screen()
+    diff = (got - text) ^ want
+    check("line48: every line, clip, polygon and point matches the model", not diff,
+          f"{len(diff)} pixels differ, e.g. {sorted(diff)[:8]}")
+    check("line48: wrapped polygon shows at the top and the bottom",
+          any(y < 20 for x, y in want if 110 < x < 150) and any(y > 180 for x, y in want if 110 < x < 150))
+    check("text_xor: twice erases, once draws", len(text) > 10 and not any(x < 24 and 3 <= y < 19 for x, y in got - want))
+    log = e.log(0)
+    rot = model_rotate(ARROW, 32, 205)
+    exp = f"rot={rot[0][0]},{rot[0][1]},{rot[1][0]},{rot[1][1]},{rot[4][0]},{rot[4][1]}"
+    check("vec_rotate matches Python", exp in log, f"{exp} vs {val(log, 'rot')}")
+    check("vec_rot_table + vec_rot_at", "rottab=0,10,-10,-10 at250=0" in log, val(log, "rottab"))
+    check("line48: 50 XOR octagons", e.run_until("sdk: 50 octagons", 400))
+    e.run(1)
+    print("   ", re.findall(r"50 octagons frames=\d+", e.log(0)))
+
+
 for machine in ("48k", "128k"):
     print(f"== {machine}")
     with Emulator(machine=machine) as e:
         e.load(TAP)
+        check_lines(e)
         check("runs to the initials editor", e.run_until("sdk: hs edit ready", 4000))
         e.run(2)
         for k in "BOT":                                   # 2-frame taps (a real press is longer);

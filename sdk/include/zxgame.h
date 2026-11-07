@@ -144,6 +144,10 @@ extern void screen_clear(uint8_t attr, uint8_t border);
 extern void text_big(uint8_t col, uint8_t row, const char *s);
 extern void text_num(uint8_t col, uint8_t row, uint32_t v, uint8_t digits);  /* zero-padded */
 extern void text_center(uint8_t row, const char *s);
+/* ROM-font text XORed onto pixel line y (any line, 0..191) at character column
+   col: drawing it twice removes it, so it can sit over XOR graphics; tall = 1
+   doubles every font line (8x16). text_xor.c */
+extern void text_xor(uint8_t col, uint8_t y, const char *s, uint8_t tall);
 
 /* ------------------------------------------------------------ high scores */
 
