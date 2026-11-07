@@ -142,7 +142,9 @@ All have tests in `projects/nextlibtest` and `sdk/tools/test_tools.py`:
 The title's room tour (V) draws all 24 rooms. `tools/profile.py` samples
 the PC at random T-states while the game plays.
 
-On the host: `python3 tools/bot.py` (the bot on the port's logic) and
+On the host: `python3 tools/bot.py` (the bot on the port's logic),
+`python3 tools/bot_stress.py` (the bot with 1-3 logic steps between its
+looks, like slow frames: it must still win; `test.py` runs 20 of these) and
 `python3 tools/compare.py` (the port against the original).
 
 ## Known issues

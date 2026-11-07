@@ -9,7 +9,9 @@ The game is recorded and replayed twice (every frame hash must match).
 Screenshots go to screenshots/.
 """
 import re
+import shutil
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -72,6 +74,22 @@ def play(e, frames=4000):
 
 
 SHOTS.mkdir(exist_ok=True)
+
+# the bot against uneven frame timing, on the host build of the same logic
+# (1-3 logic steps between two looks, like slow frames): it must win through
+# every time, so the emulator test doesn't hang on how fast a frame is
+if shutil.which("cc"):
+    (HERE / "build" / "host").mkdir(parents=True, exist_ok=True)
+    cc = subprocess.run(["cc", "-O2", "-Isrc", "-I../../sdk/include", "-o", "build/host/sim", "tools/sim.c",
+                         "src/game.c", "src/room.c", "src/world.c", "src/levels.c", "src/probe.c", "src/isin.c",
+                         "../../sdk/src/zxrle.c"], cwd=HERE, capture_output=True, text=True)
+    r = subprocess.run([sys.executable, "tools/bot_stress.py", "20"], cwd=HERE, capture_output=True, text=True) \
+        if cc.returncode == 0 else cc
+    check("host: the bot takes the relic and finishes whatever the frame timing (20 runs)", r.returncode == 0,
+          (r.stdout + r.stderr)[-300:])
+else:
+    print("  (no host C compiler: the bot's timing check is skipped)")
+
 with Emulator(machine="next") as e:
     e.load(NEX)
     check("boots to the title", e.run_until("keep: room drawn gate", 600))

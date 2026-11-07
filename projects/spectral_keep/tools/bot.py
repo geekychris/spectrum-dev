@@ -40,9 +40,10 @@ def decode(b):
     return p
 
 
-def keys_towards(dx, dz):
+def keys_towards(dx, dz, now=0):
     """screen-relative pad bits that walk the world direction (dx, dz):
-    up = +x +z, right = +x -z (game.c), 8 directions"""
+    up = +x +z, right = +x -z (game.c), 8 directions; `now` (the keys held)
+    is kept unless another direction is clearly better"""
     best, bits = -2.0, 0
     n = math.hypot(dx, dz)
     if n < 1e-6:
@@ -57,14 +58,24 @@ def keys_towards(dx, dz):
             if d > best:
                 best = d
                 bits = (B_RIGHT if h > 0 else B_LEFT if h < 0 else 0) | (B_UP if v > 0 else B_DOWN if v < 0 else 0)
+    if now and now != bits:
+        h = (1 if now & B_RIGHT else -1 if now & B_LEFT else 0)
+        v = (1 if now & B_UP else -1 if now & B_DOWN else 0)
+        mx, mz = (h + v), (v - h)
+        m = math.hypot(mx, mz)
+        if m and (mx * dx + mz * dz) / (m * n) > best - 0.08:
+            return now
     return bits
 
 
 class Bot:
     """step(probe) -> (held, pressed); `phase` says where it is"""
 
+    # waypoints, tiles; the explorer is 0.56 wide. The hall's route keeps to
+    # x = 0.4, clear of the block at (1, 2) (cut that corner and it snags)
     ROUTE = {ROOM_GATE: [(4.0, 6.0), (4.0, 9.0)],               # out of the north door
-             ROOM_HALL: [(4.0, 1.2), (0.5, 1.2), (0.5, 7.5)]}   # west side to the relic
+             ROOM_HALL: [(4.0, 1.2), (0.4, 1.2), (0.4, 7.5)]}   # west side to the relic
+    REACHED = 0.1
 
     def __init__(self):
         self.phase = "title"
@@ -72,6 +83,9 @@ class Bot:
         self.room = None
         self.last = 0
         self.wait = 0
+        self.keys = 0
+        self.stuck = 0
+        self.where = (0.0, 0.0)
 
     def step(self, p):
         held = 0
@@ -100,11 +114,22 @@ class Bot:
             if self.wp < len(route):
                 tx, tz = route[self.wp]
                 dx, dz = tx - p["px"], tz - p["pz"]
-                if math.hypot(dx, dz) < 0.25 and self.wp < len(route) - 1:
+                if math.hypot(dx, dz) < self.REACHED and self.wp < len(route) - 1:
                     self.wp += 1
                     tx, tz = route[self.wp]
                     dx, dz = tx - p["px"], tz - p["pz"]
-                held = keys_towards(dx, dz)
+                # the game may run 1-3 steps between two looks (slow frames):
+                # keep the keys while they still head roughly the right way
+                held = keys_towards(dx, dz, self.keys)
+                # caught on a corner (no progress for a while): step away from it
+                moved = math.hypot(p["px"] - self.where[0], p["pz"] - self.where[1])
+                self.where = (p["px"], p["pz"])
+                self.stuck = self.stuck + 1 if moved < 0.005 else 0
+                if self.stuck > 10:
+                    held = keys_towards(-dz, dx)            # sideways
+                    if self.stuck > 16:
+                        self.stuck = 0
+                self.keys = held
         pressed = held & ~self.last
         self.last = held
         return held, pressed
