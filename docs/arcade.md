@@ -7,6 +7,7 @@ Next shows the same list (see the Arcade section of the README).
 |---|---|---|---|
 | ![](images/arcade/boingpin.png) | **[Boing Pinball](../projects/boing_pinball/README.md)**<br>The Comet Tour table with the Boing ball: bumpers, drop targets, ramp, orbit, missions, multiball. | Spectrum Next | Z/M flippers, SPACE plunger, Q nudge |
 | ![](images/arcade/frankthe.png) | **[Frank the Frog](../projects/frank_the_frog/README.md)**<br>Hop Frank across the traffic and the river's logs and rafts into the four ponds. | 48K | Q/A/O/P hop, SPACE start, Kempston |
+| ![](images/arcade/minermet.png) | **[Miner Meteor](../projects/miner_meteor/README.md)**<br>Collect every key in the cavern and reach the exit before the air runs out, past spikes, conveyors, collapsing floors and guardians. Six caverns. | 48K | O/P walk, Q or SPACE jump, Kempston |
 | ![](images/arcade/novadefe.png) | **[Nova Defense](../projects/nova_defense/README.md)**<br>Defend the base against a swarm of 48 aliens and the bonus comet, behind crumbling crystal shields. | 48K | O/P move, SPACE fire, Kempston |
 | ![](images/arcade/rockblas.png) | **[Rock Blaster](../projects/rock_blaster/README.md)**<br>Vector rock shooter: turn, thrust and blast the drifting rocks before they smash your ship. | 48K | O/P rotate, Q thrust, SPACE fire |
 | ![](images/arcade/rotoball.png) | **[Rotoball](../projects/rotoball/README.md)**<br>Split-screen ball sport: carry the ball over the other goal line. 1 player v CPU, or 2. | Spectrum Next | P1 WASD, P2 IJKL, joysticks, SPACE |

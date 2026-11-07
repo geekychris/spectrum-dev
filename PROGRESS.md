@@ -180,9 +180,7 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   a frame, AY tune on a 128K; a host-side search over `game_tick()` makes the
   demo and the test bot's routes; the bot feeds keys per logic tick from a
   breakpoint. SDK: `tmap` (tile maps), `plat` (platformer collision, the
-  original's), `cellspr48`, `tools/levelpack.py`; `input_read` and
-  `input_fast`'s lookups in asm (12.6K -> 5.5K T-states); tests in
-  projects/sdktestroom.
+  original's), `cellspr48`, `tools/levelpack.py`; tests in projects/sdktestroom.
 
 ### Cleanup (2026-11-06)
 

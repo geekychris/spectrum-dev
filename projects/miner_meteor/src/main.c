@@ -10,7 +10,7 @@
  * AY plays the tune in the game too on a 128K), a demo that plays the
  * caverns, high scores with initials.
  *
- * Controls: O/P or Q/A... see README.md. LEFT/RIGHT walk, UP or FIRE jumps.
+ * Controls (README.md): LEFT/RIGHT walk, UP or FIRE jumps; keys, Sinclair, Kempston.
  */
 #include <stdint.h>
 #include <string.h>

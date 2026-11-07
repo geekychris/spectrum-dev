@@ -77,7 +77,7 @@ Changes are marked `port:`:
 - **Where the time went.** zsdcc's code for pointers to structs was the
   surprise. The first `cs_update`, a loop over 8 sprite structs, took 17,000
   T-states doing nothing. The sprite pass, the cell composer, the dirty-cell
-  marking, the belt refresh, `plat_kind_at` and `input_read` are now asm, and
+  marking, the belt refresh and `plat_kind_at` are now asm, and
   the C left in hot paths works on static copies. `tools/timefn.py` (T-states
   per call, by breakpoints) and `tools/profile.py` (sampled PCs per function)
   measured it all; built with `EXTRA_CFLAGS=-DPROFILE`, the game paints the
