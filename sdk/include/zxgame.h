@@ -134,6 +134,9 @@ extern void spr_put(uint8_t x, uint8_t y, const uint8_t *pre, uint8_t w, uint8_t
    (its last 7 columns must be empty): render a shape once, then blit it at
    any x with spr_blit-style byte copies (spr32.asm) */
 extern void spr32_shift(uint8_t *dst, const uint8_t *src, uint8_t lines, uint8_t shift);
+/* the same for a 16-pixel-wide image (2 bytes a line) into 3-byte lines: one
+   of spr_preshift's 8 copies, made when needed (spr16.asm) */
+extern void spr16_shift(uint8_t *dst, const uint8_t *src, uint8_t lines, uint8_t shift);
 /* clear / fill pixel lines y..y+h-1 between byte columns c0..c0+wc-1 */
 extern void gfx_clear_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h);
 extern void gfx_fill_rect(uint8_t c0, uint8_t y, uint8_t wc, uint8_t h, uint8_t pattern);

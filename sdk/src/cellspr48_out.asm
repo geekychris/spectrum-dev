@@ -13,6 +13,8 @@
 
 SECTION code_user
 
+defc CS_MAX_SPR = 16                ; cellspr48.h
+
 defc CS_MAX_DIRTY = 200             ; cellspr48.h
 
 PUBLIC _cs_compose, _cs_flush, _cs_mark_rc
@@ -338,5 +340,5 @@ _cs_cx:    defs 1
 _cs_cy:    defs 1
 _cs_nact:  defs 1
 _cs_buf:   defs 8
-_cs_act:   defs 9 * 8
+_cs_act:   defs 9 * CS_MAX_SPR
 cs_i:      defs 2

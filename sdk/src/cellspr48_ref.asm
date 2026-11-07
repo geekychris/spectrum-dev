@@ -10,6 +10,8 @@
 
 SECTION code_user
 
+defc CS_MAX_SPR = 16                ; cellspr48.h
+
 PUBLIC _cs_refresh_loop
 PUBLIC _cs_ref_c, _cs_ref_r, _cs_ref_n, _cs_ref_first, _cs_ref_lines, _cs_box, _cs_nbox
 EXTERN _cs_map_row, _cs_tiles, _cs_col, _cs_row, _cs_mark_rc
@@ -131,5 +133,5 @@ _cs_ref_n:     defs 1
 _cs_ref_first: defs 1
 _cs_ref_lines: defs 1
 _cs_nbox:      defs 1
-_cs_box:       defs 4 * 8
+_cs_box:       defs 4 * CS_MAX_SPR
 ref_left:      defs 1

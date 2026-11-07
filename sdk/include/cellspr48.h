@@ -29,6 +29,16 @@
  *                          cs_init; fewer is faster)
  *   cs_update()            compose and write the cells that changed
  *
+ *   cs_scroll(dc, fill)    scroll the room dc cells left (dc > 0: the view moves
+ *                          right) or right (dc < 0), as character-strip scrolling:
+ *                          the map and the screen shift, fill[] (|dc| ids a row,
+ *                          row by row) comes in at the edge; rows made of one tile
+ *                          are not moved, and only the cells that change are
+ *                          redrawn. Drawn sprites are wiped and drawn again at the
+ *                          next cs_update, where the game puts them (in the scrolled
+ *                          room's pixels). Call it after cs_update (with no cells
+ *                          marked). cellspr48_scroll.c (Jump Quest)
+ *
  * Sprites are any size; the room is up to 32 x 24 cells. A frame's cost is
  * about 600 T-states a dirty cell plus 100 per sprite line drawn.
  */
@@ -37,7 +47,7 @@
 
 #include <stdint.h>
 
-#define CS_MAX_SPR  8
+#define CS_MAX_SPR  16            /* cellspr48_out.asm / _ref.asm size their tables by it */
 #define CS_MAX_DIRTY 200        /* more marks than this in one frame: whole room */
 
 typedef struct {
@@ -67,6 +77,7 @@ extern void cs_mark_rc(uint16_t rc) __z88dk_fastcall;
 #define cs_mark(c, r) cs_mark_rc(((uint16_t)(r) << 8) | (uint8_t)(c))
 extern void cs_mark_id(uint8_t id);
 extern void cs_update(void);
+extern void cs_scroll(int8_t dc, const uint8_t *fill);
 extern void cs_refresh(const uint8_t *cols, const uint8_t *rows, uint8_t n, uint8_t first, uint8_t lines);
 extern uint8_t cs_last_cells;   /* cells written by the last cs_update (profiling) */
 extern uint8_t cs_list_n;       /* cells marked for the next cs_update */
