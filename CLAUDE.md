@@ -299,6 +299,10 @@ Details: docs/emulator-harness.md.
   is copied from the emulator; checking each game loop against the host build
   catches asm/C differences. Stop at `frame_wait` to read a consistent state: at an
   arbitrary frame boundary the loop may be half way through its ticks.
+- zsdcc: a 32-bit multiply with a call as an operand (`return d->amp * a3_sin(a);`, `amp` an int32
+  field) returned only its low 16 bits; with the same call in a local first it was right. Orbit Docking's
+  debris then sat on the axis. Put the call's result in a local; Orbit Docking routes such maths through
+  fix16's asm `fmul`/`fdiv`. Each rewrite moved the next fault: compare the whole game tick by tick.
 - zsdcc passes `uint8_t`/`int8_t` varargs as one byte: `zx_log("%d", gs.gx)` with an
   8-bit field prints garbage; cast to `(int)`.
 - A key held for fewer frames than a slow frame (a full-screen redraw) is seen by the

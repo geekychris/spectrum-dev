@@ -1,0 +1,7 @@
+{
+  "title": "Orbit Docking",
+  "ready": "od: ready",
+  "description": "Dock with a spinning space station: roll to match its slot, come in slowly along its axis, mind your fuel.",
+  "controls": "QAOP move, W/S in/out, K/L roll, B auto",
+  "picture": "screenshots/approach.png"
+}

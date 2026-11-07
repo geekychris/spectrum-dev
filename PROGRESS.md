@@ -222,6 +222,20 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   doubling and sky, LOD for far tanks, 1-pixel grid (sdk `l2line`); tilemap
   HUD, radar sprites, TurboSound effects, high scores. 5-11 fps (about 8).
   SDK: `l2line`, `muldiv16`.
+
+- **Orbit Docking** (Next): the original's amiga3d rules on fix16.h, bit for
+  bit (the Next flies the original's long autopilot game to its
+  tests/vectors.h hash; host check over every station); the cockpit view
+  in real time on 256x192 Layer 2: the camera only rolls about the axis, so
+  each plane of the station is a turned and scaled shape (vproj.asm, four
+  MULs a corner), l2poly in the original's depth-bucket order, half height
+  by copper doubling; instruments as sprites (the dial redrawn into its
+  patterns), tilemap text, the original's 16x16 font for big text; effects
+  from its synthesis settings, a title tune, high scores. Logic 25 Hz,
+  picture 14-20 fps. zsdcc miscompiled four of the original's expressions
+  (a multiply with a call as an operand returned its low 16 bits, the debris
+  test's chain of 32-bit compares): rewritten, found tick by tick.
+
 - **Marble Tilt** (Next): the original's amiga3d rules unchanged on 16.16
   (`fix16.h`, the engine's fixed point bit for bit: the original's whole
   autopilot game hashes as in its tests/vectors.h, on the Next and the host);
