@@ -9,6 +9,7 @@
 #include "nextgfx.h"
 #include "zxlog.h"
 #include "fixmath.h"
+#include "vec3.h"
 #include "modplay.h"
 
 static uint8_t ball[256];
@@ -95,6 +96,30 @@ int main(void)
         uint16_t s1 = isqrt32(4294967295UL), s2 = isqrt32(90000), s3 = isqrt32(2);
         int16_t d1 = div_q14(-3, 4), d2 = div_q14(100, 100);
         zx_log("sdk: fixmath %ld %ld %ld %d %d %d %u %u %u %d %d\n", m1, m2, m3, q1, q2, q3, s1, s2, s3, d1, d2);
+    }
+    {   /* vec3.h: every op on fixed vectors (test.py has the reference) */
+        static const vec3 vs[6] = { { 16384, 0, 0 }, { -9459, 11585, 8000 }, { 32767, -32768, 30001 },
+                                    { 1, 0, 0 }, { 0, 0, 0 }, { -30001, 4095, -4096 } };
+        vec3 r;
+        uint8_t k;
+        for (k = 0; k < 6; k++) {
+            const vec3 *a = &vs[k], *b = &vs[(k + 1) % 6];
+            int16_t d = v3_dot(a, b);
+            int32_t d32 = v3_dot32(a, b);
+            zx_log("sdk: v3 %u dot=%d dot32=%ld", k, d, d32);
+            v3_cross(&r, a, b);
+            zx_log(" cross=%d,%d,%d", r.x, r.y, r.z);
+            v3_scale(&r, a, -12345);
+            zx_log(" scale=%d,%d,%d", r.x, r.y, r.z);
+            v3_norm(&r, a);
+            zx_log(" norm=%d,%d,%d", r.x, r.y, r.z);
+            v3_mat(&r, vs + (k % 4), b);
+            zx_log(" mat=%d,%d,%d\n", r.x, r.y, r.z);
+        }
+        r = vs[1];
+        v3_cross(&r, &r, &vs[0]);              /* the result over an input */
+        v3_norm32(&r, 100000L, -250000L, 7L);
+        zx_log("sdk: v3 norm32=%d,%d,%d\n", r.x, r.y, r.z);
     }
     {   /* zxnDMA: fill then copy a buffer */
         static uint8_t a[300], b[300];

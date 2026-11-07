@@ -1,5 +1,6 @@
 """Next SDK tests (./zx test sdktestnext): Layer 2 double buffering, drawing,
 palette, hardware sprites, TurboSound, common maths/timer/input on the Next."""
+import math
 import sys
 from pathlib import Path
 
@@ -22,6 +23,44 @@ def near(a, b, tol=40):
     return all(abs(p - q) <= tol for p, q in zip(a, b))
 
 
+def v3_ref():
+    """vec3.h's results for main.c's vectors (the C semantics, in Python)"""
+    vs = [(16384, 0, 0), (-9459, 11585, 8000), (32767, -32768, 30001), (1, 0, 0), (0, 0, 0), (-30001, 4095, -4096)]
+    dot32 = lambda a, b: sum(p * q for p, q in zip(a, b))
+    wrap32 = lambda v: (v + 2**31) % 2**32 - 2**31
+    s16 = lambda v: (v + 2**15) % 2**16 - 2**15
+    dot = lambda a, b: s16(wrap32(dot32(a, b)) >> 14)
+    cross = lambda a, b: tuple(s16(wrap32(p) >> 14) for p in (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]))
+
+    def norm(v):
+        x, y, z = v
+        while any(c > 30000 or c < -30000 for c in (x, y, z)):
+            x, y, z = x >> 1, y >> 1, z >> 1
+        sh = 0
+        while all(-4096 < c < 4096 for c in (x, y, z)) and (x or y or z) and sh > -8:
+            x, y, z, sh = x * 2, y * 2, z * 2, sh - 1
+        ln = int(math.isqrt((x * x + y * y + z * z) % 2**32))
+        if ln == 0:
+            return (0, 16384, 0)
+        inv = (1 << 28) // ln
+        return tuple(s16((c * inv) >> 14) for c in (x, y, z))
+    lines = []
+    for k in range(6):
+        a, b = vs[k], vs[(k + 1) % 6]
+        m = vs[k % 4:k % 4 + 3]
+        ln = f"sdk: v3 {k} dot={dot(a, b)} dot32={wrap32(dot32(a, b))}"
+        ln += " cross=%d,%d,%d" % cross(a, b)
+        ln += " scale=%d,%d,%d" % tuple(s16((c * -12345) >> 14) for c in a)
+        ln += " norm=%d,%d,%d" % norm(a)
+        ln += " mat=%d,%d,%d" % tuple(dot(row, b) for row in m)
+        lines.append(ln)
+    x, y, z = 100000, -250000, 7
+    while any(c > 30000 or c < -30000 for c in (x, y, z)):
+        x, y, z = x >> 1, y >> 1, z >> 1
+    lines.append("sdk: v3 norm32=%d,%d,%d" % norm((x, y, z)))
+    return lines
+
+
 with Emulator(machine="next") as e:
     e.load(NEX)
     check("runs", e.run_until("sdk: input ready", 3000))
@@ -31,6 +70,8 @@ with Emulator(machine="next") as e:
     check("palette write/read", "l2 palette[1]=03" in log)
     check("TurboSound chip 1 registers", "ts chip1 r0=144" in log)
     check("fixmath: mul16 / mulq14 / mulq8 / isqrt32 / div_q14", "fixmath -370200 1073741824 -65534 -5 5115 -301 65535 300 1 -12288 16384" in log, [l for l in log.splitlines() if "fixmath" in l])
+    for want in v3_ref():
+        check(f"vec3: {want[9:22]}", want in log, [l for l in log.splitlines() if want[:13] in l][:1])
     check("rnd + fix maths on the Next", "rnd=33153,24609 fix_div=384 sin32=181" in log)
     check("frame timer at 28 MHz", "frames=25" in log)
     check("zxnDMA fill and copy", "dma ok=2" in log)
