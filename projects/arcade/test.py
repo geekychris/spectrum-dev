@@ -13,10 +13,20 @@ hold for any number of games. Then a card padded to 22+ entries
 on the right row, the picture, starting the last entry, and the menu opening
 scrolled to it after a reset.
 
-    .venv/bin/python projects/arcade/test.py [--gif] [--no-build]
+    .venv/bin/python projects/arcade/test.py [--gif] [--no-build] [--all]
 
 --gif also records docs/images/arcade.gif.
+
+Starting every game from the menu is the slow part. A launch that worked is
+recorded in the shared build cache under a key of everything that decides
+it (arcade.launch_key: the menu, the card, the launch line, the game's
+machine and program bytes); by default only games whose key hasn't been
+verified are started, plus always the first and last in the list. Any
+change to a game, the menu or the card means that game is started again,
+so a game that doesn't start from the menu is still always caught.
+--all (or ZX_ARCADE_ALL=1) starts every game.
 """
+import os
 import re
 import sys
 import tempfile
@@ -117,21 +127,35 @@ with tempfile.TemporaryDirectory() as tmp:
         e.run(10)
         sel = 0
 
-        # every game from the menu, and back with reset
-        for n, g in enumerate(gs):
-            if n:
+        # games from the menu, and back with reset: the ones whose launch isn't
+        # verified for these exact bytes, the first and the last (see above)
+        menu_bin = ROOT / "projects" / "arcade" / "build" / "arcade.bin"
+        keys = [arcade.launch_key(g, menu_bin) for g in gs]
+        everything = "--all" in sys.argv or os.environ.get("ZX_ARCADE_ALL") == "1"
+        todo = [n for n, g in enumerate(gs)
+                if everything or n in (0, len(gs) - 1) or not arcade.launch_verified(keys[n])]
+        print(f"  starting {len(todo)} of {len(gs)} games from the menu"
+              f"{'' if everything else ' (the others: verified with these bytes before; --all for every one)'}")
+        prev = None
+        for n in todo:
+            g = gs[n]
+            if prev is not None:
                 e.reset(hard=True)
                 sel = arcade.menu_ready(e, 3000)
-                check(f"reset: back in the menu on the last game played ({gs[n - 1]['title']})",
-                      sel == gs[n - 1]["index"], str(sel))
+                check(f"reset: back in the menu on the last game played ({gs[prev]['title']})",
+                      sel == gs[prev]["index"], str(sel))
             start = e.log_cursor()
             ok = arcade.menu_choose(e, g, len(gs), 3000, sel=sel)
             text = e.log_text(since=start)
-            check(f"{g['title']} ({g['machine']}) starts from the menu",
-                  ok and f"launch={g['index']} " in text, text[-200:])
-            check(f"{g['title']}: play counted", last(r"launch=\d+ .* plays=(\d+)", text) == "1")
+            started = ok and f"launch={g['index']} " in text
+            check(f"{g['title']} ({g['machine']}) starts from the menu", started, text[-200:])
+            counted = last(r"launch=\d+ .* plays=(\d+)", text) == "1"
+            check(f"{g['title']}: play counted", counted)
+            if started and counted:
+                arcade.mark_launch_verified(keys[n], g["title"])
             e.run(60)
             e.screenshot(SHOTS / f"game_{g['project']}.png")
+            prev = n
 
         # most played first: everything has one play, so the ties stay A-Z;
         # play the last game again and it moves to the top

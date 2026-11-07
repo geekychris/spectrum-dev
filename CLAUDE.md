@@ -157,6 +157,14 @@ Details: docs/emulator-harness.md.
   number above 0xFFFF is an error (it used to hang read_mem).
 - Emulators started by the harness (ZXH_PARENT_WATCH=1) exit by themselves when
   their parent process dies (zxh.c watchdog): no orphans from killed scripts.
+- Builds go through a shared cache (scripts/buildcache.py, used by bin/zx-make for a
+  plain build): key = the project's files (not build/, screenshots, docs, test.py,
+  arcade.json) + the SDK + zx-make + the toolchain image id; outputs (the files in
+  build/) are copied on a hit, in every worktree. `ZX_BUILD_CACHE=off` to bypass,
+  `ZX_BUILD_CACHE=<dir>` elsewhere; default `<repo's parent>/.spectrum_dev-buildcache`.
+  The arcade test also caches 48K snapshots and only restarts games whose launch
+  key (menu + card + program bytes) isn't verified yet, plus the first and last;
+  `--all` / `ZX_ARCADE_ALL=1` restarts every game.
 - Stop only our own emulators: the harness kills its own Popen (and checks the ZRCP
   port answers with its pid before using it); never pkill/killall by name, other
   agents and the user run ZEsarUX on the same machine (`./zx selftest` checks).

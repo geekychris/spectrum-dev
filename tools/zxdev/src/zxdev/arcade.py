@@ -21,6 +21,7 @@ A game's arcade.json (machine and file come from its Makefile):
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -35,6 +36,8 @@ ROOT = repo_root()
 sys.path.insert(0, str(ROOT / "sdk" / "tools"))
 import fatimg  # noqa: E402
 import nextbasic  # noqa: E402
+sys.path.insert(0, str(ROOT / "scripts"))
+import buildcache  # noqa: E402
 
 OUT = ROOT / "build" / "arcade"
 MAX_GAMES = 32
@@ -89,13 +92,18 @@ def games(root: Path | None = None) -> list[dict]:
     return out
 
 
-def build_projects(names, log=print):
-    for n in names:
-        log(f"  build {n}")
-        r = subprocess.run([str(ROOT / "bin" / "zx-make"), "-C", str(ROOT / "projects" / n)],
-                           capture_output=True, text=True)
-        if r.returncode:
-            raise ArcadeError(f"build of {n} failed:\n{r.stdout[-2000:]}{r.stderr[-2000:]}")
+def build_projects(names, log=print, jobs: int = 4):
+    """zx-make each project, `jobs` at a time (a cache hit takes ~0.1 s; misses build in parallel)"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(n):
+        return n, subprocess.run([str(ROOT / "bin" / "zx-make"), "-C", str(ROOT / "projects" / n)],
+                                 capture_output=True, text=True)
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        for n, r in pool.map(one, names):
+            log(f"  build {n}: {r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ''}")
+            if r.returncode:
+                raise ArcadeError(f"build of {n} failed:\n{r.stdout[-2000:]}{r.stderr[-2000:]}")
 
 
 def snapshot_48k(tap: Path, out: Path):
@@ -110,6 +118,52 @@ def snapshot_48k(tap: Path, out: Path):
         e.delete()
         e.save_state(out)
     Path(str(out) + ".beam").unlink(missing_ok=True)
+
+
+def cached_snapshot(tap: Path, out: Path, log=print):
+    """snapshot_48k, through the shared build cache (keyed by the tape's bytes)"""
+    c = buildcache.cache_dir()
+    entry = c / "_snapshots" / f"{buildcache.hash_file(tap)}.sna" if c else None
+    if entry and entry.exists():
+        shutil.copyfile(entry, out)
+        return
+    log(f"  snapshot {tap.name} -> {out.name}")
+    snapshot_48k(tap, out)
+    if entry:
+        entry.parent.mkdir(parents=True, exist_ok=True)
+        tmp = entry.with_name(f".{entry.name}.{os.getpid()}")
+        shutil.copyfile(out, tmp)
+        tmp.replace(entry)                      # atomic
+
+
+def launch_key(g: dict, menu_bin: Path) -> str:
+    """What decides whether a game starts from the menu: the menu, the card,
+    the launch line's form, the game's machine and its program's bytes (not
+    its place in the list). Same key: the same result (the emulator is
+    deterministic), so a launch that worked needn't be repeated."""
+    import hashlib
+    h = hashlib.sha256(b"arcade-launch 1\0")
+    for p in (menu_bin, base_image(), Path(__file__)):
+        h.update(buildcache.hash_file(p).encode())
+    h.update(g["machine"].encode())
+    h.update(buildcache.hash_file(Path(g["program"])).encode())
+    return h.hexdigest()[:32]
+
+
+def launch_verified(key: str) -> bool:
+    c = buildcache.cache_dir()
+    return bool(c) and (c / "_arcade_launch" / key).exists()
+
+
+def mark_launch_verified(key: str, title: str):
+    c = buildcache.cache_dir()
+    if not c:
+        return
+    d = c / "_arcade_launch"
+    d.mkdir(parents=True, exist_ok=True)
+    tmp = d / f".{key}.{os.getpid()}"
+    tmp.write_text(title)
+    tmp.replace(d / key)
 
 
 def picture(src: Path) -> tuple[bytes, Image.Image]:
@@ -268,8 +322,7 @@ def build(do_build: bool = True, log=print, out_dir: Path = OUT) -> dict:
         if g["machine"] == "48k":
             sna = out_dir / f"{g['short']}.sna"
             if not sna.exists() or sna.stat().st_mtime < prog.stat().st_mtime:
-                log(f"  snapshot {prog.name} -> {sna.name}")
-                snapshot_48k(prog, sna)
+                cached_snapshot(prog, sna, log)
             files[game_file(g)] = sna.read_bytes()
         else:
             files[game_file(g)] = prog.read_bytes()

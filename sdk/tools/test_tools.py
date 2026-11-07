@@ -191,5 +191,36 @@ check("gridpack: they unpack (reference decoder) and take < 8 KB, zxrle > 19 KB"
       all(gridpack.unpack(pk, i) == c for i, (_, c) in enumerate(rooms)) and pk.size < 8192
       and sum(len(pack(c)) for _, c in rooms) > 19 * 1024, f"{pk.size}")
 
+# the build cache (scripts/buildcache.py): what the key depends on, store / restore
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import buildcache  # noqa: E402
+import shutil as _sh  # noqa: E402
+with tempfile.TemporaryDirectory() as tmp:
+    os.environ["ZX_BUILD_CACHE"] = os.path.join(tmp, "cache")
+    proj = buildcache.Path(tmp) / "proj"
+    (proj / "src").mkdir(parents=True)
+    (proj / "Makefile").write_text("NAME := x\n")
+    (proj / "src" / "main.c").write_text("int main(void) { return 0; }\n")
+    k0 = buildcache.key(proj, "tc1")
+    (proj / "test.py").write_text("# a test")
+    (proj / "README.md").write_text("docs")
+    (proj / "screenshots").mkdir()
+    (proj / "screenshots" / "a.png").write_bytes(b"png")
+    (proj / "build").mkdir()
+    (proj / "build" / "x.tap").write_bytes(b"TAP")
+    check("build cache: tests, docs, screenshots, build/ don't change the key", buildcache.key(proj, "tc1") == k0)
+    (proj / "src" / "main.c").write_text("int main(void) { return 1; }\n")
+    k1 = buildcache.key(proj, "tc1")
+    check("build cache: a source change does", k1 != k0)
+    check("build cache: another toolchain does", buildcache.key(proj, "tc2") != k1)
+    check("build cache: nothing stored yet", not buildcache.restore(proj, k1))
+    buildcache.store(proj, k1)
+    _sh.rmtree(proj / "build")
+    check("build cache: store, then restore the outputs",
+          buildcache.restore(proj, k1) and (proj / "build" / "x.tap").read_bytes() == b"TAP")
+    os.environ["ZX_BUILD_CACHE"] = "off"
+    check("build cache: ZX_BUILD_CACHE=off", buildcache.cache_dir() is None and not buildcache.restore(proj, k1))
+    del os.environ["ZX_BUILD_CACHE"]
+
 print(f"{'FAIL' if failures else 'PASS'}: sdk tools")
 sys.exit(1 if failures else 0)

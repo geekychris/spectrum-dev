@@ -22,6 +22,24 @@ case "$proj/" in
   *)            cdir="/project"; mounts+=(-v "$proj:/project") ;;
 esac
 
+# A plain build (no make arguments) goes through the shared build cache
+# (scripts/buildcache.py): same sources + SDK + toolchain = the same outputs,
+# copied instead of built. ZX_BUILD_CACHE=off builds every time.
+py="$ZX_ROOT/.venv/bin/python"; [ -x "$py" ] || py="$(command -v python3 || true)"
+cache_key=""
+if [ $# -eq 0 ] && [ "${ZX_BUILD_CACHE:-}" != off ] && [ -n "$py" ]; then
+  toolchain="$(docker image inspect --format '{{.Id}}' "$TOOLCHAIN_IMAGE" 2>/dev/null)"
+  if cache_key="$("$py" "$ZX_ROOT/scripts/buildcache.py" restore "$proj" "$toolchain")"; then
+    echo "build cache: $(basename "$proj") up to date (${cache_key:0:12})"
+    exit 0
+  fi
+fi
+
 tty=(); [ -t 0 ] && [ -t 1 ] && tty=(-t)
-exec docker run --rm ${tty[@]+"${tty[@]}"} -u "$(id -u):$(id -g)" -e HOME=/tmp \
+docker run --rm ${tty[@]+"${tty[@]}"} -u "$(id -u):$(id -g)" -e HOME=/tmp \
   -e ZX_SDK=/work/sdk "${mounts[@]}" -w "$cdir" "$TOOLCHAIN_IMAGE" make "$@"
+rc=$?
+if [ $rc -eq 0 ] && [ -n "$cache_key" ]; then
+  "$py" "$ZX_ROOT/scripts/buildcache.py" store "$proj" "$cache_key" || warn "build cache: could not store $(basename "$proj")"
+fi
+exit $rc
