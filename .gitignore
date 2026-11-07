@@ -8,3 +8,4 @@ __pycache__/
 # SD images (./zx arcade builds one from ZEsarUX's NextZXOS; never committed)
 *.mmc
 /dist/
+projects/*/build-trace/

@@ -260,3 +260,161 @@ fd_neg_debc:
 
 SECTION bss_user
 fd_sign:   defb 0
+
+SECTION code_user
+
+; fix fhypot(fix a, fix b) (td_fix.h, the original's a3d_fix.c): |a| and |b|
+; halved together until both are below 46000, then floor(sqrt(a^2 + b^2))
+; shifted back up. port: the C's loops in assembly, the same result.
+PUBLIC _fhypot
+EXTERN _isqrt32
+_fhypot:
+    ld hl,2
+    add hl,sp
+    ld de,fh_x
+    call fh_abs
+    ld de,fh_y
+    call fh_abs
+    xor a
+    ld (fh_sh),a
+fh_loop:
+    ld hl,(fh_x + 2)
+    ld de,(fh_y + 2)
+    ld a,h
+    or d
+    or l
+    or e
+    jr nz,fh_shift
+    ld hl,(fh_x)
+    ld de,(fh_y)
+    ld a,h
+    or d
+    ld b,a
+    ld a,l
+    or e
+    ld c,a                      ; BC = x | y
+    ld hl,45999
+    or a
+    sbc hl,bc
+    jr nc,fh_go                 ; below 46000
+fh_shift:
+    ld hl,fh_x + 3
+    srl (hl)
+    dec hl
+    rr (hl)
+    dec hl
+    rr (hl)
+    dec hl
+    rr (hl)
+    ld hl,fh_y + 3
+    srl (hl)
+    dec hl
+    rr (hl)
+    dec hl
+    rr (hl)
+    dec hl
+    rr (hl)
+    ld hl,fh_sh
+    inc (hl)
+    jr fh_loop
+fh_go:
+    ld hl,(fh_x)
+    call sq16                   ; DE:HL = x^2
+    ld (fh_s),hl
+    ld (fh_s + 2),de
+    ld hl,(fh_y)
+    call sq16
+    ld bc,(fh_s)
+    add hl,bc
+    ex de,hl
+    ld bc,(fh_s + 2)
+    adc hl,bc                   ; HL:DE = the sum
+    push hl                     ; isqrt32(uint32): high word pushed first
+    push de
+    call _isqrt32               ; HL = the root
+    pop de
+    pop de
+    ld de,0
+    ld a,(fh_sh)
+    or a
+    ret z
+fh_up:
+    add hl,hl
+    rl e
+    rl d
+    dec a
+    jr nz,fh_up
+    ret                         ; DEHL
+
+; the int32 at HL -> |it| at DE; HL advanced by 4
+fh_abs:
+    push de
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    bit 7,d
+    jr z,fa_pos
+    push hl
+    call fd_neg_debc
+    pop hl
+fa_pos:
+    ex (sp),hl                  ; HL = destination
+    ld (hl),c
+    inc hl
+    ld (hl),b
+    inc hl
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    pop hl
+    ret
+
+; DE:HL = HL * HL (unsigned 16 bits)
+sq16:
+    ld b,h
+    ld c,l
+    ld d,l
+    ld e,l
+    mul d,e                     ; l l
+    push de
+    ld d,b
+    ld e,c
+    mul d,e                     ; h l
+    ex de,hl
+    add hl,hl                   ; 2 h l (17 bits)
+    ld a,0
+    adc a,a
+    ex de,hl                    ; DE = 2 h l low 16, A = its bit 16
+    pop hl                      ; HL = l l
+    ld c,a
+    ld a,h
+    add a,e
+    ld h,a
+    ld a,d
+    adc a,0
+    ld e,a
+    ld a,c
+    adc a,0
+    ld d,a                      ; DE:HL = l l + 2 h l << 8
+    push hl
+    ld h,b
+    ld l,b
+    ex de,hl                    ; HL = (bits 31..16 so far), DE = h h operands
+    push hl
+    mul d,e                     ; h h
+    pop hl
+    add hl,de
+    ex de,hl
+    pop hl
+    ret
+
+SECTION bss_user
+fh_x:  defs 4
+fh_y:  defs 4
+fh_s:  defs 4
+fh_sh: defb 0

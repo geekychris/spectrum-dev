@@ -18,3 +18,7 @@ $(OBJDIR)/td_fix.c.o: EXTRA_CFLAGS += --codesegBANK_17 --constsegBANK_17
 $(OBJDIR)/td_ai.c.o: EXTRA_CFLAGS += --opt-code-size --codesegBANK_17 --constsegBANK_17
 # the renderer and the models: 16K bank 18 at 0x0000
 $(OBJDIR)/render.c.o $(OBJDIR)/models.c.o: EXTRA_CFLAGS += --codesegBANK_18 --constsegBANK_18
+# the renderer's variables: 8K page 40 at 0x4000
+$(OBJDIR)/render.c.o: EXTRA_CFLAGS += --datasegPAGE_40 --bsssegPAGE_40
+# the front end: 16K bank 19 at 0x0000
+$(OBJDIR)/front.c.o: EXTRA_CFLAGS += --opt-code-size --codesegBANK_19 --constsegBANK_19

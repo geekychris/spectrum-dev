@@ -90,6 +90,7 @@ uint16_t a3_atan2(int32_t x, int32_t y)
 }
 
 /* sqrt(a*a + b*b), scaled down until the squares fit (a3d_fix.c) */
+#ifndef __SDCC                  /* td_obs.asm on the Z80 */
 fix fhypot(fix a, fix b)
 {
     uint32_t x = (uint32_t)(a < 0 ? -a : a), y = (uint32_t)(b < 0 ? -b : b);
@@ -97,6 +98,7 @@ fix fhypot(fix a, fix b)
     while ((x | y) >= 46000) { x >>= 1; y >>= 1; sh++; }
     return (fix)((uint32_t)isqrt32(x * x + y * y) << sh);
 }
+#endif
 
 /* floor(a * b / 65536) cut to 32 bits, from 16-bit halves:
    a * b = ah bh 2^32 + (ah bl + al bh) 2^16 + al bl */

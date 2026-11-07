@@ -15,5 +15,6 @@
 #include <stdint.h>
 
 extern void l2l_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint8_t colour);
+extern uint8_t l2l_ybot;                /* the last row drawn (191; e.g. 95 for a view drawn half height) */
 
 #endif

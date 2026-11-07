@@ -14,6 +14,9 @@
  *   - 256 x 192 at 0.8 scale (fov 176, centre 128, 94): the original's
  *     320 x 240 view; the bottom 16 rows (the gun's foot, the bars) are
  *     the tilemap HUD's
+ *   - the view is drawn 96 rows high (Layer 2 rows 0..95) and shown 192:
+ *     the copper moves Layer 2's Y scroll every other line so each row is
+ *     shown twice (main.c), which halves the filling
  *   - a model's vertices are turned once per instance with the camera's
  *     yaw and pitch folded in, then offset by its centre: two multiplies
  *     a vertex instead of six (the sums are linear; the rounding differs
@@ -35,13 +38,15 @@
 
 #define FOV   176
 #define CX    128
-#define CYC   94
+#define CYC   47                        /* port: half height (VIEW_ROWS), see below */
+#define VIEW_ROWS 96
 #define U     8                         /* camera space: eighths of a unit (the arena's diagonal fits 16 bits) */
 #define USH   3
 #define NEARZ (12 * U)
 #define CP14  16377                     /* cos, sin of the pitch (300/65536 turn) in Q14 */
 #define SP14  471
 #define EYE_Y 34
+#define LOD_Z (450 * U)                 /* port: tanks farther than this: hull and turret only */
 
 typedef struct { int16_t x, y, z; } v3;
 
@@ -70,10 +75,9 @@ extern const void *xf_in;
 extern void *xf_out;
 extern int16_t xf_cam[3], xf_cy, xf_sy, xf_cp, xf_sp, xf_cx, xf_cyc;
 extern uint8_t xf_fov;
-extern uint16_t xf_recip[448];          /* (fov << 14) / z for z = 64..511 */
+uint16_t xf_recip[448];                 /* (fov << 14) / z for z = 64..511 (xf.asm) */
 extern void xf_point(void);
 extern void xf_proj(void);
-extern int16_t xf_muldiv(int16_t a, int16_t b, int16_t c);   /* a * b / c */
 
 /* a world point in camera units -> camera space (the original's cam_xform) */
 static int16_t wpt[3];
@@ -133,8 +137,8 @@ static uint8_t clip_near(const v3 *in, uint8_t n, v3 *out)
         if (ain != bin && m < MAX_PV) {
             const v3 *p = ain ? a : b, *q = ain ? b : a;
             int16_t dz = q->z - p->z, t = NEARZ - p->z;
-            out[m].x = p->x + xf_muldiv(q->x - p->x, t, dz);
-            out[m].y = p->y + xf_muldiv(q->y - p->y, t, dz);
+            out[m].x = p->x + muldiv16(q->x - p->x, t, dz);
+            out[m].y = p->y + muldiv16(q->y - p->y, t, dz);
             out[m].z = NEARZ;
             m++;
         }
@@ -155,7 +159,7 @@ static uint8_t clip2(const int16_t *in, uint8_t n, int16_t *out, uint8_t axis, i
         if (ain && m < MAX_PV + 4) { out[2 * m] = a[0]; out[2 * m + 1] = a[1]; m++; }
         if (ain != bin && m < MAX_PV + 4) {
             const int16_t *p = ain ? a : b, *q = ain ? b : a;
-            int16_t pv = p[axis], other = p[axis ^ 1] + xf_muldiv(q[axis ^ 1] - p[axis ^ 1], lim - pv, q[axis] - pv);
+            int16_t pv = p[axis], other = p[axis ^ 1] + muldiv16(q[axis ^ 1] - p[axis ^ 1], lim - pv, q[axis] - pv);
             out[2 * m + axis] = lim;
             out[2 * m + (axis ^ 1)] = other;
             m++;
@@ -297,7 +301,8 @@ static void model(uint8_t m, int16_t wx, int16_t wz, uint16_t yaw, const uint8_t
            quarters: four depths overflow 16 bits */
         depth = (mv[f->idx[0]].z >> 2) + (mv[f->idx[1]].z >> 2) + (mv[f->idx[2]].z >> 2) +
                 ((f->n == 4 ? mv[f->idx[3]].z : mv[f->idx[2]].z) >> 2);
-        for (i = nvis; i > 0 && vdepth[i - 1] < depth; i--) {
+        if (m <= MD_CRATE) i = nvis;      /* convex: faces facing us never overlap, no order needed */
+        else for (i = nvis; i > 0 && vdepth[i - 1] < depth; i--) {
             vis[i] = vis[i - 1];
             vdepth[i] = vdepth[i - 1];
         }
@@ -503,8 +508,8 @@ static void grid_line(v3 *a, v3 *b)
     if (a->z < NEARZ || b->z < NEARZ) {
         v3 *p = a->z < NEARZ ? b : a, *q = a->z < NEARZ ? a : b;   /* p inside */
         int16_t dz = q->z - p->z, t = NEARZ - p->z;
-        q->x = p->x + xf_muldiv(q->x - p->x, t, dz);
-        q->y = p->y + xf_muldiv(q->y - p->y, t, dz);
+        q->x = p->x + muldiv16(q->x - p->x, t, dz);
+        q->y = p->y + muldiv16(q->y - p->y, t, dz);
         q->z = NEARZ;
     }
     xf_in = a; xf_out = xy; xf_proj();
@@ -555,7 +560,9 @@ static void draw_items(void)
         }
         case IT_TANK: {
             const Tank *t = &g->tk[it->idx];
-            model(MD_SCOUT + t->type - TK_SCOUT, TOU(t->x), TOU(t->z), (uint16_t)t->yaw, no_body, &it->c);
+            /* port: beyond LOD_Z a simpler model (models.c) */
+            model((it->c.z > LOD_Z ? MD_SCOUT_FAR : MD_SCOUT) + t->type - TK_SCOUT, TOU(t->x), TOU(t->z),
+                  (uint16_t)t->yaw, no_body, &it->c);
             break;
         }
         case IT_SHELL:
@@ -579,27 +586,39 @@ static void draw_items(void)
 }
 
 /* the gun at the bottom and the sight (the original's gun(), at 0.8) */
-static const int16_t gun_xy[8] = {117, 165, 139, 165, 149, 204, 107, 204};
+static const int16_t gun_xy[8] = {117, 82, 139, 82, 149, 102, 107, 102};    /* (half height) */
 
 static void gun(void)
 {
     int16_t xy[8];
-    uint8_t i, kick = game.tk[0].reload > TD_RELOAD - 4 ? 5 : 0;
+    uint8_t i, kick = game.tk[0].reload > TD_RELOAD - 4 ? 2 : 0;
     for (i = 0; i < 8; i++) xy[i] = gun_xy[i] + ((i & 1) && i < 4 ? kick : 0);
     l2p_poly(xy, 4, 3);
-    l2p_rect(165 + kick, 169 + kick, 123, 134, 0);
-    l2p_rect(86, 91, 127, 129, PEN_GREEN);
-    l2p_rect(98, 103, 127, 129, PEN_GREEN);
-    l2p_rect(93, 95, 118, 123, PEN_GREEN);
-    l2p_rect(93, 95, 133, 138, PEN_GREEN);
+    l2p_rect(82 + kick, 84 + kick, 123, 134, 0);
+    l2p_rect(43, 45, 127, 129, PEN_GREEN);
+    l2p_rect(49, 51, 127, 129, PEN_GREEN);
+    l2p_rect(46, 47, 118, 123, PEN_GREEN);
+    l2p_rect(46, 47, 133, 138, PEN_GREEN);
+}
+
+/* the radar's disc (the blips are sprites: front.c) */
+static const int16_t radar_xy[32] = {      /* (half height) */
+    246, 15, 244, 20, 238, 24, 230, 27, 220, 28, 210, 27, 202, 24, 196, 20,
+    194, 15, 196, 10, 202, 6, 210, 3, 220, 2, 230, 3, 238, 6, 244, 10,
+};
+
+static void radar_disc(void)
+{
+    l2p_poly(radar_xy, 16, 3);
+    l2p_rect(3, 27, 219, 220, PEN_RADAR);
 }
 
 static void hurt_edge(void)
 {
-    l2p_rect(0, 3, 0, 256, PEN_RED);
-    l2p_rect(189, 192, 0, 256, PEN_RED);
-    l2p_rect(0, 192, 0, 3, PEN_RED);
-    l2p_rect(0, 192, 253, 256, PEN_RED);
+    l2p_rect(0, 2, 0, 256, PEN_RED);
+    l2p_rect(94, 96, 0, 256, PEN_RED);
+    l2p_rect(0, 96, 0, 3, PEN_RED);
+    l2p_rect(0, 96, 253, 256, PEN_RED);
 }
 
 /* ------------------------------------------------------------------ the frame */
@@ -633,10 +652,12 @@ void render_scene(void)
     xf_cy = cy14;
     xf_sy = sy14;
     render_polys = 0;
-    hz = CYC - (int16_t)(mul16(FOV, SP14) / CP14);
+    hz = CYC - (int16_t)(mul16(FOV, SP14) / CP14) / 2;
+    l2p_bot = VIEW_ROWS;
+    l2l_ybot = VIEW_ROWS - 1;
     l2p_begin();
-    l2p_rect(0, hz, 0, 256, PEN_SKY);
-    l2p_rect(hz, 192, 0, 256, PEN_FLOOR);
+    l2p_rect(0, hz, 0, 256, PEN_SKY);   /* transparent: the copper's sky shows through (main.c) */
+    l2p_rect(hz, VIEW_ROWS, 0, 256, PEN_FLOOR);
     lattice_setup();
     walls_setup();
     floor_grid();
@@ -647,6 +668,7 @@ void render_scene(void)
     lap(3);
     if (du.state != DS_TITLE) {
         gun();
+        radar_disc();
         if (du.hurt_timer > 0) hurt_edge();
     }
     l2p_end();

@@ -13,7 +13,8 @@ typedef struct { uint8_t n, idx[4], col; int8_t nrm[3]; int16_t d; } md_face;
    camera's y and z at the camera's pitch, (8 y cos p) >> 14, (8 y sin p) >> 14 */
 typedef struct { int8_t x, z; int16_t ypc, ysp; } md_vtx;
 typedef struct { uint8_t nv, nf; const int16_t (*v)[3]; const md_vtx *xv; const md_face *f; } md_model;
-enum { MD_PILLAR, MD_PYRAMID, MD_CRATE, MD_SCOUT, MD_MORTAR, MD_BULWARK, MD_COUNT };
+enum { MD_PILLAR, MD_PYRAMID, MD_CRATE, MD_SCOUT, MD_MORTAR, MD_BULWARK,
+       MD_SCOUT_FAR, MD_MORTAR_FAR, MD_BULWARK_FAR, MD_COUNT };   /* (the far ones: port: LOD) */
 extern const md_model md_models[MD_COUNT];
 
 #endif

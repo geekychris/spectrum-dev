@@ -76,33 +76,41 @@ _mulq8:
 _isqrt32:
     ld hl,2
     add hl,sp
-    ld de,isq_v
-    ldi
-    ldi
-    ldi
-    ldi                         ; isq_v = v
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    push bc
+    push de
+    exx
+    pop de                      ; DE':BC' = v (shifted out two bits a step)
+    pop bc
+    exx
     push ix
     ld ix,0                     ; IX = root
     ld hl,0                     ; A:HL = remainder (up to 18 bits)
     xor a
     ld b,16
 isq_loop:
-    push bc
-    ld b,2
-isq_bits:                       ; remainder = remainder << 2 | the top two bits of v
-    push hl
-    ld hl,isq_v
-    sla (hl)
-    inc hl
-    rl (hl)
-    inc hl
-    rl (hl)
-    inc hl
-    rl (hl)
-    pop hl
+    exx                         ; remainder = remainder << 2 | the top two bits of v
+    sla c
+    rl b
+    rl e
+    rl d
+    exx
     adc hl,hl
     rla
-    djnz isq_bits
+    exx
+    sla c
+    rl b
+    rl e
+    rl d
+    exx
+    adc hl,hl
+    rla
     add ix,ix                   ; root <<= 1
     push ix
     pop de
@@ -120,13 +128,13 @@ isq_bits:                       ; remainder = remainder << 2 | the top two bits 
     pop de                      ; drop the old remainder
     pop de
     inc ix                      ; root |= 1
-    jr isq_next
+    djnz isq_loop
+    jr isq_done
 isq_lt:
     pop af
     pop hl
-isq_next:
-    pop bc
     djnz isq_loop
+isq_done:
     push ix
     pop hl
     pop ix
@@ -157,5 +165,3 @@ isq_next:
     dec hl
     ret
 
-SECTION bss_user
-isq_v: defs 4

@@ -4,21 +4,26 @@
  *   0x0000-0x3FFF  bank 16: the rules (td_core.c)          } map_rules()
  *   0x4000-0x7FFF  bank 17: the AI, the fixed point        }
  *   0x0000-0x3FFF  bank 18: the renderer, the models       } map_render()
+ *   0x4000-0x5FFF  page 40: the renderer's variables       }
  *   0x6000-0x7FFF  Layer 2 pages while drawing (l2poly)
+ *   0x0000-0x3FFF  bank 19: the front end (front.c)        } map_front()
+ *   0x4000-0x7FFF  bank 5 (the tilemap; nexttile maps it into slot 2)
  *   0x8000-0xEFFF  resident: the game state, the SDK
  *   0xF000-        the IM 2 table, the stack
  */
 #include <stdint.h>
 #include <string.h>
 #include <arch/zxn.h>
+#include <z80.h>
 #include "zxgame.h"
 #include "zxlog.h"
 #include "nextgfx.h"
 #include "td.h"
 #include "duel.h"
+#include "front.h"
+#include "nextcopper.h"
 
 TDGame game;
-Duel du;
 
 /* profiling: raster lines (a line is ~1800 T-states at 28 MHz), counted
    from the frame interrupt's counter and the raster position */
@@ -41,15 +46,23 @@ void lap(uint8_t k)
     prof_t = t;
 }
 
-static void map_rules(void)
+void map_rules(void)
 {
     ZXN_WRITE_MMU0(32); ZXN_WRITE_MMU1(33);
     ZXN_WRITE_MMU2(34); ZXN_WRITE_MMU3(35);
 }
 
+/* the renderer's code in bank 18, its variables in page 40 */
 static void map_render(void)
 {
     ZXN_WRITE_MMU0(36); ZXN_WRITE_MMU1(37);
+    ZXN_WRITE_MMU2(40); ZXN_WRITE_MMU3(11);
+}
+
+/* the front end (front.c) in bank 19 */
+void map_front(void)
+{
+    ZXN_WRITE_MMU0(38); ZXN_WRITE_MMU1(39);
     ZXN_WRITE_MMU2(10); ZXN_WRITE_MMU3(11);
 }
 
@@ -60,9 +73,45 @@ static const uint16_t pens444[32] = {
     0xF33, 0xFE4, 0x6F6, 0x5EF, 0xFA3, 0x021
 };
 
+static uint16_t pal9[32];
+
+/* port: the view is drawn 96 rows high and shown 192 (render.c): every
+   other line the copper moves Layer 2's Y scroll (NextReg 0x17) back a row.
+   The sky's pen is transparent, and the copper changes the fallback colour
+   (NextReg 0x4A) behind it line by line: the original's copper sky
+   (plat_sky: 0x369 at the top to 0xBCD at the horizon). */
+#define HORIZON_LINE 88
+
+static uint8_t rgb8(uint16_t c12)
+{
+    return (uint8_t)((((c12 >> 8) & 15) >> 1) << 5 | (((c12 >> 4) & 15) >> 1) << 2 | (c12 & 15) >> 2);
+}
+
+static void copper_list(void)
+{
+    uint16_t L;
+    copper_begin();
+    copper_move(0x17, 0);               /* the vertical blank: the top border */
+    copper_move(0x4A, 0);
+    for (L = 0; L < 192; L += 2) {
+        if (L) copper_wait(L - 1, 50);
+        copper_move(0x17, (uint8_t)((192 - L / 2) % 192));
+        if (L <= HORIZON_LINE) {
+            uint16_t a = HORIZON_LINE - L, b = L;
+            uint16_t r = (3 * a + 11 * b) / HORIZON_LINE, g = (6 * a + 12 * b) / HORIZON_LINE,
+                     bl = (9 * a + 13 * b) / HORIZON_LINE;
+            copper_move(0x4A, rgb8(r << 8 | g << 4 | bl));
+        }
+    }
+    copper_wait(191, 50);
+    copper_move(0x4A, 0);               /* the bottom border: black */
+    copper_move(0x17, 0);
+    copper_end();
+}
+
 static void palette(void)
 {
-    uint16_t p[32];
+    uint16_t *p = pal9;
     uint8_t i;
     for (i = 0; i < 32; i++) {
         uint16_t c = pens444[i];
@@ -70,6 +119,7 @@ static void palette(void)
                 b = (uint8_t)((c & 15) * 7 + 7) / 15;
         p[i] = (uint16_t)r << 6 | (uint16_t)g << 3 | b;
     }
+    p[PEN_SKY] = 0xE3 << 1;             /* the global transparent colour: the copper's sky behind */
     pal_load(1, p, 32);
 }
 
@@ -93,49 +143,77 @@ int main(void)
     for (;;) frame_wait();
 }
 #else
+/* the ROM's font, copied into page 41 while the ROM is still at 0x0000 */
+#define FONT_PAGE 41
+
+static void on_frame(void)
+{
+    input_sample();
+}
+
 int main(void)
 {
     uint8_t ticks, acc = 0, frames = 0;
     uint16_t polys = 0, t50 = 0;
+    ZXN_WRITE_MMU3(FONT_PAGE);
+    memcpy((void *)0x6000, (const void *)0x3D00, 768);
+    ZXN_WRITE_MMU3(11);
     next_init();
+    ZXN_WRITE_REG(0x15, 0x13);          /* tilemap over sprites over Layer 2, sprites visible */
+    ZXN_WRITE_REG(0x4A, 0);             /* the fallback colour: black */
+    z80_outp(0xFE, 0);                  /* the border: black */
     palette();
+    pal_load(2, pal9, 32);              /* the sprites (the radar's blips) in the same pens */
     l2_init();
+    spr_init();
+    copper_list();
     frame_init();
+    input_init();
+    input_fast();
+    input_latch(1);
+    frame_hook = on_frame;
+    ay_init();
+    map_front();
+    ZXN_WRITE_MMU3(FONT_PAGE);
+    front_ui_init((const uint8_t *)0x6000);    /* (tm_def maps bank 5 into slot 2 only) */
+    ZXN_WRITE_MMU3(11);
+    front_sprites_init();
     map_render();
     render_init();
-    map_rules();
-    td_new_game(&game, 1234, 1);
-    du.state = DS_TITLE;
-    {
-        uint16_t a, b, c2;
-        frame_wait();
-        a = raster(); frame_wait(); b = raster(); frame_wait(); frame_wait(); c2 = raster();
-        zx_log("td: rastercheck %u %u %u\n", a, b, c2);
-    }
-    zx_log("td: ready\n");
+    map_front();
+    front_init();
+    zx_log("td: ready kempston=%u\n", input_kempston);
     for (;;) {
-        TDEvent e;
         ticks = frame_wait();
         l2_flip();
-        t50 += ticks;
-        if (ticks > 4) ticks = 4;
-        acc += ticks;
         prof_t = raster();
+        t50 += ticks;
+        if (ticks > 12) ticks = 12;     /* (the rules keep the original's speed down to ~4 fps) */
+        acc += ticks;
+        while (ticks--) front_sound();
+        map_front();
+        front_input();
         map_rules();
         while (acc >= 2) {               /* the original's 25 ticks a second */
             acc -= 2;
-            if (game.over || game.won) td_new_game(&game, game.seed + 1, 1);
-            td_tick(&game, td_bot(&game));
-            while (td_pop_event(&game, &e)) {}
+            front_tick();
         }
         lap(0);
-        map_render();
-        render_scene();
-        polys += render_polys;
+        if (!du.help && !front_entering) {
+            map_render();
+            render_scene();
+            polys += render_polys;
+        }
+        map_front();
+        front_screen();
+        front_radar();
         frames++;
         if (t50 >= 100) {
-            zx_log("td: fps=%u polys=%u tick=%ld lines: logic %u grid %u collect %u items %u\n", frames / 2, polys / frames, (long)game.tick,
-                   prof[0] / frames, prof[1] / frames, prof[2] / frames, prof[3] / frames);
+            uint8_t v[3], k;
+            for (k = 0; k < 3; k++) { z80_outp(0xFFFD, 8 + k); v[k] = z80_inp(0xFFFD) & 15; }
+            zx_log("td: fps=%u polys=%u tick=%ld ay=%u,%u,%u lines: logic %u grid %u collect %u items %u\n", frames / 2,
+                   polys / frames, (long)game.tick, v[0], v[1], v[2], prof[0] / frames, prof[1] / frames,
+                   prof[2] / frames, prof[3] / frames);
             prof[0] = prof[1] = prof[2] = prof[3] = 0;
             frames = 0;
             polys = 0;

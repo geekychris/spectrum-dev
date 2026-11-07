@@ -34,6 +34,13 @@ static inline uint16_t isqrt32(uint32_t v)
 }
 #define isqrt32_fast isqrt32
 #endif
+/* a * b / c truncated towards 0, as (int32_t)a * b / c, for results that fit
+   16 bits (clipping, interpolation): next/fixmath_muldiv.asm: the Next only (MUL) */
+#if defined(__SDCC) && defined(__ZXNEXT)
+extern int16_t muldiv16(int16_t a, int16_t b, int16_t c);
+#elif !defined(__SDCC)
+static inline int16_t muldiv16(int16_t a, int16_t b, int16_t c) { return (int16_t)((int32_t)a * b / c); }
+#endif
 /* (a << 14) / d: a / d in Q14, for |a| <= |d| (unit vectors) */
 #ifdef __SDCC
 extern int16_t div_q14(int16_t a, int16_t d);
