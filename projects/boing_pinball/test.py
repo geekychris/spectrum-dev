@@ -28,6 +28,47 @@ BS_PLAY, BS_LANE = 0, 1
 failures = []
 DEBUG = "--debug" in sys.argv
 
+# ---- the palettes in the hardware against the generated tables (src/gfx_0.c) ----
+def _c_array(name):
+    src = (HERE / "src" / "gfx_0.c").read_text()
+    body = src[src.index(name):]
+    body = body[body.index("{") + 1:body.index("}")]
+    return [int(x) for x in body.replace("\n", " ").split(",") if x.strip()]
+
+
+L2_PAL, SPR_PAL = _c_array("l2_pal_0[256]"), _c_array("spr_pal[16]")
+LAMP_ON, LAMP_OFF, LAMP_USED = _c_array("lamp_on_0["), _c_array("lamp_off_0["), _c_array("lamp_used_0[")
+P_RED, P_FLASH, P_RUBBER, P_METAL_L, P_METAL_D, P_ORANGE, P_BLACK = 12, 14, 10, 7, 6, 24, 0   # gfx.h
+
+
+def palette_problems(e):
+    """entries that are wrong: static ones must be the table's, animated ones one of their colours"""
+    second = bool(e._reg(0x43) & 4)                       # the display swaps Layer 2 palettes
+    hw, hs = e._palette("layer2", second), e._palette("sprite", False)
+    allowed = {i: {L2_PAL[i]} for i in range(256)}
+    for i in range(29):
+        if LAMP_USED[i]:
+            allowed[32 + i] = {LAMP_ON[i], LAMP_OFF[i]}
+    for i in range(8):
+        allowed[64 + i] = {L2_PAL[P_ORANGE], L2_PAL[P_BLACK]}
+    for i in range(10):
+        allowed[72 + i] = {L2_PAL[P_RED], L2_PAL[P_FLASH]}
+    for i in range(2):
+        allowed[82 + i] = {L2_PAL[P_RUBBER], L2_PAL[P_FLASH]}
+        allowed[84 + i] = {L2_PAL[P_METAL_L], L2_PAL[P_METAL_D]}
+    for i in range(88, 91):                               # the display's pens: lit, dim or background
+        allowed[i] = {L2_PAL[27], L2_PAL[28], L2_PAL[26]}
+    bad = [(i, hw[i]) for i in range(256) if hw[i] not in allowed[i]]
+    bad += [("sprite", i, hs[i]) for i in range(16) if hs[i] != SPR_PAL[i]]
+    return bad
+
+
+def lamps_lit(e):
+    second = bool(e._reg(0x43) & 4)
+    hw = e._palette("layer2", second)
+    return [i for i in range(29) if LAMP_USED[i] and LAMP_ON[i] != LAMP_OFF[i] and hw[32 + i] == LAMP_ON[i]]
+
+
 # ---- the dot-matrix display: every frame must show one whole text ----
 import re as _re
 _FONT = [[int(v, 16) for v in r.split(", ")] for r in
@@ -149,6 +190,8 @@ with Emulator(machine="next") as e:
     e.load(NEX)
     check("boots to the title (the attract demo)", e.run_until("pinball: ready", 3000))
     check("TurboSound AY found", e.read_mem("ay_present", 1)[0] == 1)
+    bad = palette_problems(e)
+    check("Layer 2 and sprite palettes in the hardware are the generated ones", not bad, str(bad[:8]))
     e.run(200)
     e.screenshot(SHOTS / "title.png")
     # the attract mode's display changes every 3 s: every frame across three changes
@@ -159,6 +202,13 @@ with Emulator(machine="next") as e:
     e.run(100)
     e.press("SPACE", hold_frames=2, release_frames=2)
     check("FIRE starts a game", e.run_until("pinball: start", 50))
+    lit = set()
+    for _ in range(40):                                   # the skill-shot lane blinks while the ball waits
+        e.run(2)
+        lit |= set(lamps_lit(e))
+    check("a lamp lights up (its palette entry gets its 'on' colour)", bool(lit), str(lit))
+    bad = palette_problems(e)
+    check("palettes still right in a game", not bad, str(bad[:8]))
     bad = dmd_check_frames(e, 150)                      # the game's first messages, the score
     check("the display is never seen half drawn (a game's start, 150 frames)", not bad, str(bad[:3]))
     log = bot_game(e)
