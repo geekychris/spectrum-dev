@@ -34,6 +34,7 @@ SHOTS = HERE / "screenshots"
 GIF = ROOT / "docs" / "images" / "pea_shooter_blast.gif"
 REC = HERE / "build" / "bot-game.json"
 MODE_TITLE, MODE_GAME, MODE_ENTRY = range(3)
+UI_PAGE = 84                                    # src/memmap.h: probe.c's page
 ST_TITLE, ST_PLAYING, ST_DEAD, ST_GAMEOVER, ST_LEVELCLEAR = range(5)
 failures = []
 
@@ -52,7 +53,7 @@ def probe(e):
     """probe.c's struct: in page 84 (memmap.h), read through the page, as
     0x6000 may hold a Layer 2 page when the frame ends"""
     a = e.addr("probe")
-    return dict(zip(FIELDS, PROBE.unpack(e.read_mem(a & 0x1FFF, PROBE.size, page=a >> 16))))
+    return dict(zip(FIELDS, PROBE.unpack(e.read_mem(a & 0x1FFF, PROBE.size, page=UI_PAGE))))
 
 
 def host(cmd):
