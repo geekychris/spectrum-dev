@@ -34,6 +34,7 @@ typedef struct {
     int32_t score, items;
     uint8_t enemies, rolled, facing, on_ground;
     uint8_t invuln, fps, rank, missiles;
+    int16_t ex, ey;                                 /* the first live creature */
 } Probe;
 Probe orb_probe;
 
@@ -98,7 +99,12 @@ static void probe(uint8_t fps)
 {
     Probe *p = &orb_probe;
     uint8_t i, n = 0;
-    for (i = 0; i < MAX_ENEMIES; i++) n += gs.enemies[i].active ? 1 : 0;
+    p->ex = p->ey = -1;
+    for (i = 0; i < MAX_ENEMIES; i++)
+        if (gs.enemies[i].active) {
+            if (!n) { p->ex = FIX_INT(gs.enemies[i].x); p->ey = FIX_INT(gs.enemies[i].y); }
+            n++;
+        }
     p->state = shell == S_GAME ? (uint8_t)gs.state : 0x10 + shell;
     p->room_x = (uint8_t)gs.room_x;
     p->room_y = (uint8_t)gs.room_y;
@@ -122,7 +128,7 @@ static void probe(uint8_t fps)
 int main(void)
 {
     uint8_t ticks, in, pressed, fps = 0, drawn = 0, k;
-    uint16_t perf_frames = 0, perf_steps = 0;
+    uint16_t perf_frames = 0, perf_steps = 0, perf_game = 0;
     LONG room_shown_x = -1, room_shown_y = -1;
 
     next_init();
@@ -163,6 +169,7 @@ int main(void)
             break;
 
         case S_GAME:
+            perf_game += ticks;
             for (; ticks; ticks--) {
                 int32_t score = gs.score;
                 LONG health = gs.hunter.health, rx = gs.room_x, ry = gs.room_y, items = gs.items_collected;
@@ -237,10 +244,10 @@ int main(void)
 
         if (perf_frames >= 100) {
             fps = drawn / 2;
-            zx_log("perf fps=%u steps=%u frames=%u shell=%u\n", fps, perf_steps, perf_frames, shell);
+            zx_log("perf fps=%u steps=%u frames=%u game=%u shell=%u\n", fps, perf_steps, perf_frames, perf_game, shell);
             zx_log("ay effects=%u music=%u\n", snd_sounding[0], snd_sounding[1]);
             snd_sounding[0] = snd_sounding[1] = 0;
-            perf_frames = perf_steps = 0;
+            perf_frames = perf_steps = perf_game = 0;
             drawn = 0;
         }
         probe(fps);

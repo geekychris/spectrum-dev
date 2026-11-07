@@ -91,13 +91,17 @@ static void draw_tile_at(uint8_t tx, uint8_t ty)
 static uint8_t anim[MAX_ANIM], nanim;           /* the room's lava and save point (ty * 32 + tx) */
 uint8_t room_dirty;                             /* world_set_tile changed a tile */
 
-/* the whole screen cleared by DMA, then the room's tiles that aren't empty */
+/* the room's area (rows 16-255, the HUD stays) cleared by DMA a column at
+   a time, then the room's tiles that aren't empty */
 void draw_room_full(void)
 {
-    uint8_t tx, ty, t;
+    uint8_t tx, ty, t, p, c;
     nanim = 0;
-    screen_clear_l2(L2_BANK, COL_BG);
-    memset(&hud_shown, 0xFF, sizeof(hud_shown));
+    for (p = 0; p < 10; p++) {
+        ZXN_WRITE_MMU3(L2_BANK * 2 + p);
+        for (c = 0; c < 32; c++) dma_fill(WIN3 + ((uint16_t)c << 8) + HUD_H, COL_BG, 256 - HUD_H);
+    }
+    ZXN_WRITE_MMU3(11);
     gfx_in();
     for (ty = 0; ty < ROWS_SHOWN; ty++)
         for (tx = 0; tx < ROOM_W; tx++) {

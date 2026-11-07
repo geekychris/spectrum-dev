@@ -70,7 +70,7 @@ the CPU is slow, so the work goes into drawing less:
   and variables take the whole RAM from 0x5D00, with tables made at start-up
   above the IM 2 table
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel, Orb Hunter): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -147,6 +147,10 @@ the 48K:
 - Emberkeep's lantern costs no drawing: the light square is the clip window of
   Layer 2 and of the sprites, and the copper narrows it on the lines of its
   cut corners; outside it the screen is the fallback black and guards vanish
+- Orb Hunter is flip-screen: a room is drawn into Layer 2 once when it is
+  entered and everything that moves is a 4-bit sprite (nextsprl), so the
+  original's 16.16 rules have the frame to themselves at 50 fps; they run
+  from a 16K code bank mapped over the ROM, which the game doesn't need
 
 ## Things to know
 

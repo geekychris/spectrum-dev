@@ -1,0 +1,7 @@
+{
+  "title": "Orb Hunter",
+  "ready": "orb: ready",
+  "description": "Explore the lost caverns room by room, shoot their creatures, find power-ups to get further.",
+  "controls": "O/P run, Q jump, A roll, SPACE fire, Kempston",
+  "picture": "screenshots/item.png"
+}

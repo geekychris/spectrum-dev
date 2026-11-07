@@ -212,6 +212,7 @@ They are part of `./zx selftest`.
 | [Tank Duel](projects/tank_duel/README.md) | Next `.nex`: first-person 3D on Layer 2 (Z80N `MUL` transform, the original's models, copper line doubling and sky), the original's 16.16 rules bit for bit, tilemap HUD, radar sprites, TurboSound, banked code | ![](docs/images/tank_duel.gif) |
 | [Stack Tower](projects/stack_tower/README.md) | Next `.nex`: a 3D tower of bricks drawn on the host for every view, blitted on 320x256 Layer 2 and cached; the drop guide by the copper; sprite text, tilemap help, TurboSound MOD | ![](docs/images/stack_tower.gif) |
 | [Warden Keep](projects/warden_keep/README.md) | Next `.nex`: a Filmation-style isometric room on 320x256 Layer 2 from the original's geometry, objects as sprite groups in its painter's order, tilemap screens, TurboSound | ![](docs/images/warden_keep.gif) |
+| [Orb Hunter](projects/orb_hunter/README.md) | Next `.nex`: flip-screen cavern platformer; rooms on 320x256 Layer 2, everything moving as 4-bit sprites, the original's rules from a code bank over the ROM, TurboSound MOD | ![](docs/images/orb_hunter.gif) |
 
 How the two machines compare as targets, and what each game uses:
 [docs/48k-vs-next.md](docs/48k-vs-next.md).
@@ -277,7 +278,7 @@ card. NextZXOS is never included (its licence wants the whole distribution).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `bullion_dash`, `emberkeep`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `warden_keep`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`, `lunar_rider`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestgrid`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `scrolltest`, `fix16test`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `bullion_dash`, `emberkeep`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `warden_keep`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`, `lunar_rider`, `orb_hunter`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestgrid`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `scrolltest`, `fix16test`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 
