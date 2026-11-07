@@ -18,7 +18,8 @@
  * Sprites are 8 pixels wide, any height, shifted at draw time (no
  * pre-shifted copies, ~230 T-states a line): an image is { h, then h x
  * (mask, data) }, mask bits = pixels the sprite covers (cleared before the
- * data is ORed in).
+ * data is ORed in). A box sprite, opaque over 6 columns, is { h | 0x80, then
+ * h data bytes } (mask 0xFC every line; ~130 T-states a line).
  * x must be <= 247 (a sprite always writes two bytes), y + h <= 192.
  *
  * Uses gfx_init()'s zx_row table. Keep the program out of 0x6000-0x7AFF

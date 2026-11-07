@@ -4,8 +4,8 @@
 
 #include <stdint.h>
 
-/* a spr8 image: height, then (mask, data) per line (see shadow48.h) */
-#define IMG6 (1 + 2 * 6)
+/* a spr8 box image, 6x6: 6 | 0x80, then 6 data bytes (see shadow48.h) */
+#define IMG6 (1 + 6)
 typedef uint8_t img6[IMG6];
 
 extern img6 img_bug[4][2];          /* the ladybug: [dir][leg step] */

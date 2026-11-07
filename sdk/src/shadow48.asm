@@ -73,6 +73,8 @@ draw_regs:
     add a,7                     ; skip 7 - s of the 7 rrca
     ld (mask_jr + 1),a
     ld (data_jr + 1),a
+    ld (box_jr + 1),a
+    ld (boxm_jr + 1),a
     ld a,0xFF                   ; left part: 0xFF >> s
     inc b
 left_mask:
@@ -83,11 +85,15 @@ left_mask:
 left_done:
     ld (lm1 + 1),a
     ld (lm2 + 1),a
+    ld (lm3 + 1),a
     cpl
     ld (rm1 + 1),a
     ld (rm2 + 1),a
+    ld (rm3 + 1),a
     ld a,(de)                   ; height
     inc de
+    bit 7,a
+    jr nz,box_sprite
     or a
     jr z,draw_done
     ld ixl,a
@@ -144,6 +150,72 @@ lm2:
     dec ixl
     jr nz,draw_line
 draw_done:
+    pop ix
+    ret
+
+; a box sprite (height | 0x80, then the data bytes): the mask is 0xFC on
+; every line, so its two shifted bytes are patched in once
+box_sprite:
+    and 0x7F
+    jr z,draw_done
+    ld ixl,a
+    ld a,0xFC
+boxm_jr:
+    jr boxm_run
+boxm_run:
+    rrca
+    rrca
+    rrca
+    rrca
+    rrca
+    rrca
+    rrca
+    ld c,a
+    ld a,(lm1 + 1)
+    and c
+    cpl
+    ld (bm1 + 1),a              ; ~(0xFC >> s)
+    ld a,(rm1 + 1)
+    and c
+    cpl
+    ld (bm2 + 1),a              ; ~(0xFC << (8 - s))
+box_line:
+    ld a,(de)                   ; data
+    inc de
+box_jr:
+    jr box_run
+box_run:
+    rrca
+    rrca
+    rrca
+    rrca
+    rrca
+    rrca
+    rrca
+    ld c,a
+    ld a,(hl)
+bm1:
+    and 0
+    ld b,a
+    ld a,c
+lm3:
+    and 0xFF
+    or b
+    ld (hl),a
+    inc l
+    ld a,(hl)
+bm2:
+    and 0
+    ld b,a
+    ld a,c
+rm3:
+    and 0
+    or b
+    ld (hl),a
+    dec l
+    NEXT_LINE
+    dec ixl
+    jr nz,box_line
     pop ix
     ret
 
@@ -213,6 +285,7 @@ frame_erase:
     ld l,(ix+4)
     ld h,(ix+5)
     ld a,(hl)                   ; h
+    and 0x7F
     call restore_regs
     ; the colours: kept if now[i] is on, with the same colour and cells
     ld de,(frame_drawn)
@@ -255,12 +328,14 @@ frame_erase:
     ld h,(hl)
     ld l,a
     ld a,(hl)
+    and 0x7F
     add a,c
     dec a
     ld c,a                      ; y' + h' - 1
     ld l,(ix+4)
     ld h,(ix+5)
     ld a,(hl)
+    and 0x7F
     add a,(ix+2)
     dec a                       ; y + h - 1
     xor c
@@ -307,7 +382,9 @@ ix_box:
     ld e,(ix+3)
     ld l,(ix+4)
     ld h,(ix+5)
-    ld d,(hl)
+    ld a,(hl)
+    and 0x7F
+    ld d,a
     ret
 
 ; void spr8_draw_all(const spr8_obj *o, uint16_t n): draws the objects that
@@ -420,7 +497,9 @@ draw_next:
     ld e,(ix+3)                 ; w
     ld l,(ix+4)
     ld h,(ix+5)
-    ld d,(hl)                   ; h
+    ld a,(hl)                   ; h
+    and 0x7F
+    ld d,a
     ld a,(ix+6)                 ; attr
     call attr_fill_regs
     pop hl

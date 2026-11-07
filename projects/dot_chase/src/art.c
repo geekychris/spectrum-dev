@@ -53,17 +53,16 @@ static const art6 a_flower[2] = {
 static const art6 a_empty = { "......", "......", "......", "......", "......", "......" };
 static const art6 a_gate = { "#....#", "######", "#....#", "#....#", "######", "#....#" };
 
-/* art -> spr8 image: the whole 6x6 box is the mask (sprites are opaque) */
+/* art -> spr8 box image: the whole 6x6 box is the mask (sprites are opaque) */
 static void make(uint8_t *img, const char *const *a)
 {
     uint8_t y, x;
-    img[0] = 6;
+    img[0] = 6 | 0x80;
     for (y = 0; y < 6; y++) {
         uint8_t d = 0;
         for (x = 0; x < 6; x++)
             if (a[y][x] == '#') d |= 0x80 >> x;
-        img[1 + 2 * y] = 0xFC;
-        img[2 + 2 * y] = d;
+        img[1 + y] = d;
     }
 }
 
@@ -71,7 +70,7 @@ static void make(uint8_t *img, const char *const *a)
 static void turn(uint8_t *dst, const uint8_t *src, uint8_t dir)
 {
     uint8_t y, x;
-    dst[0] = 6;
+    dst[0] = 6 | 0x80;
     for (y = 0; y < 6; y++) {
         uint8_t d = 0;
         for (x = 0; x < 6; x++) {
@@ -81,10 +80,9 @@ static void turn(uint8_t *dst, const uint8_t *src, uint8_t dir)
             case DIR_LEFT: sx = 5 - x; break;
             case DIR_UP:   sy = x; sx = 5 - y; break;
             }
-            if (src[2 + 2 * sy] & (0x80 >> sx)) d |= 0x80 >> x;
+            if (src[1 + sy] & (0x80 >> sx)) d |= 0x80 >> x;
         }
-        dst[1 + 2 * y] = 0xFC;
-        dst[2 + 2 * y] = d;
+        dst[1 + y] = d;
     }
 }
 

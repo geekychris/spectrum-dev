@@ -110,11 +110,9 @@ static const uint8_t *hedge_tile(int8_t tx, int8_t ty)
         if (h & 1) r2 = r2 | (0x40 >> h); else r3 = r3 | (0x20 >> h);
         if (h & 2) r1 = r1 | 0x10; else r4 = r4 | 0x08;
     }
-    *p++ = 6;
-    for (y = 0; y < 6; y++) {
-        *p++ = 0xFC;
+    *p++ = 6 | 0x80;
+    for (y = 0; y < 6; y++)
         *p++ = y == 0 ? r0 : y == 1 ? r1 : y == 2 ? r2 : y == 3 ? r3 : y == 4 ? r4 : r5;
-    }
     return hedge_img;
 }
 
