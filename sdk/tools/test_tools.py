@@ -1,5 +1,6 @@
 """Tests for the SDK's tools (run by ./zx selftest): mod2ay.py, nextpic.py, aystream.py, zxrle.py,
-fatimg.py, nextbasic.py, runimg.py; and fix16's C model on the host (test_fix16.c)."""
+fatimg.py, nextbasic.py, runimg.py, gridpack.py (also projects/sdktestgrid); and fix16's C model on
+the host (test_fix16.c)."""
 import os
 import subprocess
 import sys
@@ -177,6 +178,18 @@ check("runimg: decode(encode) gives every pixel's offset, x0 trimmed", run_decod
 check("runimg: runs at most MAX_RUN long", MAX_RUN == 25 and img[2 + 1] <= 25)
 check("runimg: mirrored, column c at x - c", run_decode(img, 100, True) == {(100 - x, y): o for (x, y), o in want.items()})
 check("runimg: an empty image", run_encode([[0]], [[False]]) == bytes([0, 0]))
+
+# gridpack: Bullion Dash's levels file packs into its committed levels_data.c, smaller than zxrle
+import gridpack  # noqa: E402
+from levelpack import parse  # noqa: E402
+bd = os.path.join(ROOT, "projects", "bullion_dash", "src")
+w, h, rooms = parse(open(os.path.join(bd, "levels.txt")).read())
+pk = gridpack.pack([c for _, c in rooms], w, h, 10)
+check("gridpack: Bullion Dash's 150 levels give the committed levels_data.c",
+      gridpack.c_source(pk, "lv", None, "levels_data.h")[0] == open(os.path.join(bd, "levels_data.c")).read())
+check("gridpack: they unpack (reference decoder) and take < 8 KB, zxrle > 19 KB",
+      all(gridpack.unpack(pk, i) == c for i, (_, c) in enumerate(rooms)) and pk.size < 8192
+      and sum(len(pack(c)) for _, c in rooms) > 19 * 1024, f"{pk.size}")
 
 print(f"{'FAIL' if failures else 'PASS'}: sdk tools")
 sys.exit(1 if failures else 0)
