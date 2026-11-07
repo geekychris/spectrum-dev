@@ -211,8 +211,7 @@ static void banner(uint8_t which)
 typedef spr8_obj Obj;                 /* w: pixels wide (6, a popup 7) */
 
 enum { O_BONUS, O_SPIDER, O_HERO = O_SPIDER + NUM_SPIDERS, O_POP1, O_POP2, NOBJ };
-static Obj obj_a[NOBJ], obj_b[NOBJ];
-static Obj *obj = obj_a, *drawn = obj_b;     /* this frame's, the last drawn (swapped) */
+static Obj obj[NOBJ], drawn[NOBJ];        /* this frame's, the last drawn */
 
 /* right after the interrupt: changed tiles, then the sprites' old places
    (pixels and colours) back from the shadow and the sprites in their new
@@ -229,81 +228,82 @@ static void render(void)
         band_dirty = 0;
     }
     spr8_frame(drawn, obj, NOBJ);
-    drawn = obj;
-    obj = obj == obj_a ? obj_b : obj_a;
+    memcpy(drawn, obj, sizeof(obj));
 }
 
-/* a sprite at an actor's place (6x6) */
+/* a sprite at an actor's place (6x6). prepare() names the game state and
+   the objects with constant indices: zsdcc then uses fixed addresses, where
+   pointers cost it several times as much */
 #define PLACE(o, b, im, a) do { \
-        (o)->on = 1; (o)->w = TILE_PX; \
-        (o)->x = SX((b)->pixel_x); (o)->y = SY((b)->pixel_y); \
-        (o)->img = (im); (o)->attr = (a); } while (0)
+        (o).on = 1; (o).w = TILE_PX; \
+        (o).x = SX((b).pixel_x); (o).y = SY((b).pixel_y); \
+        (o).img = (im); (o).attr = (a); } while (0)
+
+#define SPIDER(i) do { \
+        Spider *g = &game.spiders[i]; \
+        uint8_t d = g->dir < 0 ? DIR_LEFT : (uint8_t)g->dir; \
+        if (g->state == SPIDER_EATEN) { \
+            PLACE(obj[O_SPIDER + i], g->b, husk_img[d], A_WHITE); \
+        } else { \
+            uint8_t a = spider_attr[i]; \
+            if (g->state == SPIDER_FRIGHT) \
+                a = g->fright_timer < FRIGHT_BLINK && (g->fright_timer & 8) ? A_WHITE : A_FRIGHT; \
+            PLACE(obj[O_SPIDER + i], g->b, spider_img[(d << 1) | leg], a); \
+        } } while (0)
 
 /* the sprites for the game state, as the original's draw_game() */
 static void prepare(void)
 {
-    Obj *o = obj;
-    Hero *h = &game.hero;
-    Spider *g = game.spiders;
-    const uint8_t *sa = spider_attr;
-    uint8_t i, leg = (game.frame >> 2) & 1;
-    int8_t dir = h->dir < 0 ? DIR_LEFT : h->dir;
+    uint8_t leg = (game.frame >> 2) & 1;
+    int8_t dir = game.hero.dir < 0 ? DIR_LEFT : game.hero.dir;
 
-    if (game.bonus_active) {                          /* O_BONUS */
+    if (game.bonus_active) {
         uint8_t t = game.bonus_type;
-        o->on = 1;
-        o->w = TILE_PX;
-        o->x = SX(game.bonus_x);
-        o->y = SY(game.bonus_y);
-        o->img = img_bonus[t];
-        o->attr = bonus_attr[t];
+        obj[O_BONUS].on = 1;
+        obj[O_BONUS].w = TILE_PX;
+        obj[O_BONUS].x = SX(game.bonus_x);
+        obj[O_BONUS].y = SY(game.bonus_y);
+        obj[O_BONUS].img = img_bonus[t];
+        obj[O_BONUS].attr = bonus_attr[t];
     } else {
-        o->on = 0;
-    }
-    o++;
-
-    for (i = 0; i < NUM_SPIDERS; i++, o++, g++, sa++) {   /* O_SPIDER.. */
-        uint8_t d = g->dir < 0 ? DIR_LEFT : (uint8_t)g->dir;
-        uint8_t st = (uint8_t)g->state;
-        if (st == SPIDER_EATEN) {
-            PLACE(o, &g->b, husk_img[d], A_WHITE);
-        } else {
-            uint8_t a = *sa;
-            if (st == SPIDER_FRIGHT) {
-                uint16_t ft = g->fright_timer;
-                a = ft < FRIGHT_BLINK && (ft & 8) ? A_WHITE : A_FRIGHT;
-            }
-            PLACE(o, &g->b, spider_img[(d << 1) | leg], a);
-        }
+        obj[O_BONUS].on = 0;
     }
 
-    if (game.state == STATE_DYING) {                  /* O_HERO */
+    SPIDER(0);
+    SPIDER(1);
+    SPIDER(2);
+    SPIDER(3);
+
+    if (game.state == STATE_DYING) {
         /* the ladybug flips over and curls up (the original's draw_dying) */
         uint8_t phase = (DYING_TIME - game.state_timer) >> 3;
         if (phase < 3)
-            PLACE(o, &h->b, bug_img[(((dir + phase) & 3) << 1) | (phase & 1)], A_HERO);
+            PLACE(obj[O_HERO], game.hero.b, bug_img[(((dir + phase) & 3) << 1) | (phase & 1)], A_HERO);
         else if (phase < 7)
-            PLACE(o, &h->b, img_shrink[phase - 3], phase & 1 ? A_WHITE : A_HERO);
+            PLACE(obj[O_HERO], game.hero.b, img_shrink[phase - 3], phase & 1 ? A_WHITE : A_HERO);
         else
-            o->on = 0;
+            obj[O_HERO].on = 0;
     } else {
-        PLACE(o, &h->b, bug_img[(dir << 1) | h->leg_step], A_HERO);
+        PLACE(obj[O_HERO], game.hero.b, bug_img[(dir << 1) | game.hero.leg_step], A_HERO);
     }
-    o++;
 
-    if (game.popup_active) {                          /* O_POP1, O_POP2 */
+    if (game.popup_active) {
         static int32_t pop_score = -1;
         uint8_t x = SX(game.popup_x) + 3 - 7, y = SY(game.popup_y);
         if (game.popup_score != pop_score) {
             pop_score = game.popup_score;
             art_popup((uint16_t)pop_score);
         }
-        o->on = 1; o->w = 7; o->x = x; o->y = y; o->img = img_popup[0]; o->attr = A_BANNER;
-        o++;
-        o->on = 1; o->w = 7; o->x = x + 8; o->y = y; o->img = img_popup[1]; o->attr = A_BANNER;
+        obj[O_POP1].on = obj[O_POP2].on = 1;
+        obj[O_POP1].w = obj[O_POP2].w = 7;
+        obj[O_POP1].x = x;
+        obj[O_POP2].x = x + 8;
+        obj[O_POP1].y = obj[O_POP2].y = y;
+        obj[O_POP1].img = img_popup[0];
+        obj[O_POP2].img = img_popup[1];
+        obj[O_POP1].attr = obj[O_POP2].attr = A_BANNER;
     } else {
-        o->on = 0;
-        o[1].on = 0;
+        obj[O_POP1].on = obj[O_POP2].on = 0;
     }
 }
 
@@ -396,8 +396,8 @@ static void game_screen(void)
     shadow_show();
     hud_labels();
     hud();
-    memset(obj_a, 0, sizeof(obj_a));
-    memset(obj_b, 0, sizeof(obj_b));
+    memset(obj, 0, sizeof(obj));
+    memset(drawn, 0, sizeof(drawn));
     n_dirty = 0;
     banner_shown = 0;
     band_dirty = 0;

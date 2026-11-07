@@ -37,17 +37,18 @@ static uint8_t pulse_on, pulse_level, pulse_timer, chirp;
 static uint8_t power_on, power_phase;
 static uint16_t arp_now;
 
-/* the beeper's period for an Amiga/AY period, an octave up (short slices) */
+/* the beeper's period for an Amiga/AY period, an octave up (short
+   slices): a cycle of 31.58 p / 2 T-states = 52 b + 80 */
 static uint16_t beeper_period(uint16_t p)
 {
-    return p + p - (p >> 5) - 7;      /* (31.58 p / 2 - 60) / 8 */
+    return (uint16_t)(((p >> 2) * 311u) >> 8) - 2;   /* 16 bits for p < 842 */
 }
 
 /* a slice of about `t` T-states of tone */
 static void beep_for(uint16_t p, uint16_t t)
 {
     uint16_t b = beeper_period(p);
-    uint16_t c = t / (8 * b + 60);
+    uint16_t c = t / (52 * b + 80);
     beep(b, c ? c : 1);
 }
 
@@ -165,8 +166,8 @@ void snd_frame(void)
         sound_tick();                /* the SDK's effect decay */
         return;
     }
-    if (seq_left && seq_note > 1) beep_for(seq_note, 22000);
-    else if (seq_left && seq_note == 1) beep_noise(400);
+    if (seq_left && seq_note > 1) beep_for(seq_note, 9000);
+    else if (seq_left && seq_note == 1) beep_noise(200);
     else if (pip_now) beep_for(pip_now, 4000);
     else if (power_on && arp_now) { beep_for(arp_now, 2000); arp_now = 0; }
     else if (chirp) beep_for(120, 1500);

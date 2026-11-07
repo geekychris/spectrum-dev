@@ -333,53 +333,43 @@ static void update_spider_target(GameState *gs_, Spider *g, WORD id)
     }
 }
 
-static void update_spider(GameState *gs_, Spider *g, WORD id)
+/* At tile center: choose direction (the original update_spider's block) */
+static void spider_centre(GameState *gs_, Spider *g, WORD id)
 {
-    WORD speed;
-    WORD in_tunnel;
-
-    /* Spider in house: wait for dot counter */
-    if (g->home) {
-        if (gs->dots_eaten_global >= g->dot_counter) {
-            spider_leave_house(g);
-        }
-        return;
-    }
-
-    /* Determine speed */
-    in_tunnel = (g->b.tile_y == TUNNEL_Y && (g->b.tile_x < 6 || g->b.tile_x >= 22));
+    /* Check if eaten spider reached home */
     if (g->state == SPIDER_EATEN) {
-        speed = SPIDER_EATEN_SPD;
-    } else if (g->state == SPIDER_FRIGHT) {
-        speed = SPIDER_FRIGHT_SPD;
-    } else if (in_tunnel) {
-        speed = SPIDER_TUNNEL_SPD;
-    } else {
-        speed = SPIDER_SPEED;
-        /* Speed up slightly with levels */
-        if (gs->level >= 2) speed += 16;
-        if (gs->level >= 5) speed += 16;
-    }
-
-    /* At tile center: choose direction */
-    if (is_centered(&g->b)) {
-        /* Check if eaten spider reached home */
-        if (g->state == SPIDER_EATEN) {
-            if (g->b.tile_x == SPIDER_HOUSE_X &&
-                (g->b.tile_y == SPIDER_DOOR_Y || g->b.tile_y == SPIDER_DOOR_Y + 1)) {
-                g->state = gs->mode ? SPIDER_CHASE : SPIDER_SCATTER;
-                g->b.pixel_y = tile_to_px(SPIDER_DOOR_Y);
-                g->b.tile_y = SPIDER_DOOR_Y;
-                g->b.sub_y = 0;
-            }
+        if (g->b.tile_x == SPIDER_HOUSE_X &&
+            (g->b.tile_y == SPIDER_DOOR_Y || g->b.tile_y == SPIDER_DOOR_Y + 1)) {
+            g->state = gs->mode ? SPIDER_CHASE : SPIDER_SCATTER;
+            g->b.pixel_y = tile_to_px(SPIDER_DOOR_Y);
+            g->b.tile_y = SPIDER_DOOR_Y;
+            g->b.sub_y = 0;
         }
-
-        update_spider_target(gs, g, id);
-        g->dir = choose_direction(gs, g, g->target_x, g->target_y);
     }
 
-    move_entity(&g->b, g->dir, speed);
+    update_spider_target(gs, g, id);
+    g->dir = choose_direction(gs, g, g->target_x, g->target_y);
 }
+
+/* The original's update_spider. port: a macro for each spider's constant
+   index, so that zsdcc addresses the spider's fields directly (through the
+   pointer they cost it several times as much); the same steps */
+#define update_spider(gs_, i) do { \
+    Spider *g = &gs->spiders[i]; \
+    /* Spider in house: wait for dot counter */ \
+    if (g->home) { \
+        if (gs->dots_eaten_global >= g->dot_counter) spider_leave_house(g); \
+    } else { \
+        WORD speed; \
+        /* Determine speed */ \
+        if (g->state == SPIDER_EATEN) speed = SPIDER_EATEN_SPD; \
+        else if (g->state == SPIDER_FRIGHT) speed = SPIDER_FRIGHT_SPD; \
+        else if (g->b.tile_y == TUNNEL_Y && (g->b.tile_x < 6 || g->b.tile_x >= 22)) \
+            speed = SPIDER_TUNNEL_SPD;    /* in_tunnel */ \
+        else speed = spider_speed;        /* level-dependent, below */ \
+        if (is_centered(&g->b)) spider_centre(gs, g, i); \
+        move_entity(&g->b, g->dir, speed); \
+    } } while (0)
 
 static void reverse_all_spiders(GameState *gs_)
 {
@@ -561,51 +551,53 @@ static void update_hero(GameState *gs_, InputState *input)
     move_entity(&gs->hero.b, gs->hero.dir, speed);
 }
 
+/* a spider touches the ladybug: 1 if the ladybug dies */
+static UBYTE spider_touch(GameState *gs_, Spider *g)
+{
+    if (g->state == SPIDER_FRIGHT) {
+        /* Eat spider */
+        g->state = SPIDER_EATEN;
+        g->fright_timer = 0;
+        gs->spiders_eaten++;
+
+        /* Score: 150, 300, 600, 1200 */
+        {
+            LONG spider_score = SCORE_SPIDER1;
+            WORD e;
+            for (e = 1; e < gs->spiders_eaten; e++) spider_score += spider_score;  /* port: *2 */
+            gs->score += spider_score;
+            gs->popup_active = 1;
+            gs->popup_timer = EAT_SPIDER_TIME;
+            gs->popup_x = g->b.pixel_x;
+            gs->popup_y = g->b.pixel_y;
+            gs->popup_score = spider_score;
+        }
+
+        gs->ev_flags |= EV_EAT_SPIDER;
+        gs->state = STATE_EAT_SPIDER;
+        gs->state_timer = EAT_SPIDER_TIME;
+    } else if (g->state != SPIDER_EATEN) {
+        /* ladybug dies */
+        gs->state = STATE_DYING;
+        gs->state_timer = DYING_TIME;
+        gs->ev_flags |= EV_DIE;
+        return 1;
+    }
+    return 0;
+}
+
+/* port: |dx| < 6 && |dy| < 6 as unsigned range tests, for a constant index */
+#define TOUCHING(i) (!gs->spiders[i].home && \
+    (UWORD)(gs->hero.b.pixel_x - gs->spiders[i].b.pixel_x + 5) <= 10 && \
+    (UWORD)(gs->hero.b.pixel_y - gs->spiders[i].b.pixel_y + 5) <= 10)
+
+/* port: the original's loop over the spiders, in order, unrolled */
 static void check_spider_collision(GameState *gs_)
 {
-    WORD i;
-    Spider *g = gs->spiders;                  /* port: a pointer walk */
-    for (i = 0; i < NUM_SPIDERS; i++, g++) {
-        WORD dx, dy;
-
-        if (g->home) continue;
-
-        dx = gs->hero.b.pixel_x - g->b.pixel_x;
-        dy = gs->hero.b.pixel_y - g->b.pixel_y;
-
-        /* port: |dx| < 6 && |dy| < 6 as unsigned range tests */
-        if ((UWORD)(dx + 5) <= 10 && (UWORD)(dy + 5) <= 10) {
-            if (g->state == SPIDER_FRIGHT) {
-                /* Eat spider */
-                g->state = SPIDER_EATEN;
-                g->fright_timer = 0;
-                gs->spiders_eaten++;
-
-                /* Score: 150, 300, 600, 1200 */
-                {
-                    LONG spider_score = SCORE_SPIDER1;
-                    WORD e;
-                    for (e = 1; e < gs->spiders_eaten; e++) spider_score += spider_score;  /* port: *2 */
-                    gs->score += spider_score;
-                    gs->popup_active = 1;
-                    gs->popup_timer = EAT_SPIDER_TIME;
-                    gs->popup_x = g->b.pixel_x;
-                    gs->popup_y = g->b.pixel_y;
-                    gs->popup_score = spider_score;
-                }
-
-                gs->ev_flags |= EV_EAT_SPIDER;
-                gs->state = STATE_EAT_SPIDER;
-                gs->state_timer = EAT_SPIDER_TIME;
-            } else if (g->state != SPIDER_EATEN) {
-                /* ladybug dies */
-                gs->state = STATE_DYING;
-                gs->state_timer = DYING_TIME;
-                gs->ev_flags |= EV_DIE;
-                return;
-            }
-        }
-    }
+    if (TOUCHING(0) && spider_touch(gs, &gs->spiders[0])) return;
+    if (TOUCHING(1) && spider_touch(gs, &gs->spiders[1])) return;
+    if (TOUCHING(2) && spider_touch(gs, &gs->spiders[2])) return;
+    if (TOUCHING(3)) spider_touch(gs, &gs->spiders[3]);
 }
 
 void game_update(GameState *gs_, InputState *input)
@@ -639,8 +631,14 @@ void game_update(GameState *gs_, InputState *input)
         update_mode(gs);
 
         {
-            Spider *g = gs->spiders;              /* port: a pointer walk */
-            for (i = 0; i < NUM_SPIDERS; i++, g++) update_spider(gs, g, i);
+            /* Speed up slightly with levels */
+            WORD spider_speed = SPIDER_SPEED;
+            if (gs->level >= 2) spider_speed += 16;
+            if (gs->level >= 5) spider_speed += 16;
+            update_spider(gs, 0);
+            update_spider(gs, 1);
+            update_spider(gs, 2);
+            update_spider(gs, 3);
         }
 
         /* Fright timer */
