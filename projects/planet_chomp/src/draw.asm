@@ -12,6 +12,7 @@
 ; run of LD (DE),A / INC E. Anything that reaches past the screen's edges
 ; goes to l2poly, which clips.
 
+EXTERN _rd_thin
 SECTION BANK_18
 
 PUBLIC _rd_init
@@ -545,6 +546,29 @@ wl_facing:
 wl_shade:
     add a,C_WALL_TOP + 1
     ld (ix+2),a
+    ; port: a thin (far) wall, |ox| and |oy| <= rd_thin, is one quad in the
+    ; top's colour (bit 7 of its colour): from above it is mostly top
+    ld a,(ix+3)
+    bit 7,a
+    jr z,wt_1
+    neg
+wt_1:
+    ld hl,_rd_thin
+    cp (hl)
+    jr z,wt_2
+    jr nc,wt_keep
+wt_2:
+    ld a,(ix+4)
+    bit 7,a
+    jr z,wt_3
+    neg
+wt_3:
+    cp (hl)
+    jr z,wt_4
+    jr nc,wt_keep
+wt_4:
+    set 7,(ix+2)
+wt_keep:
     ld hl,(w_a)
     ld (ix+5),l
     ld (ix+6),h
@@ -807,6 +831,8 @@ draw_wall:
     ld a,(ix+4)
     call sext_a
     ld (poy),hl
+    bit 7,(ix+2)
+    jr nz,draw_thin
     ld e,(ix+5)
     ld d,(ix+6)
     push de
@@ -859,6 +885,35 @@ draw_wall:
     xor a
     ld (pskip0),a
     ret
+
+draw_thin:                      ; A top - o, B top - o, B ground + o, A ground + o
+    ld e,(ix+5)
+    ld d,(ix+6)
+    push de
+    pop iy                      ; A
+    ld hl,qv
+    ld b,4
+    call vtx_minus
+    ld e,(ix+7)
+    ld d,(ix+8)
+    push de
+    pop iy                      ; B
+    ld b,4
+    call vtx_minus
+    ld b,0
+    call vtx_plus
+    ld e,(ix+5)
+    ld d,(ix+6)
+    push de
+    pop iy
+    ld b,0
+    call vtx_plus
+    ld a,C_WALL_TOP
+    ld (pcol),a
+    xor a
+    ld (pfast),a
+    ld (pskip0),a
+    jp poly4
 
 ; (HL) = corner IY's point at offset B (0 ground, 4 top) + (pox, poy); HL += 4
 vtx_plus:

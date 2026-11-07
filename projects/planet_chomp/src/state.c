@@ -13,7 +13,9 @@ int16_t nest_dist[CELLS];
 uint8_t mz_open[CELLS];
 int16_t rd_wall[MAX_WALLS];
 int16_t rd_nwalls;
-uint8_t rd_dbg;                  /* test: 1 no disc, 2 no walls, 4 no crumbs drawn */
+uint8_t rd_dbg;
+int16_t rd_cull = 2500;          /* port: Q14 dot added to the horizon tests: only cells within ~70 deg of the camera */
+uint8_t rd_thin = 1;             /* port: walls this thin on screen are one quad (draw.asm) */
 #ifndef __SDCC
 PcWork pc_work;                  /* on the Next: bank 17 (mem.asm) */
 #endif

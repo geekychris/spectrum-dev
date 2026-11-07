@@ -241,9 +241,9 @@ static void camera(void)
           mul16(rd_campos.z >> 4, rd_campos.z >> 4);
     {
         int16_t dist = (int16_t)(isqrt32_fast((uint32_t)dsq) << 4);          /* |C|, Q8 */
-        xf_thr = (int16_t)(((int32_t)(PLANET_R - Q8(0.6)) << 14) / dist) - 1500;
-        xf_thr_wall = (int16_t)(((int32_t)(PLANET_R - Q8(0.6)) << 14) / dist);
-        xf_thr_crumb = (int16_t)(((int32_t)PLANET_R << 14) / dist) - 160;   /* the cell centre is ~1% inside its corners' */
+        xf_thr = (int16_t)(((int32_t)(PLANET_R - Q8(0.6)) << 14) / dist) - 1500 + rd_cull;
+        xf_thr_wall = (int16_t)(((int32_t)(PLANET_R - Q8(0.6)) << 14) / dist) + rd_cull;
+        xf_thr_crumb = (int16_t)(((int32_t)PLANET_R << 14) / dist) - 160 + rd_cull;   /* the cell centre is ~1% inside its corners' */
     }
     if (h != disc_h) { disc_h = h; disc_points(); }
 }
@@ -363,6 +363,7 @@ void rd_frame(void)
     dr_begin();
     if (disc_h >= 0 && !(rd_dbg & 1)) dr_poly(disc_xy, 24, C_PLANET);
     draw_nest();
+    rd_lap(5);
     if (!(rd_dbg & 2)) rd_draw();
     dr_end();
     rd_lap(4);
@@ -394,6 +395,15 @@ void rd_frame(void)
             case IT_WALL: {
                 const Corner *p = CN(a), *q = CN(c);
                 if (rd_dbg & 2) break;
+                if ((ox < 0 ? -ox : ox) <= rd_thin && (oy < 0 ? -oy : oy) <= rd_thin) {
+                    /* port: a thin (far) wall is one quad in the top's colour */
+                    xy[0] = p->tx - ox; xy[1] = p->ty - oy;
+                    xy[2] = q->tx - ox; xy[3] = q->ty - oy;
+                    xy[4] = q->bx + ox; xy[5] = q->by + oy;
+                    xy[6] = p->bx + ox; xy[7] = p->by + oy;
+                    dr_poly(xy, 4, C_WALL_TOP);
+                    break;
+                }
                 xy[0] = p->tx + ox; xy[1] = p->ty + oy;
                 xy[2] = q->tx + ox; xy[3] = q->ty + oy;
                 xy[4] = q->bx + ox; xy[5] = q->by + oy;

@@ -92,7 +92,7 @@ static uint32_t line_clock(void)
     /* the interrupt comes at line 248 (the frame's start): lines since then */
     return (uint32_t)f * 312 + (r >= 248 ? r - 248 : r + 64);
 }
-static uint32_t prof_t, prof[4], rprof[5];
+static uint32_t prof_t, prof[4], rprof[6];
 static uint16_t perf_ticks;
 void rd_lap(uint8_t k)
 {
@@ -299,10 +299,10 @@ int main(void)
                    (uint16_t)(500UL * 50 / f), prof[3] / 50, prof[0] / 50, prof[1] / 50, prof[2] / 50, rd_stats_walls,
                    rd_stats_crumbs, perf_ticks);
             perf_ticks = 0;
-            zx_log("pc: perf draw lines/frame: camera=%lu corners=%lu crumbs=%lu walls=%lu fill=%lu\n",
-                   rprof[0] / 50, rprof[1] / 50, rprof[2] / 50, rprof[3] / 50, rprof[4] / 50);
+            zx_log("pc: perf draw lines/frame: camera=%lu corners=%lu crumbs=%lu walls=%lu disc=%lu fill=%lu\n",
+                   rprof[0] / 50, rprof[1] / 50, rprof[2] / 50, rprof[3] / 50, rprof[5] / 50, rprof[4] / 50);
             prof[0] = prof[1] = prof[2] = prof[3] = 0;
-            rprof[0] = rprof[1] = rprof[2] = rprof[3] = rprof[4] = 0;
+            rprof[0] = rprof[1] = rprof[2] = rprof[3] = rprof[4] = rprof[5] = 0;
             frames = 0;
             fps_t0 = irq_frames;
         }

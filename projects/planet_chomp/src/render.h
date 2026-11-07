@@ -36,7 +36,9 @@ int16_t rd_size16(int16_t size, int16_t z);
    original's horizon test (>> 14, world Q8) */
 int16_t rd_horizon(const V3 *dir);
 extern V3 rd_campos;
-extern uint8_t rd_dbg;                /* world Q8 */
+extern uint8_t rd_dbg;
+extern int16_t rd_cull;
+extern uint8_t rd_thin;
 extern int16_t rd_stats_walls, rd_stats_crumbs;
 
 /* drawing (render.c draws through these: l2poly on the Next, a frame
