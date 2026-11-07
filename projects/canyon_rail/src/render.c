@@ -27,19 +27,22 @@ uint16_t render_polys;
 
 typedef struct { int16_t x, y, z; } P3;
 
-static Cam cam;
+A3Cam render_cam;                       /* this frame's camera (sprites.c too) */
+#define cam render_cam
 int16_t cy4, sy4, cp4, sp4;             /* the camera's trig >> 4 (cam_xform's factors; view.asm) */
 extern void xform16(int16_t dx, int16_t dy, int16_t dz, P3 *o);   /* view.asm */
 
-/* an edge: L top, L base, river L, river R, R base, R top (camera space, screen) */
+/* an edge: L top, L base, river L, river R, R base, R top (camera space,
+   screen); view.asm's edge6 knows this layout */
 typedef struct {
-    int32_t s;                          /* where */
-    int16_t h;
     P3 c[6];
     int16_t px[6], py[6];
     uint8_t front;                      /* all six in front of the near plane */
+    int32_t s;                          /* where */
+    int16_t h;
     const void *p;                      /* its Place */
 } Edge;
+extern void edge6(const int16_t *dx, int16_t dyb, int16_t dyt, int16_t dz, Edge *e);    /* view.asm */
 static Edge edge[NE];
 
 #define xform(wx, wy, wz, o) xform16((int16_t)((wx) - cam.x), (int16_t)((wy) - cam.y), (int16_t)((wz) - cam.z), o)
@@ -73,23 +76,15 @@ static const Place *place_of(int32_t s)
 
 static void make_edge(Edge *e, int32_t s)
 {
+    static int16_t dx[6];
     const Place *p = place_of(s);
-    int16_t c = p->c, w = p->w, h = p->h;
-    uint8_t k;
+    int16_t c = p->c - (int16_t)cam.x, w = p->w;
     e->s = s;
-    e->h = h;
+    e->h = p->h;
     e->p = p;
-    xform(c - w - 70, h, s, &e->c[0]);
-    xform(c - w, 0, s, &e->c[1]);
-    xform(c - 30, 0, s, &e->c[2]);
-    xform(c + 30, 0, s, &e->c[3]);
-    xform(c + w, 0, s, &e->c[4]);
-    xform(c + w + 70, h, s, &e->c[5]);
-    e->front = 1;
-    for (k = 0; k < 6; k++) {
-        if (e->c[k].z < NEAR_Z) { e->front = 0; continue; }
-        project(&e->c[k], &e->px[k], &e->py[k]);
-    }
+    dx[0] = c - w - 70; dx[1] = c - w; dx[2] = c - 30;
+    dx[3] = c + 30; dx[4] = c + w; dx[5] = c + w + 70;
+    edge6(dx, (int16_t)-cam.y, p->h - (int16_t)cam.y, (int16_t)(s - cam.z), e);
 }
 
 /* a polygon of camera-space points, clipped at the near plane */
@@ -155,7 +150,7 @@ void render_scene(const CRGame *g)
 {
     int32_t s, s0 = (g->cam_s / SEG) * SEG - SEG, s1 = g->cam_s + AHEAD;
     int16_t hz;
-    uint8_t n = 0, k;
+    uint8_t n = 0, k, pass;
     cr_camera(g, &cam);
     cy4 = (int16_t)(cam.cy >> 4); sy4 = (int16_t)(cam.sy >> 4);
     cp4 = (int16_t)(cam.cp >> 4); sp4 = (int16_t)(cam.sp >> 4);
@@ -177,16 +172,22 @@ void render_scene(const CRGame *g)
     l2p_bot = VIEW_ROWS + 1;                  /* (the last line shows row 96) */
     l2p_rect(0, hz, 0, VIEW_W - 1, PEN_SKY);
     l2p_rect(hz, VIEW_ROWS + 1, 0, VIEW_W - 1, PEN_WALL + 1);
-    for (k = n - 1; k-- > 0; ) {
-        const Edge *a = &edge[k], *b = &edge[k + 1];
-        uint8_t tone = (uint8_t)((b->s - a->s > SEG ? a->s / (2 * SEG) : a->s / SEG) & 1);  /* (pairs alternate too) */
-        if (b->c[1].z < NEAR_Z && b->c[4].z < NEAR_Z) continue;        /* behind */
-        quad(a, b, 1, 4, PEN_BANK + tone);
-        quad(a, b, 2, 3, PEN_RIVER);
-        quad(a, b, 1, 0, PEN_WALL + 2 * tone);
-        quad(a, b, 4, 5, PEN_WALL + 2 * tone + 1);
-        if (((const Place *)a->p)->spire & 1) spire(a, b, -1);
-        if (((const Place *)a->p)->spire & 2) spire(a, b, 1);
-    }
+    /* port: the floor first (the banks, then the river: one slab's bank
+       quad would leave slivers over the next one's river), then the walls and
+       spires; each far to near */
+    for (pass = 0; pass < 3; pass++)
+        for (k = n - 1; k-- > 0; ) {
+            const Edge *a = &edge[k], *b = &edge[k + 1];
+            uint8_t tone = (uint8_t)((b->s - a->s > SEG ? a->s / (2 * SEG) : a->s / SEG) & 1);  /* (pairs alternate too) */
+            if (b->c[1].z < NEAR_Z && b->c[4].z < NEAR_Z) continue;        /* behind */
+            if (pass == 0) quad(a, b, 1, 4, PEN_BANK + tone);
+            else if (pass == 1) quad(a, b, 2, 3, PEN_RIVER);
+            else {
+                quad(a, b, 1, 0, PEN_WALL + 2 * tone);
+                quad(a, b, 4, 5, PEN_WALL + 2 * tone + 1);
+                if (((const Place *)a->p)->spire & 1) spire(a, b, -1);
+                if (((const Place *)a->p)->spire & 2) spire(a, b, 1);
+            }
+        }
     l2p_end();
 }

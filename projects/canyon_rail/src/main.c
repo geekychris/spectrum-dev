@@ -12,6 +12,7 @@
 #include "zxlog.h"
 #include "cr.h"
 #include "render.h"
+#include "sprites.h"
 
 CRGame game;
 
@@ -54,6 +55,37 @@ static void line_doubling(void)
     copper_end();
 }
 
+/* everything but the canyon, as sprites (with the picture's bank mapped) */
+static void objects(const CRGame *g)
+{
+    int k;
+    int32_t x, y, z;
+    spr_begin();
+    for (k = 0; k < g->ntg; k++) {
+        const Target *t = &g->tg[k];
+        int32_t ahead = t->s - g->cam_s;
+        if (!t->alive || ahead < 20 || ahead > 1300) continue;
+        cr_target_pos(g, k, &x, &y, &z);
+        spr_world(t->type == TG_TURRET ? SV_TURRET : t->type == TG_DRONE ? SV_DRONE : SV_POD, 0, x, y, z, 1);
+    }
+    for (k = 0; k < CR_MAX_BOLTS; k++) {
+        if (!g->bolt[k].alive) continue;
+        cr_bolt_pos(g, k, &x, &y, &z);
+        spr_world(SV_BOLT, 0, x, y, z, 1);
+    }
+    if (g->cam_s + 1300 > CR_LEN) {
+        int32_t bs = CR_LEN + 450;
+        spr_world(SV_CORE, (uint8_t)((g->boss_angle / 3 >> 13) & 7), cr_path_x(bs), cr_path_y(bs) + 90, bs, 1);
+        for (k = 0; k < CR_NODES; k++) {
+            if (g->node_hp[k] <= 0) continue;
+            cr_node_pos(g, k, &x, &y, &z);
+            spr_world(SV_NODE, (uint8_t)((g->boss_angle >> 13) & 7), x, y, z - 30, 1);
+        }
+    }
+    spr_screen(SV_SIGHT, SX(g->sx), SY(g->sy));
+    spr_end();
+}
+
 int main(void)
 {
     uint8_t acc = 0, loops = 0;
@@ -66,6 +98,8 @@ int main(void)
     line_doubling();
     map_render();
     render_init();
+    spr_setup();
+    ZXN_WRITE_REG(0x15, 0x03);                  /* sprites over Layer 2, visible, over the border */
     map_rules();
     cr_new_game(&game, 777, 1);
     zx_log("canyon: ready\n");
@@ -73,6 +107,8 @@ int main(void)
     for (;;) {
         acc += frame_wait();
         l2_flip();
+        map_render();
+        spr_present();
         if (acc > 8) acc = 8;
         map_rules();
         while (acc >= 2) {                      /* the original's 25 ticks a second */
@@ -82,6 +118,7 @@ int main(void)
         }
         map_render();
         render_scene(&game);
+        objects(&game);
         if (++loops == 50) {
             zx_log("canyon: fps*10=%u polys=%u s=%ld\n", (uint16_t)(5000U * 5 / (uint16_t)(frames50 - tstart)),
                    render_polys, (long)game.cam_s);

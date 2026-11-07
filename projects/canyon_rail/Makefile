@@ -17,3 +17,5 @@ all: $(OUT)
 $(OBJDIR)/cr_core.c.o: EXTRA_CFLAGS += --codesegBANK_16 --constsegBANK_16
 # the picture: 16K bank 18 at 0x0000, mapped while drawing (map_render)
 $(OBJDIR)/render.c.o: EXTRA_CFLAGS += --codesegBANK_18 --constsegBANK_18
+# the sprites (and their tables): with the picture
+$(OBJDIR)/sprites.c.o $(OBJDIR)/spr_tab.c.o: EXTRA_CFLAGS += --codesegBANK_18 --constsegBANK_18
