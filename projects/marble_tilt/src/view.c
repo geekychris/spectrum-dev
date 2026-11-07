@@ -419,7 +419,7 @@ void view_marble(const MTGame *g)
         pattern[(uint8_t)((m[1] + 8) * 16 + m[0] + 8)] = MARBLE_PAL + m[2];
     }
     ZXN_WRITE_REG(0x53, saved);
-    spr_pattern(0, pattern);
+    spr_pattern_dma(0, pattern);
     spr_show(0, mx - 8 + 32, my - 8 + 32, 0, 0);
 }
 

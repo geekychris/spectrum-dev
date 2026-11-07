@@ -204,7 +204,7 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   sprite palette; tilemap HUD, sprite-zoomed big text, copper sky; effects
   from the original's synthesis settings + a port tune on TurboSound; high
   scores. Loop 50 fps, rules 25 ticks/s, boards 6-8/s while tilting. SDK:
-  fix16, l2fill (+ tools/l2fill.py), isqrt32 fix, spr_pattern by DMA;
+  fix16, l2fill (+ tools/l2fill.py), isqrt32 fix, spr_pattern_dma;
   projects/fixfilltest.
 
 ### Cleanup (2026-11-06)

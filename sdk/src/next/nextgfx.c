@@ -29,8 +29,9 @@ void spr_init(void)
 
 void spr_pattern(uint8_t slot, const uint8_t *pixels256)
 {
+    uint16_t i;
     z80_outp(0x303B, slot & 63);
-    dma_to_port(0x5B, pixels256, 256);
+    for (i = 0; i < 256; i++) z80_outp(0x5B, pixels256[i]);
 }
 
 void spr_show(uint8_t n, int16_t x, int16_t y, uint8_t pattern, uint8_t flags)

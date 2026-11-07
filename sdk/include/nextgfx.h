@@ -48,6 +48,9 @@ extern void l2_text5_center(uint8_t cx, uint8_t y, const char *s, uint8_t colour
 
 extern void spr_init(void);              /* all sprites hidden, visible over the border */
 extern void spr_pattern(uint8_t slot, const uint8_t *pixels256);
+/* the same by DMA (~600 T-states against ~7,000; links dma.c): for patterns
+   made every frame (Marble Tilt's marble) */
+extern void spr_pattern_dma(uint8_t slot, const uint8_t *pixels256);
 extern void spr_show(uint8_t n, int16_t x, int16_t y, uint8_t pattern, uint8_t flags);
 #define SPR_MIRROR_X 0x08
 #define SPR_MIRROR_Y 0x04

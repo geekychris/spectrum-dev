@@ -162,7 +162,7 @@ checked in. Remake them with `python3 tools/gen_view.py` and
   Layer 2 bank. `sdk/tools/l2fill.py` is its pixel-exact host model.
   Test: `projects/fixfilltest`.
 - A fix to `fixmath.h`'s `isqrt32`, which was one too big for some values
-  of 2^31 and over. A fix to `spr_pattern`, which now uploads by DMA.
+  of 2^31 and over. `spr_pattern_dma` (a pattern by DMA, in a file of its own).
 - It also uses `l2poly`/`persp` (from ScAIry Fun's branch) only through
   `geomtest`.
 
