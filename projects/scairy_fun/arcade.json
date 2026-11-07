@@ -1,0 +1,7 @@
+{
+  "title": "ScAIry Fun",
+  "ready": "scairy: ready",
+  "description": "Your car drives itself and scores on autopilot, but it has blind spots: take the wheel just before it gets something wrong.",
+  "controls": "O/P steer, A brake, Q drive, SPACE autopilot, V view, H rules",
+  "picture": "screenshots/old-lines.png"
+}

@@ -175,6 +175,8 @@ static void sfx(uint8_t id)
 uint8_t game_input(void)
 {
     uint8_t k = input_read(), fr = 0;
+
+    k |= input_pressed();                     /* taps the interrupt latched */
     unsigned in = 0, edge;
     const World *w = &world;
 

@@ -238,6 +238,20 @@ READMEs; docs/48k-vs-next.md.
 - [x] Test: every registered game started from the menu and back by reset, picture bytes,
       sort, persistence, BREAK; host tool tests; remote (MCP + REST play).
 
+## ScAIry Fun (2026-11-06)
+
+- [x] Next port of the self-driving car game (rated a poor fit in the survey): the
+      original simulation narrowed to 16 bits where it can be, banked, hot loops in asm;
+      `tools/check_trace.sh`: all four routes at 50% and 100% traffic bit-identical to the
+      original built on the host.
+- [x] Renderer: the original's segments and cross-sections in pseudo-3D on Layer 2 (sdk
+      `l2poly` bands/polygons, `persp`), drawn 80 rows high and doubled by the copper, copper
+      sky; vehicles as sprites pre-drawn from the original's models; tilemap HUD and screens;
+      the MOD on TurboSound; high scores.
+- [x] test.py: a bot plays route 1 (a save, the embankment, the river, the tow truck, the
+      cockpit view), arrives, Rush Hour to game over, initials; replays x2.
+- [ ] ~5 fps in the 3D view (the simulation keeps 25 Hz); memory is full.
+
 ## Game candidates (survey)
 
 
@@ -256,7 +270,7 @@ graphics on 48K, no FPU, 16.16 fixed point is slow on a Z80):
 - **Next**: Rolling Steel, Planet Chomp, Rotoball, Canyon Rescue, Block
   Breaker 3D, Marble Tilt, Harbour Crane, Orbit Docking, Stack Tower, Boing
   Pinball, Terra Strike, Ridge Runner, Drone Courier, Canyon Rail, Ace Pilot 2.
-- **Poor fit**: Lander 3D, ScAIry Fun, Boing Twist, Sphere Siege.
+- **Poor fit**: Lander 3D, ScAIry Fun (done anyway: ~5 fps), Boing Twist, Sphere Siege.
 
 Suggested first steps: a small `sdk/` game layer (frame loop, input,
 attribute/pixel sprite blitter for 48K; Layer 2 + hardware sprites for Next;

@@ -116,7 +116,7 @@ What it uses beyond a 48K/128K Spectrum, and why:
 
 | feature | used for | why it's needed |
 |---|---|---|
-| **28 MHz** | everything | the simulation alone is about a frame of a 3.5 MHz Spectrum's time per step at 25 steps a second... at 28 MHz it is a sixth of the time; the road is ~150 polygons and bands a frame |
+| **28 MHz** | everything | a simulation step is ~250K T-states (6M a second at 25 steps): nearly twice all a 3.5 MHz Z80 has, before anything is drawn |
 | **MMU paging** (8K slots, `NEXTREG 0x50-0x57`) | three memory maps a frame: the simulation's two code banks, the renderer's bank and page, the front end's bank | 72K of code and 10K of world data; a 64K address space holds a third of it |
 | **Layer 2** (256 x 192, 8 bits a pixel, double buffered) | the road, the scenery, the sky, the AI's view | the original's 32 colours per route in any pixel; a 48K's two colours per cell can't draw a road |
 | **256-colour palettes** (9-bit) | each route's 32 pens, three copies fading into the haze for far segments, the low sun washing them out | the original's palettes and its glare; the fog is new |
@@ -141,8 +141,47 @@ pauses. The game is recorded from reset and replayed twice with every frame
 hash checked. Also: `tools/check_trace.sh` (the simulation against the
 original), `projects/geomtest` (l2poly, persp).
 
-Frame rate: see the end of this file.
+Result (2026-11-06): every check passes, both replays match the recording
+frame for frame (18,000 frames).
 
-## Kept, changed, known issues
+## Frame rate
 
-FRAMERATE_AND_ISSUES
+**About 5 frames a second** while driving (the test measures it: 5.1 on the
+Levee Road and Rush Hour; the title and rules screens are faster). The
+simulation always runs at the original's 25 steps a second (fixed timestep,
+up to 4 steps a frame), so the game plays at the original's speed; the
+picture is what is slow. Where a frame goes (`tools/ablate.py`, which
+switches parts off): sloping sides ~45 ms, the simulation ~35 ms, the bands
+(road, shoulders, lines) ~25 ms, scenery ~20 ms, projection and the C around
+it ~45 ms. What was done: the band filler, edges shared between segments,
+far segments in pairs, half-height drawing with copper doubling, scenery
+decisions cached, asm for the simulation's scans. The original is heavy too:
+its README gives 3 frames a second on a stock 16 MHz Falcon030 and 25 on a
+68060.
+
+## Kept, changed, not ported
+
+Kept: the simulation and its numbers exactly (the trace), the four routes,
+every hazard and bait, the autopilot's versions and patch notes, the
+AI's lines, the scoring, the multiplier, the bonus, the cover, the tow
+truck, the chase and cockpit views, the rules pages, the title over the
+autopilot demo, the original's colours and music.
+
+Changed (`port:` in the code): integer widths, file split and banking, the
+pseudo-3D camera, half-height drawing, draw distance 24, far segments in
+pairs, scenery flat on, vehicles as sprites, text on the tilemap, keys for
+the Spectrum (QAOP, S pause, BREAK to the title), the AI's voice as text,
+high scores added, fog on far segments added.
+
+Not ported: the cockpit's dashboard and steering wheel (the view itself is
+there; no room was left in the front end's bank), the AI's voice samples,
+the AmigaOS 4 painted title and horizon, the devbench bridge hooks (the test
+reads memory instead).
+
+## Known issues
+
+- The frame rate (above). A hill crest hides a sprite only when its foot is
+  behind it: one partly behind a crest shows whole.
+- The 3D view's vertical resolution is 80 rows (shown 160).
+- Memory is full: 27 bytes free in the resident area, 8 in bank 20.
+
