@@ -30,7 +30,7 @@
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
 (one object per file, so files are split where a game might want only
-part). Tests: `projects/sdktest` (48K/128K), `projects/nextruntest` (`l2wrun`, `dma_copy_pages`, `sprtext`), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest`, `projects/splittest` (split screens, two-player input) and `projects/geomtest` (polygons, bands, projection).
+part). Tests: `projects/sdktest` (48K/128K), `projects/nextruntest` (`l2wrun`, `dma_copy_pages`, `sprtext`), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest`, `projects/splittest` (split screens, two-player input), `projects/scrolltest` (l2scroll) and `projects/geomtest` (polygons, bands, projection).
 
 | header | module (src/) | what |
 |---|---|---|
@@ -79,6 +79,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/nextruntest` (`l2wrun`, `
 | `palfx.h` | `next/palfx.c` | palettes loaded with an effect (`palfx_load_fx`: c * mul / 8 + add, i.e. darken, half-bright copies, flashes, fades), second palettes, `palfx_active`; `palfx_load_bytes` (raw bytes by DMA, for palettes rewritten every frame) |
 | `aystream.h` | `next/aystream.c` | TurboSound register-stream player: music and effects made on the host (`tools/aystream.py`), one stream a chip, banked, looping, attenuation (ducking) |
 | `input2.h` | `input2.c` | input for two players: each reads only their own key sets (QAOP, WASD, IJKL, cursor), Sinclair 1/2 and Kempston 1/2 (`in2_scan` once a frame, `in2_update(&pad)`: held + pressed); 48K and Next |
+| `l2scroll.h` | `next/l2scroll.c` | horizontal scrolling and parallax on Layer 2's 320 x 256 mode: bands of rows, each with its own X scroll (NextReg 0x16/0x71, set by the copper at the band's top row), over a world of any width; each band is a ring of 320 columns and a move draws only the columns coming into view, through a column-fill callback (`l2s_band`, `l2s_goto`, `l2s_move`, `l2s_redraw`, `l2s_copper`). Test: `projects/scrolltest` |
 | `nextsplit.h` | `next/nextsplit.c` | split screens with the copper: horizontal panes with their own clip windows (sprites, Layer 2, tilemap) and `split_row` for register moves before a given row; a list can be rebuilt every frame and uploaded in the vertical blank |
 | `zxrle.h` | `zxrle.c` | run-length unpacking (`rle_unpack`) of data packed by `tools/zxrle.py`: level maps and other data with long runs |
 | `tmap.h` | `tmap.c` | one tile map with a row table: `tmap_load` (a `tools/levelpack.py` stream), `TMAP(c, r)`, `tmap_at` (bounds-checked), `tmap_find`, `tmap_count`, `tmap_replace`; builds on the host too |

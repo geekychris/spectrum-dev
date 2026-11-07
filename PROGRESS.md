@@ -153,6 +153,15 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   (lines, wrapped polygons, compiled polygons, `poly_sync`, points),
   `vec48` (rotation tables), `hit48` (circle collisions), `text_xor`; an optional
   faster key decode (`input_fast`); `modplay` fixed on a single-AY 128K.
+- **Lunar Rider** (Next): the original's game logic (16.16, banked over the
+  ROM), on 320x256 Layer 2 in three parallax bands scrolled by the copper
+  (each a ring of 320 columns: only the columns entering view are drawn),
+  the far mountains on the tilemap with its own scroll, sprites (explosions
+  from four mirrored quarters), the original's bass and effects on the
+  TurboSound; high scores added. 50 fps, logic 50 Hz. An original bug fixed
+  (the clear start area missed the buggy: ORIGINAL_BUGS.md). Test: a bot
+  rides (reading `lunar_probe`), checkpoint, game over, initials, replays.
+  SDK: `l2scroll.h`, tested in projects/scrolltest.
 - **Rotoball** (Next): the original's rules, physics (16.16, as the
   original) and CPU; a two-player mode added (`input2.h`). The two views are
   a fixed 320x256 Layer 2 picture moved by palette rotation (sideways) and

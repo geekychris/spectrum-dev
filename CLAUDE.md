@@ -305,3 +305,9 @@ Details: docs/emulator-harness.md.
 - `tools/zxdev/` – Python: Emulator, ZRCP client, sessions, CLI, MCP, DevBench; `tests/`.
 - `third_party/zesarux/` – fetched + built by setup (pinned in scripts/lib.sh), not committed.
 - Game ports (phase 2) go in `projects/`; see PROGRESS.md for which games fit 48K vs Next.
+- A screenshot taken at a breakpoint (e.g. at `frame_wait` to "settle") shows the rows above the
+  beam from this frame and the rows below it from the last: ZEsarUX draws a grey line at the beam.
+  Run one more frame (`e.run(1)`) before the screenshot (lunar_rider's test does).
+- Layer 2 320 x 256 parallax: `l2scroll.h` (bands scrolled by the copper, column rings). A tilemap
+  scrolled as a ring of tile columns has a seam (the left and right partial tiles share a map
+  column at sub-tile offsets): make its content repeat every 320 pixels instead.

@@ -70,7 +70,7 @@ the CPU is slow, so the work goes into drawing less:
   and variables take the whole RAM from 0x5D00, with tables made at start-up
   above the IM 2 table
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -130,6 +130,12 @@ the 48K:
   colour). The board as drawn is kept in four pages and copied back by DMA
   when only the piece moved (50 fps); the drop guide is the copper changing
   the core panels' own palette entries between two lines
+- Lunar Rider's parallax is the hardware's: Layer 2 (320 x 256) is three bands
+  of rows, each scrolled by its own X offset that the copper sets at its top
+  row, and each band redraws only the columns scrolling into view (1-3 a
+  frame); the far mountains are the tilemap with its own scroll register,
+  behind Layer 2's transparent sky. 50 fps with the original's 32-bit logic
+  in a bank over the ROM
 
 ## Things to know
 

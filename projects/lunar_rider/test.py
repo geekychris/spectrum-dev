@@ -80,10 +80,13 @@ def bot_game(e, max_frames=12000):
 
 
 def settle(e):
-    """stop where the main loop waits for the next frame: the frame is drawn"""
+    """the frame drawn: stop where the main loop waits for the next frame, then
+    let the emulator finish that frame (a screenshot taken at the breakpoint
+    shows the rows below the beam from the frame before)"""
     e.break_at("_frame_wait")
     e.continue_(10)
     e.delete()
+    e.run(1)
 
 
 def shot(e, name):

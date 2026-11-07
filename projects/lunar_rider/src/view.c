@@ -546,7 +546,8 @@ void view_title(uint8_t blink)
 
 void view_title_blink(uint8_t on)
 {
-    clear_a(0, 220, SCREEN_W - 1, 234);
+    uint16_t w = text_w("PRESS FIRE TO START", 2);
+    clear_a(SCREEN_W / 2 - w / 2, 220, SCREEN_W / 2 + w / 2, 234);
     if (on) txt_center(220, "PRESS FIRE TO START", C_BRYEL, 2);
 }
 
@@ -558,8 +559,7 @@ void view_initials(const char *name, uint8_t pos, long score)
     if (!name) {                        /* the screen */
         view_hide_sprites();
         copper_still();
-        ZXN_WRITE_REG(0x6B, 0x00);      /* tilemap off: plain black */
-        l2w_fill(0, 0, SCREEN_W, SCREEN_H, TR);
+        l2w_fill(0, 0, SCREEN_W, SCREEN_H, 0x00);   /* plain black */
         txt_center(60, "NEW HIGH SCORE", C_BRYEL, 2);
         num_str(buf, score);
         txt_center(90, buf, C_WHITE, 2);
@@ -567,7 +567,7 @@ void view_initials(const char *name, uint8_t pos, long score)
         txt_center(142, "OR UP/DOWN AND FIRE", C_GREEN, 1);
         return;
     }
-    l2w_fill(SCREEN_W / 2 - 30, 166, 60, 22, TR);
+    l2w_fill(SCREEN_W / 2 - 30, 166, 60, 22, 0x00);
     for (i = 0; i < 3; i++) {
         char c[2] = {name[i], 0};
         uint16_t x = SCREEN_W / 2 - 26 + i * 18;
