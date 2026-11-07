@@ -1,7 +1,7 @@
 {
   "title": "Planet Chomp",
   "description": "A maze chase round a tiny planet in 3D: eat every crumb, dodge four spooks, grab a golden key to turn the tables.",
-  "controls": "QAOP/cursors steer, Z/X spin, C planet, H pause, Kempston",
+  "controls": "QAOP steer, Z/X spin, C planet, H pause",
   "picture": "screenshots/play.png",
   "ready": "pc: ready"
 }
