@@ -122,13 +122,16 @@ $(OUT): $(OBJS) $(SDK_LIB) $(wildcard zpragma.inc)
 	   echo "error: $(NAME)'s BSS (0x$$b-0x$$be) runs into its code at 0x$$c"; rm -f $@; exit 1; fi
 	@# Banked sections (--codesegBANK_n / PAGE_n) must fit their 16K bank / 8K page
 	@# from where they are linked; the linker doesn't say when they overflow.
+	@# SIZE_WARN_ONLY = 1 in a project's Makefile: a warning instead (a known overflow).
 	@m=$(BUILD)/$(NAME).map; v() { awk -v s="$$1" '$$1 == s {print $$3}' $$m | tr -d '$$'; }; \
 	 for s in $$(awk '$$1 ~ /^__(BANK|PAGE)_[0-9]+_size$$/ {print $$1}' $$m); do \
 	   n=$${s%_size}; sz=$$(v $$s); hd=$$(v $${n}_head); \
 	   case $$n in __BANK_*) u=16384;; *) u=8192;; esac; \
 	   lim=$$((u - (0x$$hd & (u - 1)))); \
 	   if [ $$((0x$$sz)) -gt $$lim ]; then \
-	     echo "error: $(NAME): $${n#__} is $$((0x$$sz)) bytes, $$((0x$$sz - lim)) more than fits from 0x$$hd"; rm -f $@; exit 1; fi; done
+	     if [ -n "$(SIZE_WARN_ONLY)" ]; then \
+	       echo "warning: $(NAME): $${n#__} is $$((0x$$sz)) bytes, $$((0x$$sz - lim)) more than fits from 0x$$hd (what is past the end is read from whatever is mapped next)"; \
+	     else echo "error: $(NAME): $${n#__} is $$((0x$$sz)) bytes, $$((0x$$sz - lim)) more than fits from 0x$$hd"; rm -f $@; exit 1; fi; fi; done
 
 # every object depends on all headers: simple and safe for small projects
 HDRS := $(wildcard $(SRC_DIR)/*.h) $(wildcard $(SDK_DIR)/include/*.h)
