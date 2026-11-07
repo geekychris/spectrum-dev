@@ -7,7 +7,7 @@
 #include "nextgfx.h"
 #include "nextsprl.h"
 
-uint8_t spl_count, spl_first;
+uint8_t spl_count, spl_first, spl_scale;
 static uint8_t shown;                   /* sprites the last list showed */
 static uint8_t attr[SPL_MAX * 5];
 static uint8_t zero[64];
@@ -33,13 +33,16 @@ uint8_t spl_add(int16_t x, int16_t y, uint8_t pat, uint8_t pal, uint8_t flags)
 {
     uint8_t *a;
     if (spl_first + spl_count >= SPL_MAX) return 0;
-    if (x <= -16 || x >= 320 || y <= -16 || y >= 256) return 1;
+    {
+        int16_t size = 16 << spl_scale;
+        if (x <= -size || x >= 320 || y <= -size || y >= 256) return 1;
+    }
     a = attr + spl_count * 5;
     a[0] = (uint8_t)x;
     a[1] = (uint8_t)y;
     a[2] = (uint8_t)(pal << 4) | (flags & 0x0E) | ((x >> 8) & 1);
     a[3] = 0xC0 | ((pat >> 1) & 63);                  /* visible, 5th byte, N5..N0 */
-    a[4] = 0x80 | ((pat & 1) << 6) | ((y >> 8) & 1);  /* 4-bit, N6, Y8 */
+    a[4] = 0x80 | ((pat & 1) << 6) | (spl_scale << 3) | (spl_scale << 1) | ((y >> 8) & 1);  /* 4-bit, N6, zoom, Y8 */
     spl_count++;
     return 1;
 }

@@ -19,6 +19,9 @@
  *                               SPR_MIRROR_Y / SPR_ROTATE (nextgfx.h). Off
  *                               screen: skipped. Later sprites are drawn over
  *                               earlier ones. Returns 0 if the list is full.
+ *   spl_scale                   hardware zoom for the sprites added next
+ *                               (0..3: x1, x2, x4, x8 on both axes; the
+ *                               pattern grows from its top-left corner)
  *   spl_end()                   send the list; sprites the last list showed
  *                               and this one doesn't are hidden
  *   spl_count                   sprites in the list so far
@@ -45,7 +48,7 @@
 
 #define SPL_MAX 128
 
-extern uint8_t spl_count, spl_first;
+extern uint8_t spl_count, spl_first, spl_scale;
 
 extern void spl_init(void);
 extern void spl_begin(void);
