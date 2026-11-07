@@ -258,6 +258,13 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   player as sprite groups numbered in its painter's order; the original's
   auto-repeat; port: a 60 s clock (the original can't be lost) with a time
   bonus, high scores, a tune and effects (it has no sound). 50 fps.
+- **Emberkeep** (Next): the original's rules at 50 Hz; Layer 2 320 x 256 holds
+  each chamber, drawn once from the original's tile sheet in 256 colours
+  (160 used); player and guards are hardware sprites; the lantern is the
+  Layer 2 and sprite clip windows rewritten by the copper on its corner lines
+  (no drawing); tilemap HUD; TurboSound effects and tunes (the original's
+  audio is a stub). 49.6 fps over a whole game. The test bot plans on a host
+  build of the rules and each loop is checked against it.
 
 ### Cleanup (2026-11-06)
 

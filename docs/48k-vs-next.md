@@ -70,7 +70,7 @@ the CPU is slow, so the work goes into drawing less:
   and variables take the whole RAM from 0x5D00, with tables made at start-up
   above the IM 2 table
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -136,6 +136,10 @@ the 48K:
   frame); the far mountains are the tilemap with its own scroll register,
   behind Layer 2's transparent sky. 50 fps with the original's 32-bit logic
   in a bank over the ROM
+
+- Emberkeep's lantern costs no drawing: the light square is the clip window of
+  Layer 2 and of the sprites, and the copper narrows it on the lines of its
+  cut corners; outside it the screen is the fallback black and guards vanish
 
 ## Things to know
 
