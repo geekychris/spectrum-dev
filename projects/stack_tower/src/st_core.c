@@ -240,7 +240,7 @@ uint8_t st_rotate(StGame *g, int8_t dir)
     for (k = 0; k < 10; k++) {
         p = g->piece;
         p.rot = (p.rot + dir) & 3;
-        p.col = WRAP(p.col + kicks[k][0] * dir);
+        p.col = WRAP(p.col + (dir < 0 ? -kicks[k][0] : kicks[k][0]));   /* port: kicks[k][0] * dir */
         p.row += kicks[k][1];
         if (!st_collides(g, &p)) {
             g->piece = p;

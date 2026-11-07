@@ -76,8 +76,12 @@ static void icon(int8_t type, uint16_t x, uint8_t y, uint8_t sz)
     const int8_t *c;
     if (type < 0) return;
     c = &st_cells[type][0][0];
-    for (i = 0; i < st_ncells[type]; i++, c += 2)
-        l2w_fill(x + c[0] * sz, y - c[1] * sz, sz - 1, sz - 1, lit_pen(type + 1));
+    for (i = 0; i < st_ncells[type]; i++, c += 2) {
+        /* zsdcc: an int8_t times a uint8_t zero-extends the int8_t (-1 * 6 came
+           out 0x05FA), so both are int16_t first */
+        int16_t dx = c[0], dy = c[1];
+        l2w_fill(x + dx * (int16_t)sz, (uint8_t)(y - dy * (int16_t)sz), sz - 1, sz - 1, lit_pen(type + 1));
+    }
     l2w_done();
 }
 

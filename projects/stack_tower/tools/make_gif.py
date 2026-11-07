@@ -15,8 +15,8 @@ sys.path.insert(0, str(HERE))
 from zxdev.emu import Emulator  # noqa: E402
 from bot import Bot  # noqa: E402
 
-EVERY = 4
-PIECES = 24
+EVERY = 6
+PIECES = 14
 
 
 def grab(e):
@@ -54,7 +54,7 @@ with Emulator(machine="next") as e:
     e.run_until("stack: ready", 300)
     e.run(560)                          # past the painting: the demo game
     f = Filming(e)
-    f.run(160)
+    f.run(120)
     f.press("SPACE")
     f.run(20)
     bot = Bot(f)
@@ -65,7 +65,7 @@ with Emulator(machine="next") as e:
 sheet = Image.new("RGB", (320, 256 * 8))         # one palette from frames all through it
 for k in range(8):
     sheet.paste(frames[k * (len(frames) - 1) // 7], (0, 256 * k))
-pal = sheet.quantize(colors=64, method=Image.Quantize.MEDIANCUT)
+pal = sheet.quantize(colors=32, method=Image.Quantize.MEDIANCUT)
 out = [fr.quantize(palette=pal, dither=Image.Dither.NONE) for fr in frames]
 dst = ROOT / "docs" / "images" / "stack_tower.gif"
 out[0].save(dst, save_all=True, append_images=out[1:], duration=EVERY * 20, loop=0, optimize=True)

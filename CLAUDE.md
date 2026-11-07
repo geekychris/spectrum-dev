@@ -251,6 +251,9 @@ Details: docs/emulator-harness.md.
   don't come back. Copying all of its view there lost presses (its view can be stale), and reporting
   only the interrupt's edges changed timing enough to break Spectral Keep's bot. Timing changes
   (here: a faster input_read) expose such bugs.
+- zsdcc: `int8_t * uint8_t` zero-extended the `int8_t` (-1 * 6 came out 0x05FA): Stack Tower's icon x became
+  0x06E0 and `l2w_column` mapped a page far past Layer 2 (its board cache). Make both `int16_t` first.
+  A wild x in `l2w_*` writes some other page, not the screen: look there for "stray" pixels that persist.
 - Fixed-timestep loops: cap the catch-up ticks (a level's first frame can take seconds), but high enough
   (Uranus: 6) that a slow frame doesn't lose game time; count ticks vs frames in a perf log and test it.
 

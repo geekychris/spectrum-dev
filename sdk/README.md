@@ -21,6 +21,7 @@
 | `tools/levelpack.py` | ASCII rooms (a `size`, a `legend` of character -> tile id, `room NAME` + rows) -> zxrle-packed C maps, names and a header for `tmap_load`; `parse` / `pack_rooms` as a module (`--help`) |
 | `tools/l2fill.py` | `l2fill.h`'s polygons on the host, pixel for pixel: host pictures a test can compare the Next's Layer 2 with |
 | `tools/zxrle.py` | `pack` / `unpack` for `zxrle.h` (PackBits-style runs and literals) |
+| `tools/runimg.py` | `encode` / `decode` for `l2wrun.h`: column runs of pen offsets (shapes drawn on the host for every view, e.g. Stack Tower's 3D bricks) |
 | `tools/fatimg.py` | SD card images: read a FAT12/16 image (with or without an MBR) into a tree, change it (`drop`, `put`), write a FAT16 image with an MBR (8.3 + long names, reproducible); `ls` / `cat` from the command line |
 | `tools/nextbasic.py` | text -> tokenised (Next)BASIC (as NextZXOS stores it, dot commands kept as text), +3DOS headers for programs and code (`plus3dos_basic`, `plus3dos_code`) |
 | `tools/test_tools.py` | their tests (`./zx selftest` runs them) |
@@ -29,7 +30,7 @@
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
 (one object per file, so files are split where a game might want only
-part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest`, `projects/splittest` (split screens, two-player input) and `projects/geomtest` (polygons, bands, projection).
+part). Tests: `projects/sdktest` (48K/128K), `projects/nextruntest` (`l2wrun`, `dma_copy_pages`, `sprtext`), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest`, `projects/splittest` (split screens, two-player input) and `projects/geomtest` (polygons, bands, projection).
 
 | header | module (src/) | what |
 |---|---|---|
@@ -65,9 +66,12 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |
 | | `next/l2wtext.c` | `l2w_text`: ROM-font text (lower case too) on 320x256, 8 or 6 pixels a character |
 | | `next/nextl2.c` | Layer 2 256x192 double buffered: clear (DMA), fill, rect, blit, ROM-font text, `l2_copy_to_back` (a screen kept in other banks, by DMA) |
+| | `next/dma_pages.c` | `dma_copy_pages(dst, src, n)`: 8K pages by DMA (e.g. a band of 32-column pages of the 320 mode, a cached part of the screen) |
 | | `next/dma.c` | zxnDMA: `dma_copy`, `dma_fill`, whole banks (`dma_copy_banks`, `dma_fill_banks`) at ~2 T-states a byte; `dma_to_port` (memory -> sprite patterns 0x5B, attributes 0x57) |
 | | `next/l2text5.c` | `l2_text5`, `l2_text5_center`: the 5x7 font on Layer 2 |
 | `l2rle.h` | `next/l2rle.c`, `next/l2rle_blit.asm` | Layer 2 320x256 extras: column-RLE "pieces" (`nextpic.piece`) blitted through a colour table (asm), `l2w_span` (and/or a row: shadows with a half-bright upper palette), `l2w_clear` (DMA), `l2w_plot` |
+| `l2wrun.h` | `next/l2wrun.asm` | Layer 2 320 x 256: column-run images (`tools/runimg.py`) drawn as base pen + offset, so one image draws in any colour set laid out alike in the palette; mirrored too (a shape and its mirror image from one picture); ~28 T-states a pixel. For 3D drawn on the host per view (projects/stack_tower) |
+| `sprtext.h` | `next/sprtext.c` | big text from hardware sprites: the 5x7 font made into patterns at start-up (with a shadow), one sprite a character, zoomed x2-x8: words over a double-buffered Layer 2 that never need erasing |
 | `nextspr.h` | `next/nextspr.c` | sprite groups: cols x rows 16x16 patterns uploaded by DMA, shown as one object (`sprg_show_ex`: hardware zoom, palette offset; `sprg_hide`: a range); `sprg_mask_rle` hides the parts behind a Layer 2 piece (isometric occlusion) |
 | `nextcopper.h` | `next/nextcopper.c` | copper lists (`copper_wait`, `copper_move`, `copper_end` (sent by DMA), `copper_stop` / `copper_run`): per-line register writes, e.g. palette switches and gradients. The copper restarts at the vertical blank, line 248 |
 | `nexttile.h` | `next/nexttile.c` | the tilemap as a 40x32 text/HUD layer over everything: 1-bit fonts -> 4-bit tiles, glyphs at 1-4x with a drop shadow (`tm_glyphnx`, `tm_glyph2x`), print / fill, a palette offset per cell |
