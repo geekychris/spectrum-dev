@@ -82,6 +82,39 @@ int beyond(fix dx, fix dz, fix r)
     return dist(dx, dz) > r;
 }
 
+/* port: the first obstacle k >= from that is standing and within reach of
+   (x, z) on both axes, reach = (its r + extra) units: every obstacle the
+   loops below skip fails this, so they look only at these (td_obs.asm on
+   the Z80; the loops' 32-bit C spent most of a tick rejecting obstacles).
+   Asked again after each one, from the tank's position at the time. */
+#ifdef __SDCC
+extern const Obstacle *on_ob;
+extern uint8_t on_n, on_from;
+extern fix on_x, on_z;
+extern int16_t on_extra;
+extern uint8_t obs_next(void);
+static uint8_t next_obs(const TDGame *g, fix x, fix z, int extra, uint8_t from)
+{
+    on_ob = g->ob;
+    on_n = (uint8_t)g->nobs;
+    on_from = from;
+    on_x = x;
+    on_z = z;
+    on_extra = extra;
+    return obs_next();
+}
+#else
+static uint8_t next_obs(const TDGame *g, fix x, fix z, int extra, uint8_t from)
+{
+    uint8_t k;
+    for (k = from; k < g->nobs; k++) {
+        const Obstacle *o = &g->ob[k];
+        if (o->hp > 0 && fabs_(x - o->x) < FROMI(o->r + extra) && fabs_(z - o->z) < FROMI(o->r + extra)) return k;
+    }
+    return 0xFF;
+}
+#endif
+
 int td_enemies_left(const TDGame *g)
 {
     int k, n = 0;
@@ -94,7 +127,7 @@ int td_blocked(const TDGame *g, fix x, fix z, int r)
     int k;
     fix lim = FROMI(TD_ARENA - r);
     if (x > lim || x < -lim || z > lim || z < -lim) return 1;
-    for (k = 0; k < g->nobs; k++) {
+    for (k = next_obs(g, x, z, r, 0); k != 0xFF; k = next_obs(g, x, z, r, k + 1)) {   /* port: (k < nobs) */
         const Obstacle *o = &g->ob[k];
         if (o->kind == OB_CRATE) {
             if (o->hp > 0 && fabs_(x - o->x) < FROMI(o->r + r) && fabs_(z - o->z) < FROMI(o->r + r)) return 1;
@@ -181,7 +214,8 @@ static void push_out(TDGame *g, Tank *t)
 {
     int k;
     fix lim = FROMI(TD_ARENA - TD_TANK_R);
-    for (k = 0; k < g->nobs; k++) {
+    for (k = next_obs(g, t->x, t->z, TD_TANK_R, 0); k != 0xFF;
+         k = next_obs(g, t->x, t->z, TD_TANK_R, k + 1)) {            /* port: (k < nobs) */
         const Obstacle *o = &g->ob[k];
         fix dx = t->x - o->x, dz = t->z - o->z;
         if (o->kind == OB_CRATE) {
@@ -319,7 +353,8 @@ static void shells(TDGame *g)
                 event(g, TDE_BOUNCE, k, 0, sh->x, sh->z);
             }
             /* obstacles */
-            for (j = 0; j < g->nobs && sh->alive; j++) {
+            for (j = next_obs(g, sh->x, sh->z, 0, 0); j != 0xFF && sh->alive;
+                 j = next_obs(g, sh->x, sh->z, 0, j + 1)) {                 /* port: (j < nobs) */
                 Obstacle *o = &g->ob[j];
                 if (o->kind == OB_CRATE) {
                     if (o->hp <= 0 || fabs_(sh->x - o->x) >= FROMI(o->r) || fabs_(sh->z - o->z) >= FROMI(o->r)) continue;

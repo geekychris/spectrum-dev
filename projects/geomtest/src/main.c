@@ -10,6 +10,7 @@
 #include "nextgfx.h"
 #include "l2poly.h"
 #include "persp.h"
+#include "l2line.h"
 #include "zxlog.h"
 
 static uint16_t lines(void)                 /* raster lines since some frame (wraps) */
@@ -122,6 +123,29 @@ int main(void)
         zx_log("geo: rect %u %u %d\n", row_count(0, 12), row_count(2, 12), first(3, 12));
     }
     l2p_end();
+    /* l2line: a fan, clipped lines and a point, against the test's model */
+    {
+        static const int16_t ln[][4] = {
+            {128, 96, 250, 100}, {128, 96, 200, 191}, {128, 96, 130, 0}, {128, 96, 0, 120},
+            {128, 96, 20, 10}, {128, 96, 129, 191}, {-50, -20, 300, 210}, {300, 50, -40, 60},
+            {10, 300, 40, -100}, {5, 5, 5, 5}, {255, 0, 0, 191}, {-10, -10, -1, 50},
+        };
+        uint8_t k, x, y;
+        uint16_t n = 0;
+        uint32_t sum = 0;
+        l2_clear(0);
+        l2p_begin();
+        l2p_rect(0, 1, 0, 1, 0);                 /* l2line keeps slot 3 as it found it */
+        for (k = 0; k < 12; k++) l2l_line(ln[k][0], ln[k][1], ln[k][2], ln[k][3], 13);
+        l2p_end();
+        for (y = 0; y < 192; y++) {
+            x = 0;
+            do {
+                if (px(x, y) == 13) { n++; sum += (uint32_t)(x + 1) * (y + 1); }
+            } while (++x);
+        }
+        zx_log("geo: lines n=%u sum=%lu\n", n, sum);
+    }
     persp_fov(144);
     {
         static const int16_t pts[] = { 0, 0, 100, -50, -30000, 20000 };

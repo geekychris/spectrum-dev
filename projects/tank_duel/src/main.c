@@ -1,70 +1,146 @@
-/* Tank Duel for the Spectrum Next (work in progress: the rules check) */
+/*
+ * Tank Duel for the Spectrum Next: memory map, start-up and the frame loop.
+ *
+ *   0x0000-0x3FFF  bank 16: the rules (td_core.c)          } map_rules()
+ *   0x4000-0x7FFF  bank 17: the AI, the fixed point        }
+ *   0x0000-0x3FFF  bank 18: the renderer, the models       } map_render()
+ *   0x6000-0x7FFF  Layer 2 pages while drawing (l2poly)
+ *   0x8000-0xEFFF  resident: the game state, the SDK
+ *   0xF000-        the IM 2 table, the stack
+ */
 #include <stdint.h>
+#include <string.h>
 #include <arch/zxn.h>
 #include "zxgame.h"
 #include "zxlog.h"
 #include "nextgfx.h"
 #include "td.h"
-#include "fixmath.h"
+#include "duel.h"
 
-static TDGame g;
+TDGame game;
+Duel du;
 
-/* the rules (bank 16 at 0x0000, bank 17 at 0x4000) */
+/* profiling: raster lines (a line is ~1800 T-states at 28 MHz), counted
+   from the frame interrupt's counter and the raster position */
+static uint16_t raster(void)
+{
+    uint8_t f;
+    uint16_t r;
+    do {
+        f = frame_ticks;
+        r = ((uint16_t)(ZXN_READ_REG(0x1E) & 1) << 8) | ZXN_READ_REG(0x1F);
+    } while (f != frame_ticks);
+    r = r >= 248 ? r - 248 : r + 64;                /* lines since the interrupt (line 248) */
+    return (uint16_t)(f & 63) * 312 + r;            /* wraps at 64 frames */
+}
+uint16_t prof_t, prof[6];
+void lap(uint8_t k)
+{
+    uint16_t t = raster();
+    prof[k] += t >= prof_t ? t - prof_t : t + 64 * 312 - prof_t;
+    prof_t = t;
+}
+
 static void map_rules(void)
 {
     ZXN_WRITE_MMU0(32); ZXN_WRITE_MMU1(33);
     ZXN_WRITE_MMU2(34); ZXN_WRITE_MMU3(35);
 }
 
+static void map_render(void)
+{
+    ZXN_WRITE_MMU0(36); ZXN_WRITE_MMU1(37);
+    ZXN_WRITE_MMU2(10); ZXN_WRITE_MMU3(11);
+}
+
+/* the original's 32 pens (0x0RGB, 4 bits each) -> the Next's 9-bit palette */
+static const uint16_t pens444[32] = {
+    0x000, 0xFFF, 0x122, 0x99A, 0x58A, 0x353, 0x575, 0x887, 0x554, 0xAAB, 0x667, 0xCA6, 0x864,
+    0xB83, 0x751, 0x642, 0x6D4, 0x372, 0xE92, 0x952, 0x98B, 0x546, 0x6EF, 0xFF6, 0xF73, 0xE22,
+    0xF33, 0xFE4, 0x6F6, 0x5EF, 0xFA3, 0x021
+};
+
+static void palette(void)
+{
+    uint16_t p[32];
+    uint8_t i;
+    for (i = 0; i < 32; i++) {
+        uint16_t c = pens444[i];
+        uint8_t r = (uint8_t)(((c >> 8) & 15) * 7 + 7) / 15, g = (uint8_t)(((c >> 4) & 15) * 7 + 7) / 15,
+                b = (uint8_t)((c & 15) * 7 + 7) / 15;
+        p[i] = (uint16_t)r << 6 | (uint16_t)g << 3 | b;
+    }
+    pal_load(1, p, 32);
+}
+
+#ifdef TD_TRACE
+/* the original's long autopilot fight (tests/test_cases.c): seed 1234 from
+   round 1, 9000 ticks; its state hash is 7CFAB335 on the host and the Amiga */
 int main(void)
 {
     uint16_t t;
     TDEvent e;
     next_init();
     frame_init();
-    zx_log("td: ready\n");
     map_rules();
-    {   /* the fixed point against tools/fixcheck.py */
-        uint32_t r = 1, h = 0, hh[5] = {0, 0, 0, 0, 0};
-        uint16_t i;
-        for (i = 0; i < 3000; i++) {
-            fix a, b, m, d;
-            r = r * 1103515245UL + 12345UL; a = (fix)r >> (r & 15);
-            r = r * 1103515245UL + 12345UL; b = (fix)r >> (r & 15);
-            if (!b) b = 1;
-            m = fmul(a, b);
-            d = fdiv(a >> 8, b);
-            hh[0] = (hh[0] ^ (uint32_t)((uint32_t)m)) * 16777619UL;
-            hh[1] = (hh[1] ^ (uint32_t)((uint32_t)d)) * 16777619UL;
-            hh[2] = (hh[2] ^ (uint32_t)((uint32_t)a3_sin((uint16_t)r))) * 16777619UL;
-            hh[3] = (hh[3] ^ (uint32_t)(a3_atan2(a >> 12, b >> 12))) * 16777619UL;
-            hh[4] = (hh[4] ^ (uint32_t)((uint32_t)fhypot(a >> 4, b >> 4))) * 16777619UL;
-            if (i < 3) zx_log("td: fix a=%ld b=%ld m=%ld d=%ld\n", (long)a, (long)b, (long)m, (long)d);
-        }
-        {
-            static const uint32_t v[8] = {0xFFFFFFFFUL, 0xFFFE0001UL, 0xFFFE0000UL, 0x80000000UL, 0x7FFFFFFFUL,
-                                          4232000000UL, 3000000000UL, 2116000000UL};
-            uint8_t k;
-            for (k = 0; k < 8; k++) zx_log("td: isqrt %lu=%u\n", v[k], isqrt32(v[k]));
-        }
-        zx_log("td: fixhash=%08lx %08lx %08lx %08lx %08lx\n", (unsigned long)hh[0], (unsigned long)hh[1], (unsigned long)hh[2], (unsigned long)hh[3], (unsigned long)hh[4]);
+    td_new_game(&game, 1234, 1);
+    for (t = 0; t < 9000 && !game.over && !game.won; t++) {
+        td_tick(&game, td_bot(&game));
+        while (td_pop_event(&game, &e)) {}
     }
-    td_new_game(&g, 1234, 1);
-    frame_ticks = 0;
-    for (t = 0; t < 9000 && !g.over && !g.won; t++) {
-        td_tick(&g, td_bot(&g));
-        while (td_pop_event(&g, &e)) {}
-        if (t % 1000 == 0) zx_log("td: tick %u frames %u\n", t, frame_ticks);
-    }
-    zx_log("td: trace round=%d score=%ld kills=%d hp=%d hash=%08lx\n", g.round, (long)g.score, g.kills,
-           g.tk[0].hp, (unsigned long)td_state_hash(&g));
-    {
-        uint8_t k;
-        for (k = 0; k < g.ntanks; k++)
-            zx_log("td: tank %u alive=%d hp=%d x=%ld z=%ld yaw=%u v=%ld\n", k, g.tk[k].alive, g.tk[k].hp,
-                   (long)g.tk[k].x, (long)g.tk[k].z, (uint16_t)g.tk[k].yaw, (long)g.tk[k].v);
-        zx_log("td: tick=%ld shots=%d hits=%d dmg=%d nobs=%d\n", (long)g.tick, g.shots, g.hits, g.damage_taken, g.nobs);
-    }
-    zx_log("ZX:DONE\n");
+    zx_log("td: trace round=%d score=%ld kills=%d hp=%d frames=%u hash=%08lx\n", game.round, (long)game.score,
+           game.kills, game.tk[0].hp, frame_count, (unsigned long)td_state_hash(&game));
     for (;;) frame_wait();
 }
+#else
+int main(void)
+{
+    uint8_t ticks, acc = 0, frames = 0;
+    uint16_t polys = 0, t50 = 0;
+    next_init();
+    palette();
+    l2_init();
+    frame_init();
+    map_render();
+    render_init();
+    map_rules();
+    td_new_game(&game, 1234, 1);
+    du.state = DS_TITLE;
+    {
+        uint16_t a, b, c2;
+        frame_wait();
+        a = raster(); frame_wait(); b = raster(); frame_wait(); frame_wait(); c2 = raster();
+        zx_log("td: rastercheck %u %u %u\n", a, b, c2);
+    }
+    zx_log("td: ready\n");
+    for (;;) {
+        TDEvent e;
+        ticks = frame_wait();
+        l2_flip();
+        t50 += ticks;
+        if (ticks > 4) ticks = 4;
+        acc += ticks;
+        prof_t = raster();
+        map_rules();
+        while (acc >= 2) {               /* the original's 25 ticks a second */
+            acc -= 2;
+            if (game.over || game.won) td_new_game(&game, game.seed + 1, 1);
+            td_tick(&game, td_bot(&game));
+            while (td_pop_event(&game, &e)) {}
+        }
+        lap(0);
+        map_render();
+        render_scene();
+        polys += render_polys;
+        frames++;
+        if (t50 >= 100) {
+            zx_log("td: fps=%u polys=%u tick=%ld lines: logic %u grid %u collect %u items %u\n", frames / 2, polys / frames, (long)game.tick,
+                   prof[0] / frames, prof[1] / frames, prof[2] / frames, prof[3] / frames);
+            prof[0] = prof[1] = prof[2] = prof[3] = 0;
+            frames = 0;
+            polys = 0;
+            t50 -= 100;
+        }
+    }
+}
+#endif

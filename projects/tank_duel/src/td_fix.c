@@ -112,7 +112,8 @@ fix fmul(fix a, fix b)
 }
 
 /* (a * 65536) / b, truncated towards 0 and cut to 32 bits: a 48 by 32 bit
-   division */
+   division (td_obs.asm on the Z80) */
+#ifndef __SDCC
 fix fdiv(fix a, fix b)
 {
     uint32_t n = (uint32_t)(a < 0 ? -a : a), d = (uint32_t)(b < 0 ? -b : b), q = 0, r = 0;
@@ -125,3 +126,4 @@ fix fdiv(fix a, fix b)
     }
     return (a < 0) != (b < 0) ? -(fix)q : (fix)q;
 }
+#endif
