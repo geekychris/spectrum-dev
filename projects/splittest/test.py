@@ -2,7 +2,7 @@
 (copper panes with their own sprite clip windows, a palette switch on an
 exact row), nextspr's sprg_show_ex (zoom, palette offset) and sprg_hide,
 palfx_load_bytes and the copper list sent by DMA, and input2 (each player
-reads only their own keys and joystick)."""
+reads only their own keys and joystick; latched taps)."""
 import re
 import sys
 from pathlib import Path
@@ -75,6 +75,11 @@ with Emulator(machine="next") as e:
     e.run(4)
     e.press("ENTER")
     check("ENTER (IN2_ENTER) ends it", e.run_until("lib: done", 50))
+    e.run(13)
+    mark = len(e.log(0))
+    e.press("W", 2, 30)                      # a 2-frame tap, between two passes 8 frames apart
+    check("in2_scan_latched: a tap between two scans is seen (in2_sample)",
+          re.findall(r"latched p1=(\d+)", e.log(0)[mark:]) == ["4"], e.log(0)[mark:])
 
 print(f"{'FAIL' if failures else 'PASS'}: splittest")
 sys.exit(1 if failures else 0)

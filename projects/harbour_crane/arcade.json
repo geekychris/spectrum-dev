@@ -1,0 +1,7 @@
+{
+  "title": "Harbour Crane",
+  "ready": "hc: ready",
+  "description": "Work a gantry crane: swing containers onto a rolling ship and keep her level. Eight levels.",
+  "controls": "A/D trolley, W/S winch, SPACE grab",
+  "picture": "screenshots/loading.png"
+}

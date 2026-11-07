@@ -18,7 +18,7 @@ typedef struct {
 
 extern Crane cr;
 extern HCGame game;
-extern uint8_t hc_probe[24];
+extern uint8_t hc_probe[25];
 void game_init(void);
 void game_frame(uint8_t frames);         /* one pass of the main loop, frames since the last */
 #endif

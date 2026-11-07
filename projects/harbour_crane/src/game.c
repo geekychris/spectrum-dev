@@ -163,6 +163,7 @@ static void input(void)
     if (kedge & K_HELP) {
         cr.help = (cr.help + 1) % 3;
         hud_dirty = 1;
+        zx_log("hc: help %u\n", cr.help);
         return;
     }
     if (cr.help) {
@@ -178,10 +179,15 @@ static void input(void)
     case CS_TITLE:
         if ((edge & IN_UP) && cr.start_level < HC_LEVELS) { cr.start_level++; hud_dirty = 1; }
         if ((edge & IN_DOWN) && cr.start_level > 1) { cr.start_level--; hud_dirty = 1; }
+        if (edge & (IN_UP | IN_DOWN)) zx_log("hc: start_level %u\n", cr.start_level);
         if (edge & (IN_FIRE | IN_START)) start_game(cr.start_level);
         break;
     case CS_PLAY:
-        if (kedge & K_PAUSE) { cr.paused = !cr.paused; hud_dirty = 1; }
+        if (kedge & K_PAUSE) {
+            cr.paused = !cr.paused;
+            hud_dirty = 1;
+            zx_log("hc: pause %u\n", cr.paused);
+        }
         if (kedge & K_AUTO) {
             cr.autoplay = !cr.autoplay;
             hud_dirty = 1;
@@ -439,7 +445,7 @@ static void draw_text(void)
 }
 
 /* ---- the state the test's bot reads (test.py) ---- */
-uint8_t hc_probe[24];
+uint8_t hc_probe[25];                    /* see probe() and tools/bot.py */
 
 static void probe(void)
 {
@@ -462,7 +468,8 @@ static void probe(void)
     *p++ = (uint8_t)game.score; *p++ = (uint8_t)(game.score >> 8);
     *p++ = (uint8_t)(game.score >> 16); *p++ = (uint8_t)(game.score >> 24);
     v = (int16_t)(game.tv >> 8); *p++ = (uint8_t)v; *p++ = (uint8_t)(v >> 8);   /* the trolley's speed, 1/256 */
-    *p = (uint8_t)game.between;
+    *p++ = (uint8_t)game.between;
+    *p = cr.start_level;
 }
 
 /* ---- the main loop's pass ---- */

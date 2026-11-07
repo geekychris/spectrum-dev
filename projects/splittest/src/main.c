@@ -15,7 +15,8 @@
  *             64 x 64 yellow at 100..163, 40..103
  *   sprites 5-6: shown, then hidden by sprg_hide (at 200, 40)
  * Then each frame the two players' input2 bits are logged on a change,
- * until ENTER.
+ * until ENTER; then a pass every 8 frames with latched input (a short tap
+ * between passes still shows).
  */
 #include <stdint.h>
 #include <string.h>
@@ -88,6 +89,16 @@ int main(void)
         if (in2_bits(IN2_ENTER)) break;
     }
     zx_log("lib: done\n");
-    for (;;) frame_wait();
+    /* latching: a pass every 8 frames, with in2_sample on the interrupt, so
+       a 2-frame tap between passes is still seen */
+    frame_hook = in2_sample;
+    last1 = 0;
+    for (;;) {
+        uint8_t k;
+        for (k = 0; k < 8; k++) frame_wait();
+        in2_scan_latched();
+        in2_update(&p1);
+        if (p1.pressed) zx_log("lib: latched p1=%u\n", p1.pressed);
+    }
     return 0;
 }

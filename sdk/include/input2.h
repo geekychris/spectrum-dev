@@ -30,7 +30,8 @@
  * can be lost, unless latched (input2_latch.c): frame_hook = in2_sample
  * (it reads the keys and Kempstons every interrupt), then
  * in2_scan_latched() in place of in2_scan(): a key that was down at any
- * interrupt since the last scan counts as down in this one.
+ * interrupt since the last scan counts as down in this one (so two taps
+ * inside one scan's interval count as one press).
  * Works on the 48K/128K too (no Kempston 2 there).
  */
 #ifndef INPUT2_H
