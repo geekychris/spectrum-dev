@@ -267,7 +267,7 @@ SECTION code_user
 ; halved together until both are below 46000, then floor(sqrt(a^2 + b^2))
 ; shifted back up. port: the C's loops in assembly, the same result.
 PUBLIC _fhypot
-EXTERN _isqrt32
+EXTERN _isqrt32_fast
 _fhypot:
     ld hl,2
     add hl,sp
@@ -331,7 +331,7 @@ fh_go:
     adc hl,bc                   ; HL:DE = the sum
     push hl                     ; isqrt32(uint32): high word pushed first
     push de
-    call _isqrt32               ; HL = the root
+    call _isqrt32_fast          ; HL = the root
     pop de
     pop de
     ld de,0

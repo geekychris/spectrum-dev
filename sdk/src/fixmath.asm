@@ -76,65 +76,68 @@ _mulq8:
 _isqrt32:
     ld hl,2
     add hl,sp
-    ld c,(hl)
-    inc hl
-    ld b,(hl)
-    inc hl
     ld e,(hl)
     inc hl
     ld d,(hl)
-    push bc
-    push de
-    exx
-    pop de                      ; DE':BC' = v (shifted out two bits a step)
-    pop bc
-    exx
+    inc hl
+    ld c,(hl)
+    inc hl
+    ld b,(hl)                   ; BCDE = v
     push ix
     ld ix,0                     ; IX = root
-    ld hl,0                     ; A:HL = remainder (up to 18 bits)
+    ld hl,0                     ; HL = remainder (17 bits: carry in A bit 0)
     xor a
+    exx
     ld b,16
+    exx
 isq_loop:
-    exx                         ; remainder = remainder << 2 | the top two bits of v
-    sla c
-    rl b
-    rl e
-    rl d
-    exx
-    adc hl,hl
-    rla
-    exx
-    sla c
-    rl b
-    rl e
-    rl d
-    exx
-    adc hl,hl
-    rla
-    add ix,ix                   ; root <<= 1
-    push ix
-    pop de
-    ld c,0
+    ; remainder = remainder << 2 | top two bits of v
     sla e
     rl d
     rl c
-    inc e                       ; C:DE = trial = 2 root + 1 (17 bits)
-    push hl
+    rl b
+    adc hl,hl
+    rla
+    sla e
+    rl d
+    rl c
+    rl b
+    adc hl,hl
+    rla
+    ; root <<= 1; trial = root << 1 | 1
+    add ix,ix
+    push bc
+    push ix
+    pop bc
+    sla c
+    rl b                        ; BC = 2 * root (17th bit lost: root < 2^15 here)
     push af
-    or a
-    sbc hl,de
-    sbc a,c
-    jr c,isq_lt                 ; remainder < trial
-    pop de                      ; drop the old remainder
-    pop de
-    inc ix                      ; root |= 1
-    djnz isq_loop
-    jr isq_done
-isq_lt:
+    and 1
+    ld a,0
+    rla                         ; A = 0 (no high bit in the trial)
     pop af
-    pop hl
-    djnz isq_loop
-isq_done:
+    inc bc                      ; trial = 2 root + 1
+    ; if A:HL >= trial: A:HL -= trial, root++
+    push hl
+    or a
+    sbc hl,bc
+    jr nc,isq_ge
+    or a
+    jr z,isq_lt                 ; A = 0 and HL < trial
+    dec a                       ; borrow from the 17th bit
+isq_ge:
+    pop bc                      ; drop the old remainder
+    inc ix
+    pop bc
+    jr isq_next
+isq_lt:
+    pop hl                      ; keep the old remainder
+    pop bc
+isq_next:
+    exx
+    dec b
+    exx
+    jr nz,isq_loop
     push ix
     pop hl
     pop ix

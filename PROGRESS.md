@@ -214,6 +214,14 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   rules ~330 lines a drawn frame, the lists walk every corner/cell/wall).
   SDK: vec3, isqrt32 3x.
 
+- **Tank Duel** (Next): the original's amiga3d rules (16.16, its AI and
+  autopilot) on the Z80N in two banks, its 9000-tick autopilot fight ending
+  in the original's state hash; free first-person 3D on Layer 2: the
+  original's models from the host, model-space culling, transform /
+  projection / vertices in `MUL` asm, painter's order by object, copper line
+  doubling and sky, LOD for far tanks, 1-pixel grid (sdk `l2line`); tilemap
+  HUD, radar sprites, TurboSound effects, high scores. 5-11 fps (about 8).
+  SDK: `l2line`, `muldiv16`.
 - **Marble Tilt** (Next): the original's amiga3d rules unchanged on 16.16
   (`fix16.h`, the engine's fixed point bit for bit: the original's whole
   autopilot game hashes as in its tests/vectors.h, on the Next and the host);

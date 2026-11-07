@@ -320,3 +320,10 @@ Details: docs/emulator-harness.md.
 - Layer 2 320 x 256 parallax: `l2scroll.h` (bands scrolled by the copper, column rings). A tilemap
   scrolled as a ring of tile columns has a seam (the left and right partial tiles share a map
   column at sub-tile offsets): make its content repeat every 320 pixels instead.
+- Banked code must not call a function of another bank mapped at the same addresses (Tank
+  Duel's front end at 0x0000 called `td_enemies_left` in the rules' bank at 0x0000: garbage).
+  A resident function may switch banks and switch the caller's bank back before returning.
+- A slow picture loses keys held for a short tap between reads: read letter keys with
+  `input_letter_pressed()` (latched), not `key_down()`.
+- Fixed-step catch-up: cap the ticks per loop high enough for the slowest picture (Tank Duel:
+  12 frames), or the game runs slower than the original when the picture is slow.

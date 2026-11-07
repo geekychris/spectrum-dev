@@ -70,7 +70,7 @@ the CPU is slow, so the work goes into drawing less:
   and variables take the whole RAM from 0x5D00, with tables made at start-up
   above the IM 2 table
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -136,6 +136,13 @@ the 48K:
   frame); the far mountains are the tilemap with its own scroll register,
   behind Layer 2's transparent sky. 50 fps with the original's 32-bit logic
   in a bank over the ROM
+- Tank Duel is free-moving first-person 3D, so nothing can be drawn ahead:
+  its models are the original's (built on the host by amiga3d's own rules),
+  culled in their own frame before a vertex is touched, and turned,
+  projected (a reciprocal table) and clipped in Z80N assembly; the view is
+  drawn 96 rows high and shown 192 by the copper, which also paints the
+  sky's gradient behind a transparent pen. About 8 fps: the hardest of the
+  ports for a 28 MHz Z80 (its rules alone are a third of a frame a tick)
 
 - Emberkeep's lantern costs no drawing: the light square is the clip window of
   Layer 2 and of the sprites, and the copper narrows it on the lines of its
