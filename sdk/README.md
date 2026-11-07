@@ -49,7 +49,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | `hit48.h` | `hit48.asm`, `hit48.c` | circle collisions in asm: `hit_first(x, y, r, list, n)` against a list of {x, y, r, id} (16-bit coordinates) |
 | `sprclip.h` | `sprclip.asm` | 48K: XOR a pre-shifted sprite at a signed x, clipped at both edges and the bottom (objects that wrap or slide off the left); ~2300 T-states for 16 x 16; `asm_sprc_xor` for assembly callers |
 | `modplay.h` | `modplay.c` | plays a MOD converted by `tools/mod2ay.py`: four channels routed to TurboSound chips, tone / noise / kick instruments; leaves free channels to `ay_sfx` |
-| `fixmath.h` | `fixmath.asm`, `fixmath.c` | 16-bit fixed point for physics: `mul16` (16x16 -> 32, MUL on the Z80N), `mulq14`, `mulq8`, `isqrt32`, `div_q14`; inline C on a host compiler for host tests |
+| `fixmath.h` | `fixmath.asm`, `fixmath.c` | 16-bit fixed point for physics: `mul16` (16x16 -> 32, MUL on the Z80N), `mulq14`, `mulq8`, `isqrt32` (exact; seed table + one Newton step), `div_q14`; inline C on a host compiler for host tests |
 | | `fixmath_sin14.c`, `fixmath_muls.asm` | `fix_sin14` / `fix_cos14` (Q14 table), `muls` (fast multiply by a small factor, shift-and-add) |
 | | `rot2d.c`, `rot2d.asm` | `rot2d_set(angle, sx, sy)` + `rot2d(in, out, n)`: rotate int8 point lists with separate x and y scales, in asm, ~1,000 T-states a point: for shapes rotated every frame (vec48's `vec_rotate` is the start-up, uniform-scale one) |
 | `bitline.h` | `bitline.asm`, `bitline.c` | lines into any 1-bit bitmap through a row-address table (the screen, or an off-screen buffer such as a ship image), clipped to a box, no wrap-around; `bl_poly` draws each vertex once in XOR; ~45 T-states a pixel inside the box. For screen-only work with wrap-around and compiled polygons use `line48.h` |
@@ -59,6 +59,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | `attrtint.h` | `attrtint.c`, `attrtint_capture.asm` | colour for moving objects: tint the plain (open-sky) cells under them, restore them after; scenery cells keep their colours (a 96-byte bitmap of plain cells) |
 | `zxgame.h` | `spr32.asm` | `spr32_shift`: shift a 32-pixel-wide image into place (draw once, blit anywhere without 8 pre-shifted copies) |
 | `fix16.h` | `fix16.c`, `fix16.asm`, `fix16_tab.c` | the amiga3d engine's 16.16 fixed point bit for bit (`fmul`, `fdiv` in Z80N asm, `fhypot`, `fsqrt`, `a3_sin`, `a3_angle`): amiga3d games' rules ported unchanged (Marble Tilt's whole-game hash matches its tests); `fix16_model.h` + `tools/test_fix16.c` check the asm's steps on the host; test: `projects/fixfilltest` |
+| `vec3.h` | `vec3.asm`, `vec3.c` | Q14 3-vectors with exact 32-bit products: `v3_dot`, `v3_cross`, `v3_scale`, `v3_mat`, `v3_norm` (the usual fixed-point normalise, bit for bit), C twins on the host (Planet Chomp's rules match the original's 32-bit code with them) |
 | `font5.h` | `font5.c` | a 5x7 font for drawing text yourself (Layer 2, a dot-matrix display), `font5_width` |
 | `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites (`spr_show_quad` 32x32, patterns from memory pages), palettes (`pal_load`), TurboSound chip select |
 | | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |

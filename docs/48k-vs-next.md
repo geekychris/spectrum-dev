@@ -58,7 +58,7 @@ the CPU is slow, so the work goes into drawing less:
   leaves no room for the variables above 0x8000, so they go below (in
   contended memory: hot loops are in assembly)
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -73,6 +73,10 @@ the 48K:
 - MMU banking holds more code and data than a 64K address space: Boing runs
   its rules from a bank mapped over the ROM
 - TurboSound plays a four-channel MOD and the effects at once
+- Planet Chomp draws a perspective 3D sphere every frame: `MUL` rotates the
+  maze's lattice corners by a camera matrix patched into the code, Layer 2
+  takes the polygons, DMA copies the starfield in, sprites carry everything
+  that moves; its rules are the original's 32-bit code on 16-bit vectors
 - Spectral Keep draws each isometric room once into Layer 2 and moves
   everything as sprites; a sprite behind scenery has the scenery's
   silhouette cut out of its patterns, in the original's draw order. Shadows

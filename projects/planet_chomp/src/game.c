@@ -140,6 +140,8 @@ static int8_t best_exit(int16_t c, const V3 *want_in, int16_t min_dot)
 /* ---- the player (Chomper.cs) ---- */
 
 static int8_t pend_x, pend_y, last_x, last_y;     /* screen direction, -1/0/1 */
+static int16_t bot_cell = -1;                      /* port: the test's bot (bot_update) */
+static int8_t bot_k;
 static uint16_t held_now;
 
 static uint8_t held_dir(int8_t x, int8_t y)
@@ -236,8 +238,6 @@ static int8_t bot_choose(int16_t c)
 /* port: the test's bot plays with the keys the autopilot would choose: the
    direction on screen of its next exit (worked out once a cell), or the way
    back when the original's dodge would turn round (bot_key, main memory) */
-static int16_t bot_cell = -1;
-static int8_t bot_k;
 
 void bot_update(void)
 {
@@ -267,6 +267,13 @@ void bot_update(void)
         if (c != bot_cell) { bot_cell = c; bot_k = bot_choose(c); }
         if (bot_k < 0) return;
         mz_tan(&t, c, (uint8_t)bot_k);
+        /* the autopilot turns at junctions: a key pointing back would turn
+           round now, half way along the edge */
+        if (g.player.moving && v3_dot(&t, &g.player.heading) < -8192) {
+            /* ... unless it arrives this tick */
+            int32_t left = ((65536L - g.player.t) * LEN(g.player.from, g.player.exitk)) >> 16;
+            if (left > g.player_speed / 50) return;
+        }
     }
     v3_cross(&r, &g.cam.focus, &g.cam.up);
     dx = v3_dot(&t, &r);
@@ -298,6 +305,7 @@ static void bot_dodge(void)
         }
     }
 }
+
 
 static int8_t player_choose(void *ctx, int16_t c, uint8_t cruising)
 {
