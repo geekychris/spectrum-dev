@@ -34,6 +34,7 @@ typedef char gs_fits_below_0x1600[(sizeof(GameState) <= 0x1600) ? 1 : -1];
 #define col_wx ((int16_t *)0x1900)          /* 320 x 2 (the terrain, below) */
 #define col_h  ((uint8_t *)0x1B80)          /* 320 */
 #define attrs  ((uint8_t *)0x1CC0)          /* 128 x 4: the sprites, sent by DMA */
+#define scan_ytab ((uint8_t *)0x1EC0)       /* 256: the scanner row of each world row */
 #define ATTRS_LEN (128 * 4)
 
 static uint8_t *column(uint16_t x)          /* physical column x, row 0 */
@@ -102,23 +103,19 @@ void view_text_center(uint8_t y, const char *s, uint8_t colour)
    row (0: none): col_wx, col_h (page 46) */
 static int16_t shown_vx = -1;              /* the viewport the columns were drawn for */
 
-/* the ridge: the surface row, then 6 rows (port: shaded down for 256 colours) */
-static const uint8_t ridge[7] = {C_TERR_LT, C_TERRAIN, C_TERRAIN, 0x48, 0x48, 0x28, C_TERR_DK};
+/* the ridge: the surface row, then 6 rows (port: shaded down for 256
+   colours): terrain.asm's tc_ridge */
 
-static void draw_column(uint16_t p, int16_t wx, uint8_t h)
-{
-    uint8_t *c = column(p), i;
-    if (col_h[p]) memset(c + col_h[p], C_SKY, 7);
-    if (h) for (i = 0; i < 7; i++) c[h + i] = ridge[i];
-    col_wx[p] = wx;
-    col_h[p] = h;
-    view_cols_drawn++;
-}
+/* terrain.asm: the columns tc_s0..tc_s1-1 of the view at tc_vx */
+extern uint16_t tc_vx, tc_s0, tc_s1, tc_drawn;
+extern uint8_t tc_flat;
+extern WORD *tc_terrain;
+extern void terrain_cols(void);
 
 /* the columns entering the view (all of them after a jump) */
 static void terrain_update(GameState *gs, int16_t vx)
 {
-    int16_t d, s0, s1, s;
+    int16_t d, s0, s1;
     if (shown_vx < 0) { s0 = 0; s1 = 320; }
     else {
         d = vx - shown_vx;
@@ -129,16 +126,14 @@ static void terrain_update(GameState *gs, int16_t vx)
         else { s0 = 0; s1 = -d; }
     }
     shown_vx = vx;
-    for (s = s0; s < s1; s++) {
-        int16_t wx = vx + s;
-        uint16_t p = (uint16_t)vx % 320 + s;
-        uint8_t h;
-        if (wx >= WORLD_W) wx -= WORLD_W;
-        if (p >= 320) p -= 320;
-        h = gs->planet_destroyed ? 0 : (uint8_t)gs->terrain_h[wx];
-        if (col_wx[p] != wx || col_h[p] != h) draw_column(p, wx, h);
-    }
-    columns_done();
+    tc_vx = (uint16_t)vx;
+    tc_s0 = (uint16_t)s0;
+    tc_s1 = (uint16_t)s1;
+    tc_flat = gs->planet_destroyed ? 1 : 0;
+    tc_terrain = gs->terrain_h;
+    tc_drawn = 0;
+    terrain_cols();
+    view_cols_drawn += tc_drawn;
 }
 
 /* ------------------------------------------------------------ the scanner (rows 0-19) */
@@ -148,10 +143,14 @@ static uint8_t scan_sy[160];               /* the terrain's top in each 2-pixel 
 static uint16_t dots_xy[96];               /* dynamic pixels drawn: x | y << 9 */
 static uint8_t dots_n;
 
-static uint8_t scan_y(int16_t wy)          /* the original's scanner row of world y */
+/* the original's scanner row of world row wy (a table: its 32-bit division is slow) */
+static uint8_t scan_y(int16_t wy)
 {
-    return (uint8_t)((LONG)(wy - PLAY_TOP) * (SCANNER_H - 4) / (PLAY_BOT - PLAY_TOP) + 2);
+    return wy >= 0 && wy < 256 ? scan_ytab[wy] : 0;
 }
+
+/* ... and column of world pixel x: x * 320 / 1920 is x / 6 */
+#define scan_x(wx) ((int16_t)((uint16_t)FROM_FP(wx) / 6))
 
 static uint8_t scan_bg(uint16_t x, uint8_t y)
 {
@@ -198,7 +197,7 @@ static void scanner_update(GameState *gs, int16_t vx)
         column(x)[d >> 9] = scan_bg(x, d >> 9);
     }
     /* the viewport's brackets */
-    left = (int16_t)((LONG)vx * SCREEN_W / WORLD_W);
+    left = (int16_t)((uint16_t)vx / 6);
     right = left + SCREEN_W * SCREEN_W / WORLD_W;
     for (y = 1; y <= SCANNER_H - 2; y++) {
         dot(left % SCREEN_W, y, C_WHITE);
@@ -207,16 +206,16 @@ static void scanner_update(GameState *gs, int16_t vx)
     for (i = 0; i < MAX_HUMANS; i++) {
         Human *h = &gs->humans[i];
         if (h->state == HUMAN_DEAD) continue;
-        dot((int16_t)(FROM_FP(h->wx) * SCREEN_W / WORLD_W), scan_y((int16_t)FROM_FP(h->wy)), C_WHITE);
+        dot(scan_x(h->wx), scan_y((int16_t)FROM_FP(h->wy)), C_WHITE);
     }
     for (i = 0; i < MAX_ENEMIES; i++) {
         Enemy *e = &gs->enemies[i];
         if (!e->active) continue;
-        dot((int16_t)(FROM_FP(e->wx) * SCREEN_W / WORLD_W), scan_y((int16_t)FROM_FP(e->wy)),
+        dot(scan_x(e->wx), scan_y((int16_t)FROM_FP(e->wy)),
             enemy_colour[e->type < 7 ? e->type : 0]);
     }
     if (gs->ship.alive) {
-        int16_t sx = (int16_t)(FROM_FP(gs->ship.wx) * SCREEN_W / WORLD_W);
+        int16_t sx = scan_x(gs->ship.wx);
         uint8_t sy = scan_y((int16_t)FROM_FP(gs->ship.wy));
         dot(sx - 1, sy, C_WHITE);
         dot(sx, sy, C_WHITE);
@@ -325,6 +324,10 @@ static void stars_init(void)
 
 /* ------------------------------------------------------------ sprites */
 
+/* coll.asm: world_to_screen_x(*wx, ws_vx) in 24 bits (the C one is 32-bit) */
+extern LONG ws_vx;
+extern int16_t world_sx(const LONG *wx) __z88dk_fastcall;
+
 static uint8_t *ap;
 static const char *msg_text;
 static uint8_t msg_n[2];                    /* sprites in each message line */
@@ -343,8 +346,8 @@ static void put(int16_t x, int16_t y, uint8_t pattern, uint8_t flags)
 
 static void sprites_update(GameState *gs)
 {
-    LONG vxp = gs->viewport_x;
     uint8_t i, k;
+    ws_vx = gs->viewport_x;
     ap = attrs;
     /* the wave messages (on top) */
     for (k = 0; k < 2; k++)
@@ -356,7 +359,7 @@ static void sprites_update(GameState *gs)
         int16_t sx, sy;
         uint8_t r, p;
         if (!e->active) continue;
-        sx = world_to_screen_x(e->wx, vxp);
+        sx = world_sx(&e->wx);
         sy = (int16_t)FROM_FP(e->wy);
         r = (uint8_t)e->radius;
         if (sx < -r || sx > SCREEN_W + r) continue;
@@ -370,7 +373,7 @@ static void sprites_update(GameState *gs)
     {
         Ship *s = &gs->ship;
         if (s->alive && !(s->invuln_timer > 0 && (gs->frame & 3) < 2)) {
-            int16_t sx = world_to_screen_x(s->wx, vxp), sy = (int16_t)FROM_FP(s->wy);
+            int16_t sx = world_sx(&s->wx), sy = (int16_t)FROM_FP(s->wy);
             if (sx >= -20 && sx <= SCREEN_W + 20) {
                 put(sx, sy, s->facing > 0 ? P_SHIP_R : P_SHIP_L, 0);
                 if (s->thrust_on && (gs->frame & 1))
@@ -381,15 +384,15 @@ static void sprites_update(GameState *gs)
     /* lasers, enemy shots, mines */
     for (i = 0; i < MAX_PLAYER_BULLETS; i++) {
         Bullet *b = &gs->player_bullets[i];
-        if (b->active) put(world_to_screen_x(b->wx, vxp), (int16_t)FROM_FP(b->wy), P_LASER, 0);
+        if (b->active) put(world_sx(&b->wx), (int16_t)FROM_FP(b->wy), P_LASER, 0);
     }
     for (i = 0; i < MAX_ENEMY_BULLETS; i++) {
         Bullet *b = &gs->enemy_bullets[i];
-        if (b->active) put(world_to_screen_x(b->wx, vxp), (int16_t)FROM_FP(b->wy), P_EBULLET, 0);
+        if (b->active) put(world_sx(&b->wx), (int16_t)FROM_FP(b->wy), P_EBULLET, 0);
     }
     for (i = 0; i < MAX_MINES; i++) {
         Mine *m = &gs->mines[i];
-        if (m->active) put(world_to_screen_x(m->wx, vxp), (int16_t)FROM_FP(m->wy), P_MINE, 0);
+        if (m->active) put(world_sx(&m->wx), (int16_t)FROM_FP(m->wy), P_MINE, 0);
     }
     /* enemies */
     for (i = 0; i < MAX_ENEMIES; i++) {
@@ -399,13 +402,13 @@ static void sprites_update(GameState *gs)
         if (!e->active || e->type < 1 || e->type > 6) continue;
         p = pat[e->type];
         if (p == P_DIVER && (e->anim_frame & 8)) p = P_DIVER_FLASH;
-        put(world_to_screen_x(e->wx, vxp), (int16_t)FROM_FP(e->wy), p, 0);
+        put(world_sx(&e->wx), (int16_t)FROM_FP(e->wy), p, 0);
     }
     /* humans */
     for (i = 0; i < MAX_HUMANS; i++) {
         Human *h = &gs->humans[i];
         if (h->state != HUMAN_DEAD)
-            put(world_to_screen_x(h->wx, vxp), (int16_t)FROM_FP(h->wy), P_HUMAN, 0);
+            put(world_sx(&h->wx), (int16_t)FROM_FP(h->wy), P_HUMAN, 0);
     }
     /* particles (screen coordinates; colour 12 of the original is black: not shown) */
     for (i = 0; i < MAX_PARTICLES; i++) {
@@ -486,6 +489,11 @@ void view_init(void)
     ZXN_WRITE_REG(0x19, PLAY_TOP);
     ZXN_WRITE_REG(0x19, ROW_HUD - 1);
     spr_patterns_from_pages(SPR_PAGE, 1, 0, SPR_COUNT, 0xFF);
+    {
+        int16_t y;
+        for (y = 0; y < 256; y++)
+            scan_ytab[y] = (uint8_t)((LONG)(y - PLAY_TOP) * (SCANNER_H - 4) / (PLAY_BOT - PLAY_TOP) + 2);
+    }
     stars_init();
     memset(attrs, 0, ATTRS_LEN);
 }

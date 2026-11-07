@@ -26,6 +26,10 @@ DEFC WORLD_HI = 0x07
 
 _hit_scan:
     push ix
+    ld a,(_hs_act)              ; the active flag's offset into the two
+    ld (hs_act1 + 2),a          ; ld a,(ix+d) / or (ix+d) below
+    inc a
+    ld (hs_act2 + 2),a
     ld ix,(_hs_list)
     ld a,(_hs_n)
     ld l,0xFF
@@ -35,17 +39,29 @@ _hit_scan:
     ld c,0                      ; C = index
 hs_loop:
     push bc
-    ; active?
-    ld a,(_hs_act)
-    ld e,a
-    ld d,0
-    push ix
-    pop hl
-    add hl,de
-    ld a,(hl)
-    inc hl
-    or (hl)
+hs_act1:
+    ld a,(ix+0)                 ; active? (the displacements are patched)
+hs_act2:
+    or (ix+0)
     jp z,hs_next
+    ; |dy| < hh first: it rejects most pairs (dy = ay - by, no wrap)
+    ld hl,(_hs_ay)
+    ld e,(ix+4)
+    ld d,(ix+5)
+    or a
+    sbc hl,de
+    ld a,(_hs_ay + 2)
+    sbc a,(ix+6)
+    call abs24
+    ld de,(_hs_hh)
+    or a
+    sbc hl,de
+    ld e,a
+    ld a,(_hs_hh + 2)
+    ld d,a
+    ld a,e
+    sbc a,d
+    jp nc,hs_next
     ; dx = ax - bx (24 bits in A:HL)
     ld hl,(_hs_ax)
     ld e,(ix+0)
@@ -97,25 +113,7 @@ hs_dx_ok:
     ld d,a
     ld a,e
     sbc a,d
-    jp nc,hs_next               ; |dx| >= hw
-    ; dy = ay - by, |dy| < hh ?
-    ld hl,(_hs_ay)
-    ld e,(ix+4)
-    ld d,(ix+5)
-    or a
-    sbc hl,de
-    ld a,(_hs_ay + 2)
-    sbc a,(ix+6)
-    call abs24
-    ld de,(_hs_hh)
-    or a
-    sbc hl,de
-    ld e,a
-    ld a,(_hs_hh + 2)
-    ld d,a
-    ld a,e
-    sbc a,d
-    jp nc,hs_next
+    jr nc,hs_next               ; |dx| >= hw
     ; a hit
     pop bc
     ld l,c
@@ -133,6 +131,61 @@ hs_next:
     ld l,0xFF
 hs_none:
     pop ix
+    ret
+
+; int16_t world_sx(const LONG *wx) __z88dk_fastcall: world_to_screen_x(*wx,
+; ws_vx) (game.c): the shortest way round from the viewport, in pixels
+; (FROM_FP: rounded down). 24 bits as above.
+PUBLIC _world_sx, _ws_vx
+_world_sx:
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld a,(hl)
+    ex de,hl                    ; A:HL = wx
+    ld de,(_ws_vx)
+    or a
+    sbc hl,de
+    ld e,a
+    ld a,(_ws_vx + 2)
+    ld d,a
+    ld a,e
+    sbc a,d                     ; A:HL = wx - vx
+    bit 7,a
+    jr nz,ws_neg
+    cp HALF_HI
+    jr c,ws_ok
+    jr nz,ws_down
+    ld de,HALF_LO + 1
+    push hl
+    or a
+    sbc hl,de
+    pop hl
+    jr c,ws_ok
+ws_down:
+    ld de,WORLD_LO
+    or a
+    sbc hl,de
+    sbc a,WORLD_HI
+    jr ws_ok
+ws_neg:
+    cp 0x100 - HALF_HI - 1
+    jr c,ws_up
+    jr nz,ws_ok
+    ld de,0x4000
+    push hl
+    or a
+    sbc hl,de
+    pop hl
+    jr nc,ws_ok
+ws_up:
+    ld de,WORLD_LO
+    add hl,de
+    adc a,WORLD_HI
+ws_ok:
+    ld l,h                      ; >> 8: A:H
+    ld h,a
     ret
 
 ; A:HL = |A:HL| (24-bit two's complement)
@@ -159,3 +212,4 @@ _hs_list:   defw 0
 _hs_n:      defb 0
 _hs_stride: defb 0
 _hs_act:    defb 0
+_ws_vx:     defs 4

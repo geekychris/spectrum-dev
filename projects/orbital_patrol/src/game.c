@@ -53,6 +53,22 @@ static LONG game_rand(void)
     return (LONG)((game_rng_state >> 16) & 0x7FFF);
 }
 
+/* port: game_rand() % n in 16 bits (game_rand() is 0..32767, so it is the
+   same number): zsdcc's 32-bit remainder is slow. (A function: inline,
+   zsdcc emitted a Z80N "push +nn" its assembler rejects.) */
+static LONG rand_mod(UWORD n)
+{
+    return (LONG)((UWORD)game_rand() % n);
+}
+#define RAND_MOD(n) rand_mod(n)
+
+/* port: x / 256 for a signed 32-bit x (rounding towards zero, as C's /)
+   with shifts: zsdcc divides */
+static LONG div256(LONG x)
+{
+    return x >= 0 ? x >> 8 : -((-x) >> 8);
+}
+
 /* Approximate sine: input 0-255, output -256 to 256 */
 static WORD sin_tab[256];
 static WORD sin_tab_init = 0;
@@ -149,9 +165,9 @@ static void spawn_particle(GameState *gs, WORD sx, WORD sy, WORD color)
         if (p->life <= 0) {
             p->x = sx;
             p->y = sy;
-            p->vx = (WORD)(game_rand() % 7 - 3);
-            p->vy = (WORD)(game_rand() % 7 - 3);
-            p->life = 10 + (WORD)(game_rand() % 10);
+            p->vx = (WORD)(RAND_MOD(7) - 3);
+            p->vy = (WORD)(RAND_MOD(7) - 3);
+            p->life = 10 + (WORD)(RAND_MOD(10));
             p->color = color;
             return;
         }
@@ -179,7 +195,7 @@ static void spawn_explosion(GameState *gs, LONG wx, LONG wy)
     sx = world_to_screen_x(wx, gs->viewport_x);
     sy = (WORD)FROM_FP(wy);
     for (i = 0; i < 6; i++) {
-        spawn_particle(gs, sx, sy, (WORD)(COL_EXPL_RED + game_rand() % 3));
+        spawn_particle(gs, sx, sy, (WORD)(COL_EXPL_RED + RAND_MOD(3)));
     }
 }
 
@@ -258,7 +274,7 @@ static void kill_enemy(GameState *gs, WORD idx)
     if (e->type == ENT_HIVE) {
         LONG hx = e->wx;
         LONG hy = e->wy;
-        WORD j, count = 3 + (WORD)(game_rand() % 3);
+        WORD j, count = 3 + (WORD)(RAND_MOD(3));
 
         /* Release the dying hive slot up front so the common cleanup
          * below does not deactivate/decrement it a second time. */
@@ -271,8 +287,8 @@ static void kill_enemy(GameState *gs, WORD idx)
         for (j = 0; j < count; j++) {
             if (find_free_enemy(gs) < 0) break; /* pool cap policy */
             spawn_enemy(gs, ENT_DRONE,
-                hx + TO_FP(game_rand() % 20 - 10),
-                hy + TO_FP(game_rand() % 20 - 10));
+                hx + TO_FP(RAND_MOD(20) - 10),
+                hy + TO_FP(RAND_MOD(20) - 10));
         }
         return;
     }
@@ -338,15 +354,15 @@ static void smart_bomb(GameState *gs)
 
 static void hyperspace(GameState *gs)
 {
-    gs->ship.wx = TO_FP(game_rand() % WORLD_W);
-    gs->ship.wy = TO_FP(PLAY_TOP + 20 + game_rand() % (PLAY_BOT - PLAY_TOP - 60));
+    gs->ship.wx = TO_FP(RAND_MOD(WORLD_W));
+    gs->ship.wy = TO_FP(PLAY_TOP + 20 + RAND_MOD((PLAY_BOT - PLAY_TOP - 60)));
     gs->ship.vx = 0;
     gs->ship.vy = 0;
     gs->ship.invuln_timer = 30;
     gs->ev_hyper = 1;
 
     /* 1 in 6 chance of death */
-    if (game_rand() % 6 == 0) {
+    if (RAND_MOD(6) == 0) {
         gs->ship.alive = 0;
         gs->lives--;
         gs->state = STATE_DYING;
@@ -399,7 +415,7 @@ static void diver_ai(Enemy *e, GameState *gs)
             dx = world_dist(gs->ship.wx, e->wx);
             if (dx > 0) e->vx = FP_ONE;
             else e->vx = -FP_ONE;
-            e->vy = (game_rand() % 3 - 1) * FP_ONE / 2;
+            e->vy = (RAND_MOD(3) - 1) * FP_ONE / 2;
         }
         break;
 
@@ -488,8 +504,8 @@ static void stalker_ai(Enemy *e, GameState *gs)
     else e->vy = dy / 2;
 
     /* Add some jitter */
-    e->vx += (game_rand() % 3 - 1) * FP_ONE / 4;
-    e->vy += (game_rand() % 3 - 1) * FP_ONE / 4;
+    e->vx += (RAND_MOD(3) - 1) * FP_ONE / 4;
+    e->vy += (RAND_MOD(3) - 1) * FP_ONE / 4;
 }
 
 static void dropper_ai(Enemy *e, GameState *gs)
@@ -497,13 +513,13 @@ static void dropper_ai(Enemy *e, GameState *gs)
     /* Horizontal patrol */
     if (e->timer <= 0) {
         e->vx = (game_rand() & 1) ? FP_ONE : -FP_ONE;
-        e->vy = (game_rand() % 3 - 1) * FP_ONE / 4;
-        e->timer = 60 + (WORD)(game_rand() % 60);
+        e->vy = (RAND_MOD(3) - 1) * FP_ONE / 4;
+        e->timer = 60 + (WORD)(RAND_MOD(60));
     }
     e->timer--;
 
     /* Drop mine every ~120 frames */
-    if (game_rand() % 120 == 0) {
+    if (RAND_MOD(120) == 0) {
         WORD i;
         for (i = 0; i < MAX_MINES; i++) {
             if (!gs->mines[i].active) {
@@ -521,9 +537,9 @@ static void hive_ai(Enemy *e, GameState *gs)
     (void)gs;
     /* Slow drift */
     if (e->timer <= 0) {
-        e->vx = (game_rand() % 3 - 1) * FP_ONE / 2;
-        e->vy = (game_rand() % 3 - 1) * FP_ONE / 2;
-        e->timer = 90 + (WORD)(game_rand() % 90);
+        e->vx = (RAND_MOD(3) - 1) * FP_ONE / 2;
+        e->vy = (RAND_MOD(3) - 1) * FP_ONE / 2;
+        e->timer = 90 + (WORD)(RAND_MOD(90));
     }
     e->timer--;
 }
@@ -542,8 +558,8 @@ static void drone_ai(Enemy *e, GameState *gs)
     else e->vy = -speed / 2;
 
     /* Heavy jitter */
-    e->vx += (game_rand() % 5 - 2) * FP_ONE / 2;
-    e->vy += (game_rand() % 5 - 2) * FP_ONE / 2;
+    e->vx += (RAND_MOD(5) - 2) * FP_ONE / 2;
+    e->vy += (RAND_MOD(5) - 2) * FP_ONE / 2;
 }
 
 static void chaser_ai(Enemy *e, GameState *gs)
@@ -562,7 +578,7 @@ static void chaser_ai(Enemy *e, GameState *gs)
     else e->vy = dy;
 
     /* Occasional fire */
-    if (game_rand() % 60 == 0) {
+    if (RAND_MOD(60) == 0) {
         WORD i;
         for (i = 0; i < MAX_ENEMY_BULLETS; i++) {
             Bullet *b = &gs->enemy_bullets[i];
@@ -631,14 +647,14 @@ void game_init(GameState *gs, WORD level)
     gs->humans_alive = MAX_HUMANS;
     for (i = 0; i < MAX_HUMANS; i++) {
         Human *h = &gs->humans[i];
-        WORD hx = (WORD)(WORLD_W / MAX_HUMANS * i + game_rand() % (WORLD_W / MAX_HUMANS));
+        WORD hx = (WORD)(WORLD_W / MAX_HUMANS * i + RAND_MOD((WORLD_W / MAX_HUMANS)));
         h->wx = TO_FP(hx);
         h->wy = TO_FP(gs->terrain_h[hx % WORLD_W] - 6);
         h->active = 1;
         h->state = HUMAN_WALKING;
         h->grabbed_by = -1;
         h->walk_dir = (game_rand() & 1) ? 1 : -1;
-        h->walk_timer = 30 + (WORD)(game_rand() % 60);
+        h->walk_timer = 30 + (WORD)(RAND_MOD(60));
     }
 }
 
@@ -671,22 +687,22 @@ void game_spawn_wave(GameState *gs)
 
     /* Spawn divers at random positions across the world, above terrain */
     for (i = 0; i < num_divers && i < MAX_ENEMIES; i++) {
-        LONG wx = TO_FP(game_rand() % WORLD_W);
-        LONG wy = TO_FP(PLAY_TOP + 10 + game_rand() % 40);
+        LONG wx = TO_FP(RAND_MOD(WORLD_W));
+        LONG wy = TO_FP(PLAY_TOP + 10 + RAND_MOD(40));
         spawn_enemy(gs, ENT_DIVER, wx, wy);
     }
 
     /* Spawn droppers */
     for (i = 0; i < num_droppers; i++) {
-        LONG wx = TO_FP(game_rand() % WORLD_W);
-        LONG wy = TO_FP(PLAY_TOP + 20 + game_rand() % 60);
+        LONG wx = TO_FP(RAND_MOD(WORLD_W));
+        LONG wy = TO_FP(PLAY_TOP + 20 + RAND_MOD(60));
         spawn_enemy(gs, ENT_DROPPER, wx, wy);
     }
 
     /* Spawn hives */
     for (i = 0; i < num_hives; i++) {
-        LONG wx = TO_FP(game_rand() % WORLD_W);
-        LONG wy = TO_FP(PLAY_TOP + 30 + game_rand() % 50);
+        LONG wx = TO_FP(RAND_MOD(WORLD_W));
+        LONG wy = TO_FP(PLAY_TOP + 30 + RAND_MOD(50));
         spawn_enemy(gs, ENT_HIVE, wx, wy);
     }
 
@@ -729,8 +745,8 @@ void game_update(GameState *gs, WORD input)
             ship->vy += SHIP_THRUST;
 
         /* Drag */
-        ship->vx = ship->vx * (256 - SHIP_DRAG) / 256;
-        ship->vy = ship->vy * (256 - SHIP_VDRAG) / 256;
+        ship->vx = div256(ship->vx * (256 - SHIP_DRAG));     /* port: div256, see above */
+        ship->vy = div256(ship->vy * (256 - SHIP_VDRAG));
 
         /* Clamp velocity */
         if (ship->vx > SHIP_MAX_VX) ship->vx = SHIP_MAX_VX;
@@ -852,8 +868,8 @@ void game_update(GameState *gs, WORD input)
         }
 
         /* Apply velocity with speed multiplier */
-        e->wx += e->vx * speed_mul / 256;
-        e->wy += e->vy * speed_mul / 256;
+        e->wx += div256(e->vx * speed_mul);                  /* port: div256 */
+        e->wy += div256(e->vy * speed_mul);
         e->wx = wrap_wx(e->wx);
 
         /* Clamp Y */
@@ -873,7 +889,7 @@ void game_update(GameState *gs, WORD input)
             h->walk_timer--;
             if (h->walk_timer <= 0) {
                 h->walk_dir = -h->walk_dir;
-                h->walk_timer = 30 + (WORD)(game_rand() % 60);
+                h->walk_timer = 30 + (WORD)(RAND_MOD(60));
             }
             h->wx += h->walk_dir * FP_ONE / 4;
             h->wx = wrap_wx(h->wx);
@@ -1178,7 +1194,7 @@ void game_update(GameState *gs, WORD input)
         if (gs->chaser_timer <= 0 && gs->enemies_alive > 0) {
             /* Spawn a chaser */
             LONG wx = wrap_wx(gs->ship.wx + TO_FP(SCREEN_W));
-            LONG wy = TO_FP(PLAY_TOP + 20 + game_rand() % 80);
+            LONG wy = TO_FP(PLAY_TOP + 20 + RAND_MOD(80));
             spawn_enemy(gs, ENT_CHASER, wx, wy);
             gs->chaser_timer = 600; /* next chaser in ~12 seconds */
         }
