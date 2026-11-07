@@ -490,8 +490,13 @@ static const Scene *scene_of(const World *w, int i)
 
 static void scenery_side(const World *w, int i, uint8_t mdl, int16_t edge_x, int16_t y, uint8_t dz, int side)
 {
-    int32_t z = (int32_t)i * SEG_LEN + dz, zf = z * (1 << FBITS);
-    scenery_model(mdl, road_cx(w, zf) + edge_x, road_y(w, zf) + y, (int16_t)(z - cam.z), side);
+    /* road_cx and road_y at dz into segment i (dz < SEG_LEN, i <= nseg - 2:
+       the same values; port: without their seg_of and 32-bit steps) */
+    const Seg *g = &w->seg[i];
+    int32_t z = (int32_t)i * SEG_LEN + dz;
+    int16_t cx = g->cx + ((g->dir * (int16_t)dz) >> SEG_BITS);
+    int16_t ry = g->y + (int16_t)(((int32_t)(g[1].y - g->y) * dz) >> SEG_BITS);
+    scenery_model(mdl, (int32_t)cx + edge_x, ry + y, (int16_t)(z - cam.z), side);
 }
 
 static void scenery(const World *w, int i)
