@@ -192,12 +192,17 @@ typedef struct {
     uint8_t tiles[150 * TILES_Y];   /* the current level's tiles (changed by ? blocks) */
 } Game;
 
+/* port: on the Spectrum the game's state lives at a fixed address above the
+   program, out of the ULA-contended RAM below 0x8000 where the rest of the
+   variables are: GAME_ADDR (game.asm) to 0xFCB9, between the IM 2 vector
+   table (0xF000-0xF1F3) and the stack (down from 0xFF58; main.c checks it
+   never comes this low) */
+#define GAME_ADDR 0xF200
 extern Game game;
 extern const LevelDef levels[NUM_LEVELS];
 
 /* level.c's functions (jq.c) */
 uint8_t level_get_tile(int16_t tx, int16_t ty);
-uint8_t level_is_solid(int16_t tx, int16_t ty);
 int16_t level_width_pixels(void);
 const LevelDef *level_current(void);
 

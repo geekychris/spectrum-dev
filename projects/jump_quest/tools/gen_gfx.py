@@ -9,6 +9,7 @@ a host RastPort) and converts what it draws:
   sky where there is sky (so the sky is one colour everywhere), otherwise its
   most common colour, the ink its next most common colour of another
   Spectrum colour, and every pixel goes to the nearer of the two;
+- items: the same, as four cells over the sky (port: they are tiles);
 - sprites: 1 bit a pixel (drawn = ink) except a few "hole" colours per
   sprite (eyes, highlights, stitching), which show the paper behind, so the
   details survive in one colour; each sprite has one ink (cellspr48 colours
@@ -75,7 +76,11 @@ def cell(pix):
     paper = SKY if SKY in counts else order[0]
     pz, pb = ZX_OF[paper]
     bright = 0 if paper == SKY else pb
+    # the ink: the most common other colour, black only if nothing else (a
+    # ribbon or a highlight says more than an outline)
     inks = [c for c in order if ZX_OF[c][0] != pz]
+    inks.sort(key=lambda c: ZX_OF[c][0] == 0)
+    shade = not inks and len(order) > 1     # only shades of the paper (brick mortar)
     iz = ZX_OF[inks[0]][0] if inks else (0 if pz else 7)
     prgb, irgb = rgb_zx(pz, bright), rgb_zx(iz, bright)
     data = []
@@ -83,7 +88,10 @@ def cell(pix):
         b = 0
         for x, c in enumerate(row):
             z = ZX_OF[c][0]
-            on = z == iz if z in (iz, pz) else dist(rgb_amiga(c), irgb) < dist(rgb_amiga(c), prgb)
+            if shade:
+                on = c != paper                 # the other shade, in black
+            else:
+                on = z == iz if z in (iz, pz) else dist(rgb_amiga(c), irgb) < dist(rgb_amiga(c), prgb)
             if on:
                 b |= 0x80 >> x
         data.append(b)
@@ -160,23 +168,29 @@ def main():
         for f in range(2):
             enemies += bits(pics[f"enemy{t}_{f}"], holes)
     items = []
-    for t, _, holes in ITEMS:
+    for t, ink, holes in ITEMS:
         items += bits(pics[f"item{t}"], holes)
+    # port: items are tiles (cells 64.. : 4 an item, over the sky, in their ink)
+    item_cells, item_attrs = [], []
+    for k, (t, ink, holes) in enumerate(ITEMS):
+        rows = items[k * 32:(k + 1) * 32]
+        for cy in (0, 8):
+            for cx in (0, 1):
+                item_cells += [rows[(cy + y) * 2 + cx] for y in range(8)]
+                item_attrs.append((ZX_OF[SKY][0] << 3) | INK[ink])
     hearts = bits8(pics["heart0"]) + bits8(pics["heart1"])
 
     c = ["/* made by tools/gen_gfx.py from the original's drawing code: do not edit */",
          "#include <stdint.h>", '#include "gfx_data.h"', ""]
-    c.append("/* tile t's cells: ids 4t (top left), 4t+1, 4t+2, 4t+3 (bottom right) */")
-    c.append(arr("gfx_tile_cells", tiles))
-    c.append(arr("gfx_tile_attr", attrs))
+    c.append("/* tile t's cells: ids 4t (top left), 4t+1, 4t+2, 4t+3 (bottom right);")
+    c.append("   then the items' (GFX_ITEM_CELLS + 4k for item k, over the sky) */")
+    c.append(arr("gfx_tile_cells", tiles + item_cells))
+    c.append(arr("gfx_tile_attr", attrs + item_attrs))
     c.append("/* [character][facing right, left][legs 0, +2, -2]: 28 lines of 2 bytes */")
     c.append(arr("gfx_player", player))
     c.append("/* beetle, fly, spider, ant: [type][frame]: 16 lines of 2 bytes */")
     c.append(arr("gfx_enemy", enemies))
-    c.append("/* " + ", ".join(str(t) for t, _, _ in ITEMS) + ": 16 lines of 2 bytes */")
-    c.append(arr("gfx_item", items))
     c.append("const uint8_t gfx_enemy_ink[4] = { " + ", ".join(f"INK_{i.upper()}" for _, i, _ in ENEMIES) + " };")
-    c.append("const uint8_t gfx_item_ink[10] = { " + ", ".join(f"INK_{i.upper()}" for _, i, _ in ITEMS) + " };")
     c.append("/* the HUD's heart, empty and full */")
     c.append(arr("gfx_heart", hearts, 8))
     (PROJ / "src" / "gfx_data.c").write_text("\n".join(c) + "\n")
@@ -186,14 +200,13 @@ def main():
 #include <stdint.h>
 #include <arch/zx.h>
 
-extern const uint8_t gfx_tile_cells[64 * 8];
-extern const uint8_t gfx_tile_attr[64];
+#define GFX_ITEM_CELLS 64          /* item k's cells: 64 + 4k .. 64 + 4k + 3 */
+extern const uint8_t gfx_tile_cells[(64 + 40) * 8];
+extern const uint8_t gfx_tile_attr[64 + 40];
 #define GFX_PLAYER_H 28
 extern const uint8_t gfx_player[2 * 2 * 3 * 28 * 2];
 extern const uint8_t gfx_enemy[4 * 2 * 16 * 2];
-extern const uint8_t gfx_item[10 * 16 * 2];
 extern const uint8_t gfx_enemy_ink[4];
-extern const uint8_t gfx_item_ink[10];
 extern const uint8_t gfx_heart[16];
 
 #endif

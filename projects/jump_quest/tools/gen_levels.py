@@ -37,6 +37,7 @@ for n in (1, 2, 3):
     ents = s[s.index("_ents[]"):]
     ents = ents[ents.index("{") + 1:ents.index("};")]
     rows = re.findall(r"\{\s*(\w+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\}", ents)
+    assert sum(t == "ENT_LEVEL_END" for t, _, _ in rows) == 1, "jq.c keeps one level end a level"
     c.append(f"const EntitySpawn level{n}_ents[{len(rows)}] = {{")
     for t, x, y in rows:
         c.append(f"    {{ {t}, {x}, {y} }},")

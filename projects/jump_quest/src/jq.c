@@ -5,13 +5,16 @@
  * sound_*() calls set game.events here.
  */
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include "jq.h"
 #include "tmap.h"
 #include "zxrle.h"
 #include "levels_data.h"
 
+#ifndef __SDCC
 Game game;
+#endif
 
 const LevelDef levels[NUM_LEVELS] = {
     { LEVEL1_W, level1_packed, level1_ents, "OFFICE PARK" },
@@ -33,15 +36,30 @@ static int16_t div16(int16_t v)
     return v >= 0 ? (v >> 4) : -((-v) >> 4);
 }
 
+/* port: the tile under a pixel, level_get_tile(px / TILE_SIZE, py / TILE_SIZE)
+   with the original's rounding towards zero: tile_px.asm (these lookups were
+   most of a tick's time); the C below is the host's */
+uint8_t tile_px(int16_t px, int16_t py);
+#ifndef __SDCC
+uint8_t tile_px(int16_t px, int16_t py)
+{
+    return level_get_tile(div16(px), div16(py));
+}
+#endif
+
 /* ------------------------------------------------------------ level.c */
 
-static const uint8_t solid[NUM_TILES] = {
+/* (jq_*: enemies.asm reads them too) */
+const uint8_t jq_solid[NUM_TILES] = {
     0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0
 };
+
+int16_t jq_level_w;                  /* port: the level's width in pixels, kept */
 
 void jq_restore(void)
 {
     tmap_init(game.tiles, levels[game.current_level].width, TILES_Y);
+    jq_level_w = (int16_t)tmap_w * TILE_SIZE;
 }
 
 static void level_load(int8_t level_num)
@@ -50,7 +68,7 @@ static void level_load(int8_t level_num)
     if (level_num < 0 || level_num >= NUM_LEVELS) level_num = 0;
     ld = &levels[level_num];
     rle_unpack(game.tiles, ld->tiles);     /* port: the levels are packed (tools/gen_levels.py) */
-    tmap_init(game.tiles, ld->width, TILES_Y);
+    jq_restore();                          /* (start_level set game.current_level) */
 }
 
 const LevelDef *level_current(void)
@@ -72,19 +90,9 @@ static void level_set_tile(int16_t tx, int16_t ty, uint8_t tile)
     game.events |= EV_TILE;
 }
 
-uint8_t level_is_solid(int16_t tx, int16_t ty)
-{
-    return solid[level_get_tile(tx, ty)];
-}
-
-static uint8_t level_is_platform(int16_t tx, int16_t ty)
-{
-    return level_get_tile(tx, ty) == TILE_PLATFORM;
-}
-
 int16_t level_width_pixels(void)
 {
-    return (int16_t)tmap_w * TILE_SIZE;
+    return jq_level_w;
 }
 
 /* ------------------------------------------------------------ player.c */
@@ -110,19 +118,17 @@ static void player_init(Player *p, int8_t character, int16_t start_x, int16_t st
     p->walk_frame = 0;
 }
 
-static uint8_t point_solid(int16_t wx, int16_t wy)
-{
-    return level_is_solid(div16(wx), div16(wy));
-}
+/* (point_solid: a macro, the lookup is tile_px.asm) */
+#define point_solid(wx, wy) jq_solid[tile_px(wx, wy)]
 
 static uint8_t on_platform(int16_t wx, int16_t wy)
 {
-    return level_is_platform(div16(wx), div16(wy));
+    return tile_px(wx, wy) == TILE_PLATFORM;
 }
 
-static uint8_t enemies_check_stomp(int16_t px, int16_t py, int16_t pw, int16_t ph);
-static uint8_t enemies_check_touch(int16_t px, int16_t py, int16_t pw, int16_t ph);
-static int8_t items_check_collect(int16_t px, int16_t py, int16_t pw, int16_t ph);
+uint8_t enemies_check(int16_t px, int16_t py, int16_t pw, int16_t ph, uint8_t stomp);
+int8_t items_check_collect(int16_t px, int16_t py, int16_t pw, int16_t ph);
+void particles_update(void);
 
 /* port: player_update() works on a copy of the active player at a fixed
    address (pl): zsdcc's code for a fixed address is a third the size of its
@@ -261,12 +267,14 @@ static void player_update(uint8_t input)
 
     /* Check enemy collision */
     if (p->invuln == 0) {
-        if (p->vy > 0 && enemies_check_stomp(p->x, p->y, PLAYER_W, ph)) {
+        /* port: the stomp and touch tests in one pass (checks.asm) */
+        uint8_t hit = enemies_check(p->x, p->y, PLAYER_W, ph, p->vy > 0);
+        if (hit == 2) {
             /* Stomped an enemy - bounce up */
             p->vy = JUMP_FORCE / 2;
             p->score += 200;
             sound_stomp();
-        } else if (enemies_check_touch(p->x, p->y, PLAYER_W, ph)) {
+        } else if (hit) {
             p->health--;
             p->invuln = 60; /* 1.2 seconds invulnerability */
             sound_hurt();
@@ -312,7 +320,7 @@ static void player_update(uint8_t input)
 /* ------------------------------------------------------------ enemy.c */
 
 /* the original's sine_table[32], divided by 4 as enemies_update() does */
-static const int8_t fly_dy[32] = {
+const int8_t jq_fly_dy[32] = {
     0, 0, 1, 2, 3, 3, 3, 4, 4, 4, 3, 3, 3, 2, 1, 0,
     0, 0, -1, -2, -3, -3, -3, -4, -4, -4, -3, -3, -3, -2, -1, 0
 };
@@ -356,14 +364,18 @@ static void enemies_spawn(const EntitySpawn *spawns)
     }
 }
 
-static void enemies_update(void)
+/* port: the Spectrum's is enemies.asm (zsdcc's code for this was a third of
+   a frame every tick); this C is the host's, and the reference */
+#ifdef __SDCC
+extern void enemies_update(void);
+extern void enemies_rows(void);
+/* enemies.asm finds the enemies at this offset */
+typedef char enemies_offset_check[offsetof(Game, enemies) == 56 ? 1 : -1];
+#else
+static void enemy_update(Enemy *e)
 {
-    uint8_t i;
-    Enemy *e = game.enemies;
-
-    for (i = 0; i < MAX_ENEMIES; i++, e++) {
+    {
         int16_t l, r, m, f;
-        if (!e->alive) continue;
 
         e->timer++;
         e->frame = (e->timer >> 3) & 1;
@@ -374,36 +386,41 @@ static void enemies_update(void)
             /* Walk left/right, reverse at walls/edges */
             if (e->dir < 0) e->x -= FP_INT(e->vx);
             else e->x += FP_INT(e->vx);
-            l = div16(e->x);
-            r = div16(e->x + 14);
-            m = div16(e->y);
-            f = div16(e->y + 12);
+            /* the tiles at the corners (the original's level_is_solid(x / 16, ...)) */
+            l = e->x;
+            r = e->x + 14;
+            m = e->y;
+            f = e->y + 12;
 
             /* Wall collision */
             if (e->dir < 0) {
-                if (level_is_solid(l, m) || level_is_solid(l, f))
+                if (jq_solid[tile_px(l, m)] || jq_solid[tile_px(l, f)])
                     e->dir = DIR_RIGHT;
             } else {
-                if (level_is_solid(r, m) || level_is_solid(r, f))
+                if (jq_solid[tile_px(r, m)] || jq_solid[tile_px(r, f)])
                     e->dir = DIR_LEFT;
             }
 
             /* Edge detection - don't walk off platforms */
-            f = div16(e->y + TILE_SIZE);
-            if (!level_is_solid(l, f) && !level_is_platform(l, f) && e->dir < 0)
-                e->dir = DIR_RIGHT;
-            if (!level_is_solid(r, f) && !level_is_platform(r, f) && e->dir > 0)
-                e->dir = DIR_LEFT;
+            f = e->y + TILE_SIZE;
+            if (e->dir < 0) {
+                uint8_t t = tile_px(l, f);
+                if (!jq_solid[t] && t != TILE_PLATFORM) e->dir = DIR_RIGHT;
+            }
+            if (e->dir > 0) {
+                uint8_t t = tile_px(r, f);
+                if (!jq_solid[t] && t != TILE_PLATFORM) e->dir = DIR_LEFT;
+            }
             break;
 
         case ENT_FLY:
             /* Fly in sine wave pattern */
             if (e->dir < 0) e->x -= FP_INT(e->vx);
             else e->x += FP_INT(e->vx);
-            e->y += fly_dy[e->timer & 31];
+            e->y += jq_fly_dy[e->timer & 31];
 
             /* Reverse at screen bounds relative to spawn */
-            if (e->x < 0 || div16(e->x) >= (int16_t)tmap_w - 1)
+            if (e->x < 0 || e->x >= jq_level_w - TILE_SIZE)    /* x / 16 >= width - 1 */
                 e->dir = -e->dir;
             /* Simple boundary reversal */
             if (e->timer > 120) {
@@ -418,7 +435,7 @@ static void enemies_update(void)
             else e->y += FP_INT(e->vy);
             if (e->dir > 0) {
                 /* Dropping */
-                if (level_is_solid(div16(e->x), div16(e->y + 14)))
+                if (jq_solid[tile_px(e->x, e->y + 14)])
                     e->dir = DIR_LEFT; /* negative = climb up */
                 if (e->timer > 100) {
                     e->dir = DIR_LEFT;
@@ -436,14 +453,37 @@ static void enemies_update(void)
     }
 }
 
-static uint8_t enemies_check_stomp(int16_t px, int16_t py, int16_t pw, int16_t ph)
+static void enemies_update(void)
 {
     uint8_t i;
     Enemy *e = game.enemies;
+    for (i = 0; i < MAX_ENEMIES; i++, e++)
+        if (e->alive) enemy_update(e);
+}
+#endif
+
+/* port: the Spectrum's box tests and particle update are checks.asm
+   (one unsigned compare an axis); these C versions are the host's */
+#ifdef __SDCC
+typedef char game_end_check[GAME_ADDR + sizeof(Game) <= 0xFCC0 ? 1 : -1];
+typedef char items_offset_check[offsetof(Game, items) == 56 + 16 * 13 ? 1 : -1];
+typedef char particles_offset_check[offsetof(Game, particles) == 56 + 16 * 13 + 24 * 9 ? 1 : -1];
+#else
+/* port: the box tests read each enemy into locals first: zsdcc got the
+   original's one-expression form wrong (a hit on the first tick, 90 pixels
+   from the nearest beetle) */
+static uint8_t enemies_check_stomp(int16_t px, int16_t py, int16_t pw, int16_t ph)
+{
+    uint8_t i;
+    int16_t feet = py + ph;
+    Enemy *e = game.enemies;
     for (i = 0; i < MAX_ENEMIES; i++, e++) {
+        int16_t ex, ey;
         if (!e->alive) continue;
-        if (px + pw > e->x + 2 && px < e->x + 14 &&
-            py + ph > e->y && py + ph < e->y + 10) {
+        ex = e->x;
+        ey = e->y;
+        /* right > ex + 2 && px < ex + 14, as one unsigned compare (-14 < ex - px < pw - 2) */
+        if ((uint16_t)(ex - px + 13) < (uint16_t)(pw + 11) && feet > ey && feet < ey + 10) {
             e->alive = 0;
             return 1;
         }
@@ -454,15 +494,28 @@ static uint8_t enemies_check_stomp(int16_t px, int16_t py, int16_t pw, int16_t p
 static uint8_t enemies_check_touch(int16_t px, int16_t py, int16_t pw, int16_t ph)
 {
     uint8_t i;
-    Enemy *e = game.enemies;
+    int16_t feet = py + ph;
+    const Enemy *e = game.enemies;
     for (i = 0; i < MAX_ENEMIES; i++, e++) {
+        int16_t ex, ey;
         if (!e->alive) continue;
-        if (px + pw > e->x + 3 && px < e->x + 13 &&
-            py + ph > e->y + 3 && py < e->y + 13)
+        ex = e->x;
+        ey = e->y;
+        /* right > ex + 3 && px < ex + 13: -13 < ex - px < pw - 3 */
+        if ((uint16_t)(ex - px + 12) < (uint16_t)(pw + 9) && feet > ey + 3 && py < ey + 13)
             return 1;
     }
     return 0;
 }
+
+/* 2: stomped (the original's stomp test, while falling), else 1: touched */
+uint8_t enemies_check(int16_t px, int16_t py, int16_t pw, int16_t ph, uint8_t stomp)
+{
+    if (stomp && enemies_check_stomp(px, py, pw, ph)) return 2;
+    return enemies_check_touch(px, py, pw, ph);
+}
+
+#endif
 
 /* ------------------------------------------------------------ items.c */
 
@@ -485,34 +538,30 @@ static void items_spawn(const EntitySpawn *spawns)
     }
 }
 
-/* the original's sine_table_small(t) = s[(t >> 2) % 12], for t = 0..255 */
-static const int8_t bob[12] = { 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2, -1 };
+/* port: items_update() (the bobbing: frame and float_off) is gone: the items
+   are drawn as tiles, and nothing else reads them */
 
-static void items_update(void)
+#ifndef __SDCC
+/* port: locals first, as for the enemies (zsdcc) */
+int8_t items_check_collect(int16_t px, int16_t py, int16_t pw, int16_t ph)
 {
     uint8_t i;
+    int16_t feet = py + ph;
     Item *it = game.items;
     for (i = 0; i < MAX_ITEMS; i++, it++) {
+        int16_t ix, iy;
         if (!it->active) continue;
-        it->frame++;
-        it->float_off = bob[(uint8_t)(it->frame >> 2) % 12];
-    }
-}
-
-static int8_t items_check_collect(int16_t px, int16_t py, int16_t pw, int16_t ph)
-{
-    uint8_t i;
-    Item *it = game.items;
-    for (i = 0; i < MAX_ITEMS; i++, it++) {
-        if (!it->active) continue;
-        if (px + pw > it->x + 2 && px < it->x + 14 &&
-            py + ph > it->y + 2 && py < it->y + 14) {
+        ix = it->x;
+        iy = it->y;
+        /* right > ix + 2 && px < ix + 14: -14 < ix - px < pw - 2 */
+        if ((uint16_t)(ix - px + 13) < (uint16_t)(pw + 11) && feet > iy + 2 && py < iy + 14) {
             it->active = 0;
             return it->type;
         }
     }
     return 0;
 }
+#endif
 
 /* ------------------------------------------------------------ main.c */
 
@@ -534,7 +583,8 @@ static void particles_spawn(int16_t x, int16_t y, uint8_t count, int8_t color)
     game.events |= EV_PARTICLES;
 }
 
-static void particles_update(void)
+#ifndef __SDCC
+void particles_update(void)
 {
     uint8_t i;
     Particle *q = game.particles;
@@ -547,6 +597,9 @@ static void particles_update(void)
         }
     }
 }
+#endif
+
+static int16_t end_x = -1000, end_y = -1000;   /* the ENT_LEVEL_END (one a level) */
 
 static void start_level(int8_t level_num)
 {
@@ -559,11 +612,19 @@ static void start_level(int8_t level_num)
     ld = level_current();
 
     enemies_spawn(ld->entities);
+#ifdef __SDCC
+    enemies_rows();                        /* port: enemies.asm keeps the walkers' rows */
+#endif
     items_spawn(ld->entities);
     memset(game.particles, 0, sizeof(game.particles));
 
     p = &game.player[game.active_player];
 
+    for (s = ld->entities; s->type != ENT_NONE; s++)
+        if (s->type == ENT_LEVEL_END) {
+            end_x = s->tx * TILE_SIZE;
+            end_y = s->ty * TILE_SIZE;
+        }
     for (s = ld->entities; s->type != ENT_NONE; s++) {
         if (s->type == ENT_PLAYER_START) {
             /* port: player_init() reset the score, lives and health too,
@@ -606,20 +667,12 @@ static void update_camera(Player *p)
 
 static uint8_t check_level_end(Player *p)
 {
-    const EntitySpawn *s;
+    /* port: the level's end is found once a level (start_level), not every tick */
     int16_t px_center = p->x + PLAYER_W / 2;
     int16_t py_center = p->y + PLAYER_H / 2;
-
-    for (s = level_current()->entities; s->type != ENT_NONE; s++) {
-        if (s->type == ENT_LEVEL_END) {
-            int16_t ex = s->tx * TILE_SIZE;
-            int16_t ey = s->ty * TILE_SIZE;
-            if (px_center > ex && px_center < ex + TILE_SIZE * 2 &&
-                py_center > ey - TILE_SIZE && py_center < ey + TILE_SIZE * 2)
-                return 1;
-        }
-    }
-    return 0;
+    int16_t ex = end_x, ey = end_y;
+    return px_center > ex && px_center < ex + TILE_SIZE * 2 &&
+           py_center > ey - TILE_SIZE && py_center < ey + TILE_SIZE * 2;
 }
 
 static void new_player(Player *p, int8_t character)
@@ -654,7 +707,6 @@ void jq_tick(uint8_t inp)
         player_update(inp);
         memcpy(p, &pl, sizeof(Player));
         enemies_update();
-        items_update();
         particles_update();
         update_camera(p);
 

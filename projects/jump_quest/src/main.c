@@ -5,12 +5,13 @@
  * jq.c is the original's logic at a fixed 50 Hz; this file is the Spectrum
  * front end. port: the original's 16-pixel tiles stay 16 pixels (2 x 2
  * character cells, each with its own colours), 16 of them across instead of
- * 20. Its camera already moves in whole tiles, so the view scrolls by
- * character strips (sdk cellspr48's cs_scroll: two columns a step, rows of
- * plain sky aren't moved). The 14 tile rows are 224 pixels and the screen
- * 192: rows 1-12 are shown (row 0 is clouds or the ceiling, row 13 the earth
- * under the grass), the top 8 pixels of row 1 behind the HUD. The sprites are
- * composed per cell over the tiles (cellspr48), one colour each.
+ * 20. The 14 tile rows are 224 pixels and the screen 192: rows 1-12 are shown
+ * (row 0 is clouds or the ceiling, row 13 the earth under the grass), the top
+ * 8 pixels of row 1 behind the HUD. The view jumps half a screen when the
+ * player nears its edge (view_target: scrolling cost more than a frame each
+ * step, README.md). The player, the enemies and the particles are composed
+ * per cell over the tiles (sdk cellspr48), one colour each; the items are
+ * tiles.
  *
  * Controls (README.md): LEFT/RIGHT walk, FIRE or UP jumps; keys, Sinclair, Kempston.
  */
@@ -38,13 +39,12 @@
 #define HUD_ROW   0
 
 /* sprite slots, in drawing order (cellspr48: later sprites win the colour):
-   the original draws the items, the enemies, the player, the particles */
-#define SLOT_ITEM   0
-#define N_ITEM      6
-#define SLOT_ENEMY  6
+   the original draws the enemies, the player, the particles (the items are
+   tiles: see view_items) */
+#define SLOT_ENEMY  0
 #define N_ENEMY     5
-#define SLOT_PLAYER 11              /* then particles in 12..15 (11 too while dying) */
-#define N_SLOTS     16
+#define SLOT_PLAYER 5               /* then particles in 6..13 (5 too while dying) */
+#define N_SLOTS     14
 
 static uint8_t view[ROOM_W * ROOM_H];
 static uint8_t view_tx;             /* the view's first tile column */
@@ -60,7 +60,6 @@ static uint8_t enemy_buf[N_ENEMY][2][3 * 16];
 static const uint8_t *shift_src[N_SHIFTED];
 static uint8_t shift_x[N_SHIFTED], shift_bufi[N_SHIFTED];
 static uint8_t pre_spider[2][3 * 16];
-static uint8_t pre_item[10][3 * 16];
 static uint8_t pre_dot[8 * 2 * 2];
 
 /* sprite k's picture src (16 pixels wide, h lines) at pixel x */
@@ -92,7 +91,6 @@ static void art_init(void)
     uint8_t t, f;
     static const uint8_t dot[2] = { 0xC0, 0xC0 };
     for (f = 0; f < 2; f++) shift0(gfx_enemy + (2 * 2 + f) * 32, 16, pre_spider[f]);
-    for (t = 0; t < 10; t++) shift0(gfx_item + t * 32, 16, pre_item[t]);
     spr_preshift(dot, 1, 2, pre_dot);
 }
 
@@ -115,40 +113,115 @@ static uint8_t cell_id(uint8_t tx, uint8_t r, uint8_t right)
     return (uint8_t)((TMAP(tx, row_tile_ty[r]) << 2) | row_half[r] | right);
 }
 
-static void view_build(void)
+/* port: the items are tiles (the original bobs them 2 pixels up and down;
+   as cellspr48 sprites they cost more than the rest of the frame): an active
+   item's four cells replace its (empty) tile's. Writes the item cells for
+   tile columns first..first + n - 1 into map (2n cells a room row) */
+static uint8_t item_on[MAX_ITEMS];          /* what the view shows */
+
+static void view_items(uint8_t first, uint8_t n, uint8_t *map, uint8_t stride)
 {
-    uint8_t r, c, *v = view;
-    view_tx = (uint8_t)(game.cam_x >> 4);
-    for (r = 0; r < ROOM_H; r++)
-        for (c = 0; c < ROOM_W; c++)
-            *v++ = cell_id(view_tx + (c >> 1), r, c & 1);
+    uint8_t i, r;
+    const Item *it = game.items;
+    for (i = 0; i < MAX_ITEMS; i++, it++) {
+        uint8_t tx = (uint8_t)(it->x >> 4), ty = (uint8_t)(it->y >> 4), id, *m;
+        if (!it->active || (uint8_t)(tx - first) >= n) continue;
+        id = (uint8_t)(GFX_ITEM_CELLS + ((it->type < 20 ? it->type - ENT_BOARD : it->type - ENT_BRIEFCASE + 5) << 2));
+        m = map + ((tx - first) << 1);
+        for (r = 0; r < ROOM_H; r++, m += stride)
+            if (row_tile_ty[r] == ty) {
+                m[0] = id | row_half[r];
+                m[1] = id | row_half[r] | 1;
+            }
+    }
 }
 
-#define MAX_STEP 2                  /* tiles a scroll; more: redraw it all */
-static uint8_t fill[ROOM_H * 2 * MAX_STEP];
+static int16_t view_x;                /* view_tx in pixels */
 
-/* the camera moved: scroll by whole tiles, or redraw it all if it jumped */
-static void view_follow(void)
+/* the view at tile column tx. jump: the screen shows a view already; only
+   the cells that change are drawn (the sky mostly stays) */
+static void view_build(uint8_t tx, uint8_t jump)
 {
-    uint8_t tx = (uint8_t)(game.cam_x >> 4), r, k, n, first, *f = fill;
-    int8_t dt = (int8_t)(tx - view_tx);
-    if (!dt) return;
-    if (dt > MAX_STEP || dt < -MAX_STEP) {
-        view_build();
-        cs_draw_all();
+    uint8_t r, c, *v = view, i;
+    view_tx = tx;
+    view_x = (int16_t)tx << 4;
+    if (jump) cs_wipe_sprites(0);
+    for (r = 0; r < ROOM_H; r++) {
+        const uint8_t *t = tmap_row[row_tile_ty[r]] + tx;
+        uint8_t h = row_half[r];
+        for (c = 0; c < ROOM_W; c += 2, v += 2) {
+            uint8_t id = (uint8_t)((*t++ << 2) | h);
+            if (!jump) {
+                v[0] = id;
+                v[1] = id | 1;
+                continue;
+            }
+            if (v[0] != id) cs_put_tile(c, r, id);
+            if (v[1] != (id | 1)) cs_put_tile(c + 1, r, id | 1);
+        }
+    }
+    /* the items: their cells (in a jump, then drawn) */
+    for (i = 0; i < MAX_ITEMS; i++) item_on[i] = game.items[i].active;
+    if (!jump) {
+        view_items(tx, VIEW_TILES, view, ROOM_W);
         return;
     }
-    n = (uint8_t)(dt > 0 ? dt : -dt);
-    first = dt > 0 ? tx + VIEW_TILES - n : tx;
-    for (r = 0; r < ROOM_H; r++)
-        for (k = 0; k < 2 * n; k++)
-            *f++ = cell_id(first + (k >> 1), r, k & 1);
-    view_tx = tx;
-    cs_scroll((int8_t)(2 * dt), fill);
+    {
+        const Item *it = game.items;
+        for (i = 0; i < MAX_ITEMS; i++, it++) {
+            uint8_t x = (uint8_t)(it->x >> 4), y = (uint8_t)(it->y >> 4), id;
+            if (!it->active || (uint8_t)(x - tx) >= VIEW_TILES) continue;
+            id = (uint8_t)(GFX_ITEM_CELLS + ((it->type < 20 ? it->type - ENT_BOARD : it->type - ENT_BRIEFCASE + 5) << 2));
+            c = (uint8_t)((x - tx) << 1);
+            for (r = 0; r < ROOM_H; r++)
+                if (row_tile_ty[r] == y) {
+                    cs_put_tile(c, r, id | row_half[r]);
+                    cs_put_tile(c + 1, r, id | row_half[r] | 1);
+                }
+        }
+    }
+}
+
+/* port: the view jumps half a screen (8 tiles) when the player gets near
+   its edge: scrolling cost more than a frame each 16 pixels (README.md).
+   The original's camera (cam_x) lags 60-odd pixels behind the player (it
+   snaps to whole tiles every tick), which its 320-pixel screen could
+   afford; this view keeps the player between 48 and 176 pixels from the
+   left (80 or more ahead), up to the level's ends. */
+#define VIEW_STEP 8
+
+static uint8_t view_target(void)
+{
+    const Player *p = &game.player[game.active_player];
+    int16_t sx = p->x - ((int16_t)view_tx << 4);
+    uint8_t tx = view_tx, last = (uint8_t)(tmap_w - VIEW_TILES);
+    while (sx > 176 && tx < last) { tx = tx + VIEW_STEP > last ? last : tx + VIEW_STEP; sx = p->x - ((int16_t)tx << 4); }
+    while (sx < 48 && tx > 0) { tx = tx < VIEW_STEP ? 0 : tx - VIEW_STEP; sx = p->x - ((int16_t)tx << 4); }
+    return tx;
+}
+
+static void view_follow(void)
+{
+    uint8_t tx = view_target();
+    if (tx == view_tx) return;
+    view_build(tx, 1);
 }
 
 /* ? blocks the player hit, redrawn after the scroll */
-static uint8_t tile_q_tx[4], tile_q_ty[4], tile_qn;
+static uint8_t tile_q_tx[6], tile_q_ty[6], tile_qn;
+
+/* items the player took since the last look: their tiles back */
+static void items_taken(void)
+{
+    uint8_t i;
+    const Item *it = game.items;
+    for (i = 0; i < MAX_ITEMS; i++, it++)
+        if (item_on[i] && !it->active && tile_qn < sizeof(tile_q_tx)) {
+            item_on[i] = 0;
+            tile_q_tx[tile_qn] = (uint8_t)(it->x >> 4);
+            tile_q_ty[tile_qn++] = (uint8_t)(it->y >> 4);
+        }
+}
 
 static void view_tiles(void)
 {
@@ -168,16 +241,24 @@ static void view_tiles(void)
 
 /* ------------------------------------------------------------ sprites */
 
-static uint8_t show_enemies, show_player, show_items;
+static uint8_t show_enemies, show_player;
 
 static cs_sprite *slot;              /* the next sprite slot to fill */
+extern uint8_t enemies_on_screen(int16_t view_x, uint8_t *list);   /* checks.asm */
 
-/* the next slot shows gfx at world (wx, wy), if the original would draw it
-   there (its draw functions skip anything not wholly on the screen) */
+/* would the original draw a sprite w bytes wide at world (wx, wy)? (its draw
+   functions skip anything not wholly on the screen) */
+static uint8_t visible(int16_t wx, int16_t wy, uint8_t w)
+{
+    return (uint16_t)(wx - view_x) <= (uint16_t)(SCREEN_W - 8 * w)
+        && (uint16_t)(wy - VIEW_Y) <= 224 - 16 - VIEW_Y;
+}
+
+/* the next slot shows gfx at world (wx, wy), if visible */
 static void put(int16_t wx, int16_t wy, const uint8_t *gfx, uint8_t ink, uint8_t w)
 {
-    uint16_t x = (uint16_t)(wx - game.cam_x), y = (uint16_t)(wy - VIEW_Y);
-    if (x > SCREEN_W - 8 * w || y > 224 - 16 - VIEW_Y) return;
+    uint16_t x = (uint16_t)(wx - view_x), y = (uint16_t)(wy - VIEW_Y);
+    if (!visible(wx, wy, w)) return;
     slot->x = (uint8_t)x;
     slot->y = (uint8_t)y;
     slot->gfx = gfx;
@@ -196,28 +277,15 @@ static void sprites_from_game(void)
     uint8_t i;
     const Player *p = &game.player[game.active_player];
 
-    /* items: on whole tiles, bobbing */
-    slot = cs_spr + SLOT_ITEM;
-    if (show_items) {
-        const Item *it = game.items;
-        for (i = 0; i < MAX_ITEMS && slot < cs_spr + SLOT_ITEM + N_ITEM; i++, it++) {
-            uint8_t k;
-            if (!it->active) continue;
-            k = (uint8_t)(it->type < 20 ? it->type - ENT_BOARD : it->type - ENT_BRIEFCASE + 5);
-            put(it->x, it->y + it->float_off, pre_item[k], gfx_item_ink[k], 2);
-        }
-    }
-    slots_off(cs_spr + SLOT_ENEMY);
-
+    slot = cs_spr + SLOT_ENEMY;
     if (show_enemies) {
-        const Enemy *e = game.enemies;
-        for (i = 0; i < MAX_ENEMIES && slot < cs_spr + SLOT_ENEMY + N_ENEMY; i++, e++) {
+        uint8_t list[N_ENEMY], n = enemies_on_screen(view_x, list), k;
+        for (k = 0; k < n; k++) {
+            const Enemy *e = &game.enemies[list[k]];
             uint8_t t = (uint8_t)(e->type - ENT_BEETLE);
-            if (!e->alive) continue;
-            put(e->x, e->y, t == 2 ? pre_spider[e->frame]
-                : shifted((uint8_t)(slot - cs_spr - SLOT_ENEMY + 1), gfx_enemy + (t * 2 + e->frame) * 32, 16,
-                          (uint8_t)(e->x - game.cam_x)),
-                gfx_enemy_ink[t], 2);
+            const uint8_t *g = t == 2 ? pre_spider[e->frame]
+                : shifted(k + 1, gfx_enemy + ((t * 2 + e->frame) << 5), 16, (uint8_t)(e->x - view_x));
+            put(e->x, e->y, g, gfx_enemy_ink[t], 2);
         }
     }
     slots_off(cs_spr + SLOT_PLAYER);
@@ -229,14 +297,16 @@ static void sprites_from_game(void)
             uint8_t leg = p->state == 1 ? (p->walk_frame == 1 ? 1 : p->walk_frame == 3 ? 2 : 0) : 0;
             int16_t y = p->y < VIEW_Y ? VIEW_Y : p->y;     /* port: no higher than the HUD */
             uint8_t frame = (uint8_t)((p->character * 2 + (p->dir < 0)) * 3 + leg);
-            put(p->x, y, shifted(0, gfx_player + frame * (GFX_PLAYER_H * 2), GFX_PLAYER_H,
-                                 (uint8_t)(p->x - game.cam_x)), INK_WHITE, 2);
+            if (visible(p->x, y, 2))
+                put(p->x, y, shifted(0, gfx_player + frame * (GFX_PLAYER_H * 2), GFX_PLAYER_H,
+                                     (uint8_t)(p->x - view_x)), INK_WHITE, 2);
         }
         slot = cs_spr + SLOT_PLAYER + 1;
     }
 
-    /* particles: 2x2 dots in the slots left */
-    {
+    /* particles: 2x2 dots in the slots left (only after a death: the
+       original spawns them there and nowhere else) */
+    if (!show_player) {
         const Particle *q = game.particles;
         for (i = 0; i < MAX_PARTICLES && slot < cs_spr + N_SLOTS; i++, q++)
             if (q->life > 0) put(q->x, q->y, pre_dot, INK_RED, 1);
@@ -521,7 +591,7 @@ static uint8_t demo_left;
 static uint8_t demo_input(void)
 {
     if (game.state != STATE_PLAYING) return 0;
-    if (game.level_ticks == 1) {              /* a level starts: find its route */
+    if (game.level_ticks == 0) {              /* a level starts (before its first tick): its route */
         uint8_t l = 0;
         demo_at = 0;
         while (l < game.current_level) if (demo_route[demo_at++][0] == 0xFF) l++;
@@ -546,16 +616,24 @@ static void isr_work(void)
     input_sample();
 }
 
-static uint8_t read_input(uint8_t *start)
+/* the original's input bits. port: read once a frame (presses latched by the
+   interrupt); a slow frame's extra ticks take the same keys */
+static uint8_t keys_to_inp(uint8_t in)
 {
-    uint8_t in = input_read(), pr = input_pressed(), f = 0;
+    uint8_t f = 0;
     if (in & IN_LEFT) f |= INP_LEFT;
     if (in & IN_RIGHT) f |= INP_RIGHT;
     if (in & IN_DOWN) f |= INP_DOWN;
     if (in & (IN_UP | IN_FIRE)) f |= INP_JUMP;   /* port: UP jumps too (Q, joystick up) */
-    *start = (pr & (IN_FIRE | IN_START)) != 0;
     if (in & IN_START) f |= INP_START;
     return f;
+}
+
+static uint8_t read_input(uint8_t *start)
+{
+    uint8_t in = input_read();
+    *start = (input_pressed() & (IN_FIRE | IN_START)) != 0;
+    return keys_to_inp(in);
 }
 
 static uint8_t resync, full_redraw;
@@ -564,10 +642,11 @@ static void game_screen(void)
 {
     const Player *p = &game.player[game.active_player];
     memset(shift_src, 0, sizeof(shift_src));
-    show_items = show_enemies = show_player = 1;
+    show_enemies = show_player = 1;
     slot_sizes();
     tmap_init(game.tiles, levels[game.current_level].width, TILES_Y);
-    view_build();
+    view_tx = 0;                                /* a level starts at its left end */
+    view_build(view_target(), 0);
     zx_border(INK_BLACK);
     hud_reset();
     hud(p);
@@ -678,8 +757,15 @@ static void game_over_to_title(void)
     title_loop();
 }
 
+/* the stack (down from 0xFF58) must never reach the game's state (jq.h,
+   up to 0xFCBA): 0xFCC0-0xFDFF is filled at the start, test.py checks it */
+#define CANARY 0xFCC0
+#define CANARY_LEN 0x140
+
 int main(void)
 {
+    memset((void *)CANARY, 0xA5, CANARY_LEN);
+    memset(&game, 0, sizeof(Game));
     gfx_init();
     art_init();
     view_rows_init();
@@ -701,7 +787,7 @@ int main(void)
         Player *p;
         STAGE(INK_BLACK);
         ticks = frame_wait();                   /* fixed timestep: the logic runs `ticks` times */
-        if (ticks > 6) ticks = 6;
+        if (ticks > 25) ticks = 25;           /* catch-up cap: a level start, not a busy frame */
         if (resync) { ticks = 1; resync = 0; }
         jq_probe.ticks += ticks;
         jq_probe.frames++;
@@ -742,11 +828,11 @@ int main(void)
 
         prev_state = game.state;
         for (t = 0; t < ticks; t++) {
-            if (t) f = read_input(&start);
             if (demo_on) f = demo_input();
             update_probe();                     /* what a test bot sees before each tick */
             jq_tick(f);
-            if (game.events & EV_TILE && tile_qn < 4) {
+            if (game.events & (EV_COLLECT | EV_POWERUP)) items_taken();
+            if (game.events & EV_TILE && tile_qn < sizeof(tile_q_tx)) {
                 tile_q_tx[tile_qn] = game.tile_tx;
                 tile_q_ty[tile_qn++] = game.tile_ty;
             }
