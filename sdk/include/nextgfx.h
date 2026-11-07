@@ -80,6 +80,11 @@ extern void l2w_fill(uint16_t x, uint8_t y, uint16_t w, uint16_t h, uint8_t colo
 /* 5x7 font text: each dot sx x sy pixels, the lower `gap` rows of a dot dark
    (gap 1 gives a dot-matrix look) */
 extern void l2w_text5(uint16_t x, uint8_t y, const char *s, uint8_t colour, uint8_t sx, uint8_t sy, uint8_t gap);
+/* ROM font text (8 x 8, lower case too; the 48K ROM must be at 0x0000, as in
+   a .nex or code run from BASIC), colour on transparent; narrow = 6 pixels a
+   character. Returns the x after the text */
+extern uint16_t l2w_text(uint16_t x, uint8_t y, const char *s, uint8_t colour, uint8_t narrow);
+#define L2W_TEXT_W(n, narrow) ((n) * ((narrow) ? 6 : 8))
 
 extern void ay_chip(uint8_t n);          /* TurboSound: 0..2 */
 

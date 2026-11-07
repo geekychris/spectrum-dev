@@ -51,6 +51,8 @@ extern void frame_init(void);              /* install IM 2, enable interrupts, r
 /* wait for the next frame (HALT); returns how many frames passed since the last
    call (1 = on time). Fixed-timestep games run their logic that many times. */
 extern uint8_t frame_wait(void);
+/* back to the ROM's IM 1 (I = 0x3F) before returning to BASIC (code run with USR) */
+extern void frame_exit(void);
 extern volatile uint8_t frame_ticks;       /* incremented by the interrupt */
 extern void (*frame_hook)(void);           /* called from the interrupt each frame if set */
 extern uint16_t frame_count;               /* frames since frame_init (waits) */

@@ -49,7 +49,7 @@ _MACHINE_NAMES = {
     "ZX Spectrum +3 (ROM v4.1)": "plus3", "Pentagon": "pentagon", "ZX Spectrum Next": "next",
 }
 
-LOADABLE = (".tap", ".tzx", ".pzx", ".sna", ".z80", ".zsf", ".nex", ".snx", ".sp", ".dsk", ".trd")
+LOADABLE = (".tap", ".tzx", ".pzx", ".sna", ".z80", ".zsf", ".nex", ".snx", ".sp", ".dsk", ".trd", ".mmc")
 
 
 def repo_root() -> Path:
@@ -100,8 +100,12 @@ class EmulatorError(RuntimeError):
 class Emulator:
     def __init__(self, machine: str = "48k", window: bool = False, paused: bool | None = None,
                  port: int | None = None, zoom: int | None = None, audio: bool | None = None,
-                 joystick: str = "Kempston", extra_args=(), log_path=None):
+                 joystick: str = "Kempston", extra_args=(), log_path=None, sd=None):
         self.machine = machine_id(machine)
+        # an SD card image (.mmc): the Next boots NextZXOS from it (see load())
+        self.sd = str(Path(sd).resolve()) if sd else None
+        if self.sd:
+            self.machine = "next"
         self.window = window
         self.paused = (not window) if paused is None else paused
         self.port = port or free_port()
@@ -154,6 +158,9 @@ class Emulator:
                 args += ["--zoom", str(o["zoom"])]
         else:
             args += ["--vo", "null", "--ao", "null", "--disablerealjoystick"]
+        if self.sd:
+            # absolute path: ZEsarUX changes directory before it opens the file
+            args += ["--enable-mmc", "--enable-divmmc-ports", "--mmc-file", self.sd]
         args += o["extra"]
         self.proc = subprocess.Popen(args, stdout=self._out, stderr=subprocess.STDOUT,
                                      stdin=subprocess.DEVNULL, start_new_session=True)
@@ -271,6 +278,8 @@ class Emulator:
         if not p.exists():
             raise EmulatorError(f"{p} not found")
         ext = p.suffix.lower()
+        if ext == ".mmc":
+            return self.boot_sd(p)
         if machine:
             want = machine_id(machine)
         elif ext in (".nex", ".snx"):
@@ -293,6 +302,26 @@ class Emulator:
         self._inputs, self._checkpoints, self._seq = [], [], 0
         self._joy_at_load = self.joystick()
         self.last_stop = None
+        return self.status()
+
+    def boot_sd(self, path, fresh: bool = False) -> dict:
+        """Insert an SD card image (.mmc, e.g. ./zx arcade's) and power the Next
+        on: it boots NextZXOS from the card (~600 frames to its autoexec.bas).
+        A fresh emulator process; ZEsarUX writes the guest's changes back to
+        the image file, so boot a copy to keep the image as it is. fresh=True:
+        this emulator was just started with sd=path, don't restart it."""
+        p = Path(path).resolve()
+        if not p.exists():
+            raise EmulatorError(f"{p} not found")
+        if not (fresh and self.sd == str(p)):
+            self.sd = str(p)
+            self.machine = "next"
+            self.power_cycle()
+        self.program = str(p)
+        self.load_frame = self.frame()
+        self.symbols = Symbols.load(p.with_suffix(".map"))
+        self.mark = self.log_end()
+        self._joy_at_load = self.joystick()
         return self.status()
 
     POWER_ON_REGS = {"AF": 0xFFFF, "SP": 0xFFFF, "BC": 0, "DE": 0, "HL": 0, "IX": 0, "IY": 0,
@@ -938,7 +967,7 @@ class Emulator:
     # ------------------------------------------------------------- restart
 
     def reload(self) -> dict:
-        """Reset and load the same program again."""
+        """Reset and load the same program again (an SD image: power on again)."""
         if not self.program:
             raise EmulatorError("no program loaded")
         return self.load(self.program)

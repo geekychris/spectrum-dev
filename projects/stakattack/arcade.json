@@ -1,0 +1,7 @@
+{
+  "title": "StakAttack",
+  "ready": "stak: ready",
+  "description": "Gem pieces fall into the well: rotate and slide them to fill rows. Every ten rows it gets faster.",
+  "controls": "O/P move, Q rotate, A drop, SPACE slam",
+  "picture": "screenshots/play.png"
+}

@@ -255,9 +255,12 @@ def serve(program: str | None = None, machine: str | None = None, window: bool =
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
     for old in sorted(SESSIONS_DIR.glob("zesarux-*.log"), key=lambda p: p.stat().st_mtime)[:-20]:
         old.unlink(missing_ok=True)   # keep the 20 newest emulator logs
-    emu = Emulator(machine=machine, window=window, paused=True, zoom=zoom,
+    sd = program if program and program.lower().endswith(".mmc") else None
+    emu = Emulator(machine=machine, window=window, paused=True, zoom=zoom, sd=sd,
                    log_path=SESSIONS_DIR / f"zesarux-{os.getpid()}.log")
-    if program:
+    if sd:
+        emu.boot_sd(sd, fresh=True)       # boots NextZXOS from the card
+    elif program:
         emu.load(program)
     if not paused:
         emu.resume()

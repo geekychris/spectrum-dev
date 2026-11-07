@@ -1,0 +1,7 @@
+{
+  "title": "Spectral Keep",
+  "ready": "keep: ready",
+  "description": "Isometric adventure: find the relics in three keeps and carry them to the throne. Mind the ghosts.",
+  "controls": "Q/A/O/P walk, SPACE jump, Kempston",
+  "picture": "screenshots/play.png"
+}

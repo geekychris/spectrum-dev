@@ -1,0 +1,7 @@
+{
+  "title": "Frank the Frog",
+  "ready": "frank: ready",
+  "description": "Hop Frank across the traffic and the river's logs and rafts into the four ponds.",
+  "controls": "Q/A/O/P hop, SPACE start, Kempston",
+  "picture": "screenshots/play.png"
+}

@@ -1,0 +1,7 @@
+{
+  "title": "Boing Pinball",
+  "ready": "pinball: ready",
+  "description": "The Comet Tour table with the Boing ball: bumpers, drop targets, ramp, orbit, missions, multiball.",
+  "controls": "Z/M flippers, SPACE plunger, Q nudge",
+  "picture": "screenshots/play.png"
+}

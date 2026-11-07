@@ -1,0 +1,7 @@
+{
+  "title": "Nova Defense",
+  "ready": "nova: ready",
+  "description": "Defend the base against a swarm of 48 aliens and the bonus comet, behind crumbling crystal shields.",
+  "controls": "O/P move, SPACE fire, Kempston",
+  "picture": "screenshots/play.png"
+}

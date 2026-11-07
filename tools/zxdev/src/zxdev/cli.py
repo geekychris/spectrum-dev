@@ -2,6 +2,7 @@
 
   zxdev run <program> [--machine M] [--zoom Z]       window session (free-running)
   zxdev serve [program] [--window] [--mode paused|running]   session process
+  zxdev arcade [--no-build] [--image-only] [--list]         the game menu on an SD image
   zxdev test <program> [--frames N] [--machine M]    headless: pass on ZX:DONE, fail on ZX:FAIL
   zxdev log <program> [--frames N] [--press KEY@FRAME ...]
   zxdev shot <program> -o out.png [--until TEXT] [--frames N] [--press KEY@FRAME] [--no-border]
@@ -231,6 +232,26 @@ def cmd_symbols(a) -> int:
     return 0
 
 
+def cmd_arcade(a) -> int:
+    from . import arcade
+    try:
+        if a.list:
+            for g in arcade.games():
+                print(f"{g['project']:<16} {g['machine']:<5} {g['title']:<20} {g['controls']}")
+            return 0
+        print("arcade: building the games, the menu and the SD image")
+        m = arcade.build(do_build=not a.no_build, log=print)
+    except arcade.ArcadeError as ex:
+        print(f"arcade: {ex}", file=sys.stderr)
+        return 1
+    if a.image_only:
+        return 0
+    from .session import serve
+    print("window session: NextZXOS boots into the menu (reset to come back from a game).")
+    serve(m["image"], "next", True, "running", 0, a.zoom)
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="zxdev", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -309,6 +330,12 @@ def main(argv=None) -> int:
     p.add_argument("program")
     p.add_argument("pattern", nargs="?")
 
+    p = sub.add_parser("arcade", help="build every game + the menu into an SD image and open it")
+    p.add_argument("--no-build", action="store_true", help="use what is built")
+    p.add_argument("--image-only", action="store_true", help="make the image, don't open a window")
+    p.add_argument("--list", action="store_true", help="list the registered games")
+    p.add_argument("--zoom", type=int)
+
     p = sub.add_parser("devbench")
     p.add_argument("--port", type=int, default=3580)
     p.add_argument("--host", default="127.0.0.1")
@@ -325,6 +352,8 @@ def main(argv=None) -> int:
         print("window session; ./zx ctl <cmd> drives it, Claude can emu_attach(). Ctrl-C or close the window to stop.")
         serve(prog, a.machine, True, "running", a.port, a.zoom)
         return 0
+    if a.cmd == "arcade":
+        return cmd_arcade(a)
     if a.cmd == "devbench":
         from .devbench import main as devbench
         devbench(a.port, a.host, a.open)

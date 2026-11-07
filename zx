@@ -16,6 +16,7 @@
 #   ./zx sessions                running sessions
 #   ./zx symbols <project> [regex]
 #   ./zx devbench [--port 3580] [--open]                    web UI + REST + MCP over HTTP
+#   ./zx arcade [--no-build] [--image-only] [--list]   every game + a menu on an SD image, in a window
 #   ./zx clean <project>
 #   ./zx selftest                build + test everything (do this before saying "done")
 #   ./zx zxdev ...               raw access to the zxdev CLI
@@ -47,6 +48,7 @@ case "$cmd" in
   devbench|ctl|sessions)
            need_zxdev; exec "$ZXDEV" "$cmd" "$@" ;;
   replay)  need_zxdev; need_emu; exec "$ZXDEV" replay "$@" ;;
+  arcade)  need_zxdev; need_emu; exec "$ZXDEV" arcade "$@" ;;
   run|serve|log|shot|symbols|video|record)
            need_zxdev; need_emu
            if [ $# -ge 1 ] && [ -f "$ROOT/projects/$1/Makefile" ]; then

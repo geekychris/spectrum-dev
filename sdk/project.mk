@@ -18,6 +18,10 @@
 #           build/<NAME>.nex   (TARGET=zxn: loads directly on the Next)
 #           build/<NAME>.map   symbols (./zx and the MCP tools read it)
 #
+# OUTPUT := bin (TARGET=zxn) makes build/<NAME>.bin instead: plain code at ORG
+#              to load from BASIC and run with USR (the crt returns to BASIC;
+#              projects/arcade). nextbasic.py's plus3dos_code() adds the header.
+#
 # Overridable: ORG (default 32768), STARTUP (default 31 = no terminal; 0 = 32x24
 #              printf terminal, about 2 KB more), OPT, CLIB, EXTRA_CFLAGS,
 #              EXTRA_LDFLAGS, EXTRA_OBJS, DEBUG=1 (-O0 and no optimiser),
@@ -67,6 +71,9 @@ else
 ifeq ($(TARGET),zx)
 OUT := $(BUILD)/$(NAME).tap
 APPFLAGS := -create-app
+else ifeq ($(TARGET)$(OUTPUT),zxnbin)
+OUT := $(BUILD)/$(NAME).bin
+APPFLAGS :=
 else ifeq ($(TARGET),zxn)
 OUT := $(BUILD)/$(NAME).nex
 APPFLAGS := -subtype=nex -create-app
@@ -103,6 +110,7 @@ $(SDK_LIB): $(SDK_OBJS)
 $(OUT): $(OBJS) $(SDK_LIB) $(wildcard zpragma.inc)
 	zcc $(LDFLAGS) $(OBJS) -L$(BUILD) -lzxsdk -o $(BUILD)/$(NAME) $(APPFLAGS)
 	@rm -f $(BUILD)/$(NAME)
+	@if [ "$(OUTPUT)" = bin ]; then mv $(BUILD)/$(NAME)_CODE.bin $@; fi
 	@# frame_init() puts the IM 2 table at 0xF000: code + data must end below it
 	@end=$$(awk '/^__BSS_END_tail/ {print $$3}' $(BUILD)/$(NAME).map | tr -d '$$'); \
 	 if [ -n "$$end" ] && [ $$((0x$$end)) -gt $$((0xF000)) ]; then \
