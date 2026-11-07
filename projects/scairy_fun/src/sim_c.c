@@ -5,6 +5,14 @@
 
 uint8_t obj_top;
 
+int closed_down(const Seg *seg, int hi, int lo)
+{
+    int k;
+    for (k = hi; k >= lo; k--)
+        if (seg[k].closed & 1) return k;
+    return -1;
+}
+
 const Obj *lead_scan(const Obj *objs, const Obj *o, int32_t *best)
 {
     const Obj *p = objs, *found = 0;

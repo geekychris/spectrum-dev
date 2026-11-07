@@ -42,6 +42,7 @@ int obj_find(const Obj *objs, int start, uint16_t mask);   /* next i >= start of
 #define OBJ_BIT(t)  (1u << (t))
 #define OBJ_ANY     0xFFFEu                  /* every type but OBJ_NONE */
 int lane_scan(const Obj *objs, int lane, int32_t z, int32_t lo, int32_t hi, int skip);
+int closed_down(const Seg *seg, int hi, int lo);  /* k from hi down to lo with lane 0 coned, else -1 */
 /* world_ai.c */
 void car_update(World *w, unsigned in);
 

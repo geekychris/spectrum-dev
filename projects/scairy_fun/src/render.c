@@ -33,15 +33,13 @@
 #define SEGF       ((int32_t)SEG_LEN * (1 << FBITS))
 #define CAM_BACK   230                  /* chase camera: units behind the car */
 #define CAM_UP     92
-#define LINE_SEGS  24                   /* lane lines this far out */
+#define LINE_SEGS  16                   /* port: lane lines this far out (under half a pixel wide there) */
 #define SCENE_SEGS 30
 #define DRAW_SEGS  24
 #define NEAR       20                   /* units: the near plane */
 
 Cam cam;
 uint16_t render_polys;
-extern uint8_t lim_slope, lim_wall, lim_scene, lim_draw;   /* EXPERIMENT */
-static uint8_t cur_k;
 extern uint8_t render_skip;             /* profiling: bits skip parts of the frame (main.c) */
 
 /* ---------- colours (the original's, 12-bit) ---------- */
@@ -255,10 +253,8 @@ static void band_end(void)
 
 /* ---------- the road ---------- */
 #define FLAT_SIDE(t) ((t) == SIDE_GRASS || (t) == SIDE_MEDIAN || (t) == SIDE_TOWN)
-#define SLOPE_SEGS 40                   /* port: sloping sides as quads this near, flat further */
-static uint8_t seg_mode;                /* 0 near, 1 middle (slopes flat), 2 far (no lines) */
+static uint8_t no_lines;                /* far: no lane lines (LINE_SEGS) */
 #define SIDE_IN_BAND(t) FLAT_SIDE(t)
-#define SLOPE_IN_BAND(t) (FLAT_SIDE(t) || seg_mode)     /* the slope strip, flat (port) */
 #define FAR_OUT 20000                   /* port: the outermost points, off screen at any depth */
 
 /* the cross-section, and the rails of the flat band (rebuilt when the sides change) */
@@ -267,7 +263,7 @@ static void profile(const World *w, const Seg *g)
     const int16_t *L = side_prof[g->side[0]], *R = side_prof[g->side[1]];
     const RouteInfo *r = &route_info[w->route];
     int16_t rl = road_left(w), rr = road_right(w);
-    uint8_t id = (g->side[0] * SIDE_COUNT + g->side[1]) | seg_mode << 6, k, n;
+    uint8_t id = (g->side[0] * SIDE_COUNT + g->side[1]) | no_lines << 7, k, n;
     if (id == prof_id) return;
     prof_id = id;
     prof[6] = rl;                prof[7] = 0;             /* 3: road left edge */
@@ -286,7 +282,7 @@ static void profile(const World *w, const Seg *g)
     }
     nroff = 8;
     rline = nroff;
-    if (seg_mode == 2) return;
+    if (no_lines) return;
 #define LINE_RAILS(x) (roff[nroff++] = (x) - 2, roff[nroff++] = (x) + 2)
     LINE_RAILS(r->no ? 0 : rl + 4);                       /* line 0: centre / left yellow */
     LINE_RAILS(rr - 3);                                   /* line 1: right edge */
@@ -311,7 +307,7 @@ static void side_strips(const World *w, int i, int side)
     case SIDE_CANAL: inner = PEN_ROCK; outer = PEN_WATER + alt2; break;
     default:         inner = PEN_GRASS + alt; outer = PEN_GRASS; break;
     }
-    if (SIDE_IN_BAND(t)) {              /* port: in the flat band (heights of 3 units or less, or far) */
+    if (SIDE_IN_BAND(t)) {              /* port: in the flat band (heights of 8 units or less) */
         band_span(ko, ko + 1, outer + fog);
         band_span(ki, ki + 1, inner + fog);
         return;
@@ -329,8 +325,7 @@ static void side_strips(const World *w, int i, int side)
                      &eb.x[ko], &ea.x[ko], 2, sp1, 1);
         render_polys++;
     }
-    if (seg_mode) band_span(ki, ki + 1, inner + fog);
-    else if (!(render_skip & 64) && cur_k < lim_slope) quad(ki, ki + 1, inner + fog);
+    if (!(render_skip & 64)) quad(ki, ki + 1, inner + fog);
 }
 
 static int far_pen(int side)
@@ -517,8 +512,7 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
     uint8_t road_pen, sh_pen, old_id = prof_id;
     int16_t cd;
 
-    cur_k = k;
-    seg_mode = k >= LINE_SEGS ? 2 : k >= SLOPE_SEGS ? 1 : 0;
+    no_lines = k >= LINE_SEGS;
     profile(w, s);
     /* the far edge is the last segment's near one if nothing differs (port) */
     {
@@ -563,7 +557,7 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
         }
     }
 
-    if (seg_mode < 2 && !flood) {
+    if (!no_lines && !flood) {
         int ghost = s->flags & SF_GHOST;
         uint8_t real = ghost ? PEN_ROAD + 1 : PEN_WHITE;    /* worn away where the old ones are */
 #define LINE(n, col) band_span(rline + 2 * (n), rline + 2 * (n) + 1, col)
@@ -598,7 +592,7 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
     }
     band_end();
 
-    if ((render_skip & 16) || k >= lim_wall) goto done;
+    if (render_skip & 16) goto done;
     if (s->flags & SF_RAIL_L) {
         wall(ea.x[2], eb.x[2], 6, 12, PEN_GREY + fog);
         wall(ea.x[2], eb.x[2], 0, 6, PEN_PANEL + fog);
@@ -621,7 +615,7 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
         }
     }
 
-    if (k < SCENE_SEGS && k < lim_scene && !(render_skip & 1)) {
+    if (k < SCENE_SEGS && !(render_skip & 1)) {
         if (n2 == 2) scenery(w, i + 1);
         scenery(w, i);
     }
@@ -769,7 +763,7 @@ void render_world(const World *w)
 
     s0 = seg_of(cam.z * (1 << FBITS));
     if (s0 < 0) s0 = 0;
-    s1 = s0 + (lim_draw < DRAW_SEGS ? lim_draw : DRAW_SEGS);
+    s1 = s0 + DRAW_SEGS;
     if (s1 > w->nseg - 2) s1 = w->nseg - 2;
 
     /* where the sky meets the ground: the far end's centre at the eye's height */

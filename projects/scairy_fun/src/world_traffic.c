@@ -264,17 +264,22 @@ void objects_update(World *w)
                      * through our lane until the car is through it */
                     int16_t gap = (int16_t)(dz >> FBITS) - obj_len(o->type) - CAR_LEN;
                     int os = seg_of(o->z), cs = seg_of(c->z), k, wait = 0;
-                    if (r->nl == 1 && dz > 0)
-                        for (k = os - 2; k >= cs && k > os - 40; k--)
-                            if (k < w->nseg && (w->seg[k].closed & 1)) {
-                                /* k is the zone's far end: wait there while the
-                                 * car is about to come through */
-                                int32_t stop = (int32_t)(k + 4) * SEGF;
-                                int start = k;
-                                while (start > 0 && (w->seg[start - 1].closed & 1)) start--;
-                                wait = cs >= start - 12 && o->z > stop && o->z - stop < 3 * SEGF;
-                                break;
-                            }
+                    if (r->nl == 1 && dz > 0) {
+                        /* the first coned segment from os - 2 back to the car
+                         * (39 at most); port: the scan is closed_down (asm) */
+                        int hi = os - 2, lo = os - 39;
+                        if (hi > w->nseg - 1) hi = w->nseg - 1;
+                        if (lo < cs) lo = cs;
+                        k = closed_down(w->seg, hi, lo);
+                        if (k >= 0) {
+                            /* k is the zone's far end: wait there while the
+                             * car is about to come through */
+                            int32_t stop = (int32_t)(k + 4) * SEGF;
+                            int start = k;
+                            while (start > 0 && (w->seg[start - 1].closed & 1)) start--;
+                            wait = cs >= start - 12 && o->z > stop && o->z - stop < 3 * SEGF;
+                        }
+                    }
                     int16_t to = lane_centre(w, o->lane) * (1 << FBITS);
                     int blocking = iabs16(c->d - o->d) < (34 * (1 << FBITS)) && gap > -10 && gap < 4 * SEG_LEN;
                     if (blocking && o->v == 0 && ++o->timer > 50) o->flags |= OF_PASSING;

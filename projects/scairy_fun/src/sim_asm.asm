@@ -5,10 +5,11 @@
 ; Obj (sc.h) as zsdcc lays it out:
 ;   0 type  1 flags  2 colour  3 hz  5 lane  7 z (4)  11 d  13 v  15 vd
 ;   17 vt  19 timer  21 cool   = 23 bytes; MAX_OBJS = 40
+; Seg: 0 cx  2 y  4 dir  5 side[2]  7 flags  8 closed  9 ghost   = 10 bytes
 
 SECTION code_user
 
-PUBLIC _seg_of, _lead_scan, _lane_scan, _obj_find, _obj_top
+PUBLIC _seg_of, _lead_scan, _lane_scan, _obj_find, _obj_top, _closed_down
 
 ; obj_top: slots from obj_top up are all OBJ_NONE (world_spawn raises it,
 ; objects_update lowers it again each step), so the scans stop there
@@ -382,3 +383,64 @@ ls_lo:       defs 4
 ls_hi:       defs 4
 ls_skip:     defs 2
 lc_dz3:      defs 1
+
+
+; int closed_down(const Seg *seg, int hi, int lo)
+;   for (k = hi; k >= lo; k--) if (seg[k].closed & 1) return k;
+;   return -1;
+; (objects_update's wait for a coned zone: hi - lo < 255, 38 at most there)
+_closed_down:
+    ld hl,2
+    add hl,sp
+    ld e,(hl)
+    inc hl
+    ld d,(hl)                   ; DE = seg
+    inc hl
+    ld c,(hl)
+    inc hl
+    ld b,(hl)                   ; BC = hi
+    inc hl
+    ld a,(hl)
+    inc hl
+    ld h,(hl)
+    ld l,a                      ; HL = lo
+    push hl
+    ld a,c                      ; count = hi - lo + 1
+    sub l
+    ld l,a
+    ld a,b
+    sbc a,h
+    jp m,cd_none_pop            ; hi < lo
+    inc l
+    jr z,cd_none_pop            ; (no more than 255)
+    push hl                     ; L = count
+    ld h,b
+    ld l,c
+    add hl,hl                   ; 2 hi
+    ld b,h
+    ld c,l
+    add hl,hl
+    add hl,hl
+    add hl,bc                   ; 10 hi
+    add hl,de
+    ld de,8
+    add hl,de                   ; &seg[hi].closed
+    ld de,-10
+    pop bc
+    ld b,c                      ; B = count
+cd_loop:
+    bit 0,(hl)
+    jr nz,cd_found
+    add hl,de
+    djnz cd_loop
+cd_none_pop:
+    pop hl
+    ld hl,-1
+    ret
+cd_found:                       ; k = lo - 1 + B
+    pop hl
+    dec hl
+    ld c,b
+    ld b,0
+    add hl,bc
+    ret
