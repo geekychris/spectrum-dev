@@ -63,14 +63,28 @@ static uint8_t controls(uint8_t in)
     return c;
 }
 
+/* BREAK: CAPS SHIFT + SPACE */
+static uint8_t quit(void) { return in2_key(0, 0x01) && in2_key(7, 0x01); }
+
+static void to_title(void)
+{
+    G.state = MS_TITLE;
+    pad[0].src = SRC_P1;
+    state_frames = 0;
+    snd_title_music(1);
+    zx_log("roto: title\n");
+}
+
 static void step(void)
 {
     uint8_t pressed = pad[0].pressed | pad[1].pressed;
     state_frames++;
     if (G.state == MS_TITLE) {
-        if (pressed & (IN_UP | IN_LEFT)) sel = 1;
-        if (pressed & (IN_DOWN | IN_RIGHT)) sel = 2;
-        if (pressed & (IN_UP | IN_LEFT | IN_DOWN | IN_RIGHT)) snd_sfx(ST_BLIP);
+        if (pressed & (IN_UP | IN_LEFT | IN_DOWN | IN_RIGHT)) {
+            sel = pressed & (IN_UP | IN_LEFT) ? 1 : 2;
+            snd_sfx(ST_BLIP);
+            zx_log("roto: sel=%u\n", sel);
+        }
         if (pressed & (IN_FIRE | IN_START)) {
             snd_title_music(0);
             snd_sfx(ST_WHISTLE);
@@ -80,6 +94,10 @@ static void step(void)
             zx_log("roto: start players=%u\n", sel);
         }
     } else if (G.state == MS_PLAYING) {
+        if (quit()) {                    /* port: BREAK leaves the match (the original's ESC quits) */
+            to_title();
+            return;
+        }
         game_step(controls(pad[0].held), controls(pad[1].held));
         if (G.events & (EV_PICKUP | EV_TACKLE)) snd_sfx(ST_PING);
         if (G.events & EV_TACKLE) zx_log("roto: tackle to=P%u\n", G.ball.carrier + 1);
@@ -94,11 +112,7 @@ static void step(void)
             zx_log("roto: fulltime score=%d:%d players=%u\n", G.score[0], G.score[1], G.players);
         }
     } else if (state_frames > 50 && (pressed & (IN_FIRE | IN_START))) {
-        G.state = MS_TITLE;              /* full time -> the title */
-        pad[0].src = SRC_P1;
-        state_frames = 0;
-        snd_title_music(1);
-        zx_log("roto: title\n");
+        to_title();                      /* full time -> the title */
     }
 }
 
@@ -142,9 +156,12 @@ int main(void)
             uint16_t t = raster(), d = t >= frame_t0 ? t - frame_t0 : t + 312 - frame_t0;
             if (d > prof_max) prof_max = d;
         }
-        if (++prof_n == 250) {
-            zx_log("roto: perf lines/250: commit=%u logic=%u hud=%u prepare=%u worst=%u overruns=%u copper=%u\n",
+        if (++prof_n == 100) {
+            zx_log("roto: perf lines/100: commit=%u logic=%u hud=%u prepare=%u worst=%u overruns=%u copper=%u\n",
                    prof[0], prof[1], prof[2], prof[3], prof_max, frame_overruns, view_copper_n);
+            /* the chips' mixers and channel A volumes (the test checks the music) */
+            zx_log("roto: ay mix0=%u vol0=%u mix1=%u vol1=%u mix2=%u\n", snd_reg(0, 7), snd_reg(0, 8) & 15,
+                   snd_reg(1, 7), snd_reg(1, 8) & 15, snd_reg(2, 7));
             prof[0] = prof[1] = prof[2] = prof[3] = 0;
             prof_n = 0;
             prof_max = 0;

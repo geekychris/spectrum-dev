@@ -45,7 +45,10 @@ void in2_scan(void)
     uint8_t i;
     uint16_t port = 0xFEFE;
     for (i = 0; i < 8; i++, port = (port << 1) | 0x01FE) in2_rows[i] = z80_inp(port);
-    for (i = 0; i < 2; i++) in2_kemp[i] = in2_has_kemp[i] ? z80_inp(kemp_port[i]) & 0x1F : 0;
+    for (i = 0; i < 2; i++) {
+        uint8_t v = in2_has_kemp[i] ? z80_inp(kemp_port[i]) : 0xFF;
+        in2_kemp[i] = (v & 0xE0) ? 0 : v;   /* bits 5-7 set: nothing there now (a floating bus) */
+    }
 }
 
 static uint8_t kemp_bits(uint8_t r)

@@ -101,8 +101,8 @@ static void clock(uint16_t secs)
 
 static void title(uint8_t sel)
 {
-    centre(19, sel == 1 ? "> 1  ONE PLAYER V CPU " : "  1  ONE PLAYER V CPU ", sel == 1 ? P_HI : P_HUD);
-    centre(20, sel == 2 ? "> 2  TWO PLAYERS      " : "  2  TWO PLAYERS      ", sel == 2 ? P_HI : P_HUD);
+    centre(18, sel == 1 ? "> 1  ONE PLAYER V CPU " : "  1  ONE PLAYER V CPU ", sel == 1 ? P_HI : P_HUD);
+    centre(19, sel == 2 ? "> 2  TWO PLAYERS      " : "  2  TWO PLAYERS      ", sel == 2 ? P_HI : P_HUD);
 }
 
 void hud_update(uint8_t sel)
@@ -114,8 +114,8 @@ void hud_update(uint8_t sel)
         shown_score[0] = -1;
         shown_secs = 0xFFFF;
         if (G.state == MS_TITLE) {
-            big(12, 4, "ROTOBALL");
-            centre(8, " A FUTURISTIC BALL SPORT ", P_HUD);
+            big(12, 1, "ROTOBALL");
+            centre(3, " A FUTURISTIC BALL SPORT ", P_HUD);
             title(sel);
             centre(23, "P1  W/S DRIVE   A/D STRAFE  ", P_P1);
             centre(24, "    KEMPSTON  SINCLAIR 1-5  ", P_P1);

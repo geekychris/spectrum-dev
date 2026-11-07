@@ -25,7 +25,9 @@
  *   split_row(y)                  wait for the horizontal blank before row
  *                                 y: a copper_move() after it lands before
  *                                 the row's first pixel (e.g. NextReg 0x43
- *                                 to switch a row's palette)
+ *                                 to switch a row's palette). ZEsarUX draws
+ *                                 a line after the line's copper moves, so
+ *                                 there the change shows from row y - 1
  *   split_end()                   upload and run (copper_end)
  *
  * The CPU and a list that writes NextReg 0x43 share it (palette loads):
