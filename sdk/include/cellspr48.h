@@ -13,6 +13,13 @@
  *          attrs = one attribute per id (both may be changed later:
  *          cs_mark_id redraws the cells using an id)
  *   cs_draw_all()          redraw the whole room (and the sprites)
+ *   cs_wipe_sprites(dc)    mark the cells the drawn sprites cover (and those dc
+ *                          columns to their left) and forget them: the next
+ *                          cs_update draws them again (cellspr48_scroll.c)
+ *   cs_put_tile(c, r, id)  set a cell and draw its tile straight to the screen,
+ *                          no composing (~250 T-states, cs_update's cells ~600):
+ *                          for many cells at once (a view that jumps), after
+ *                          cs_wipe_sprites(0) (cellspr48_tiles.asm)
  *   cs_set(c, r, id)       change a cell's tile (redrawn at the next update)
  *   cs_mark(c, r)          redraw a cell at the next update
  *   cs_mark_id(id)         redraw every cell with this tile id (animated tiles)
@@ -31,13 +38,18 @@
  *
  *   cs_scroll(dc, fill)    scroll the room dc cells left (dc > 0: the view moves
  *                          right) or right (dc < 0), as character-strip scrolling:
- *                          the map and the screen shift, fill[] (|dc| ids a row,
- *                          row by row) comes in at the edge; rows made of one tile
- *                          are not moved, and only the cells that change are
- *                          redrawn. Drawn sprites are wiped and drawn again at the
- *                          next cs_update, where the game puts them (in the scrolled
+ *                          the map shifts, fill[] (|dc| ids a row, row by row)
+ *                          comes in at the edge. On the screen, a cell that shows
+ *                          the same tile as the one dc along (sky) is already
+ *                          right; a row with up to 8 others gets them redrawn,
+ *                          a row with more has its pixels and colours moved.
+ *                          Drawn sprites are wiped and drawn again at the next
+ *                          cs_update, where the game puts them (in the scrolled
  *                          room's pixels). Call it after cs_update (with no cells
- *                          marked). cellspr48_scroll.c (Jump Quest)
+ *                          marked). cellspr48_scroll.c, cellspr48_shift.asm
+ *   cs_scroll_same         optional (0 = none): cs_h flags, nonzero = the game
+ *                          knows this row equals itself shifted (sky), so
+ *                          cs_scroll skips comparing it
  *
  * Sprites are any size; the room is up to 32 x 24 cells. A frame's cost is
  * about 600 T-states a dirty cell plus 100 per sprite line drawn.
@@ -71,6 +83,8 @@ extern const uint8_t *cs_attrs;
 extern void cs_init(uint8_t *map, uint8_t w, uint8_t h, uint8_t col, uint8_t row,
                     const uint8_t *tiles, const uint8_t *attrs);
 extern void cs_draw_all(void);
+extern void cs_wipe_sprites(int8_t dc);
+extern void cs_put_tile(uint8_t c, uint8_t r, uint8_t id);
 extern void cs_set(uint8_t c, uint8_t r, uint8_t id);
 /* cs_mark(c, r): asm (cellspr48_out.asm), the column and row in one register */
 extern void cs_mark_rc(uint16_t rc) __z88dk_fastcall;
@@ -78,6 +92,7 @@ extern void cs_mark_rc(uint16_t rc) __z88dk_fastcall;
 extern void cs_mark_id(uint8_t id);
 extern void cs_update(void);
 extern void cs_scroll(int8_t dc, const uint8_t *fill);
+extern const uint8_t *cs_scroll_same;
 extern void cs_refresh(const uint8_t *cols, const uint8_t *rows, uint8_t n, uint8_t first, uint8_t lines);
 extern uint8_t cs_last_cells;   /* cells written by the last cs_update (profiling) */
 extern uint8_t cs_list_n;       /* cells marked for the next cs_update */

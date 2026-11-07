@@ -1,6 +1,7 @@
 ; zxgame.h spr16_shift: a 16-pixel-wide 1-bit image (2 bytes a line) shifted
 ; right by 0..7 pixels into 3-byte lines: one of spr_preshift's 8 copies, made
-; when it is needed (~60 T-states a line + 23 per bit). Sprites that change
+; when it is needed (~120 T-states a line + 36 a bit; shifts 5..7 go left from
+; the next byte, so 4 bits at most). Sprites that change
 ; shape and position every frame (cellspr48's) keep 2 x 3 x h bytes this way
 ; instead of 8 x 3 x h for each frame of animation.
 
@@ -28,30 +29,50 @@ s16_line:
     push bc
     ld a,(hl)
     inc hl
-    ld b,(hl)                   ; (B is saved)
+    ld b,(hl)                       ; (B is saved)
     push hl
     ld h,a
-    ld a,b                      ; H, A = the line
-    ld l,0                      ; H A L: 24 bits
+    ld a,c
+    cp 5
+    jr nc,s16_left
+    ld a,b                          ; H A L = the line, 0: shift right C times
+    ld l,0
     inc c
-    jr s16_test
-s16_bit:
+    jr s16_rtest
+s16_rbit:
     srl h
     rra
     rr l
-s16_test:
+s16_rtest:
     dec c
-    jr nz,s16_bit
-    ex de,hl                    ; HL = dst, D E L... (D = byte 0, E = byte 1)
+    jr nz,s16_rbit
+    jr s16_store
+s16_left:                           ; shifts 5..7: H A L = 0, the line, shifted
+    ld a,h                          ; left 8 - C times (3 at most)
+    ld l,b
+    ld h,0
+    ld b,a
+    ld a,8
+    sub c
+    ld c,a
+    ld a,b
+s16_lbit:
+    sla l
+    rla
+    rl h
+    dec c
+    jr nz,s16_lbit
+s16_store:
+    ex de,hl                        ; HL = dst, D E = bytes 0 and 2
     ld (hl),d
     inc hl
     ld (hl),a
     inc hl
     ld (hl),e
     inc hl
-    ex de,hl                    ; DE = dst
+    ex de,hl                        ; DE = dst
     pop hl
-    inc hl                      ; next source line
+    inc hl                          ; next source line
     pop bc
     djnz s16_line
 s16_done:

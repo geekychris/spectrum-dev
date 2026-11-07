@@ -1,14 +1,14 @@
-/* cs_scroll: character-strip scrolling of a cellspr48 room (see cellspr48.h). */
+/* cs_scroll: character-strip scrolling of a cellspr48 room (see cellspr48.h);
+   the rows are cellspr48_shift.asm's. */
 #include <stdint.h>
-#include <string.h>
 #include "cellspr48.h"
 #include "zxgame.h"
 
-extern uint8_t *cs_map_row[24];
 
-/* the cells a drawn sprite covers, dc cells along too (where a shifted row
-   moved its pixels); its drawn state is dropped so cs_update draws it anew */
-static void wipe_sprites(int8_t dc)
+/* the cells each drawn sprite covers, dc cells along too (where a shifted row
+   moved its pixels), are marked; the drawn state is dropped so cs_update
+   draws the sprites anew */
+void cs_wipe_sprites(int8_t dc)
 {
     uint8_t i, r, r1, c0, c1;
     int8_t c;
@@ -27,35 +27,13 @@ static void wipe_sprites(int8_t dc)
     }
 }
 
+/* cellspr48_shift.asm: the rows */
+extern void cs_scroll_rows(const uint8_t *fill, uint8_t n, uint8_t left);
+
 void cs_scroll(int8_t dc, const uint8_t *fill)
 {
     uint8_t n = dc < 0 ? -dc : dc;
-    uint8_t keep = cs_w - n;            /* cells that stay on the screen, per row */
-    uint8_t r, k, y, edge = dc > 0 ? keep : 0;
-    uint8_t old[32];
-
     if (!n || n >= cs_w) return;
-    wipe_sprites(dc);
-    for (r = 0; r < cs_h; r++, fill += n) {
-        uint8_t *row = cs_map_row[r], first = row[0], uniform = 1;
-        for (k = 1; k < cs_w; k++)
-            if (row[k] != first) { uniform = 0; break; }
-        memcpy(old, row + edge, n);     /* what the screen shows at the edge */
-        if (dc > 0) memmove(row, row + n, keep);
-        else memmove(row + n, row, keep);
-        memcpy(row + edge, fill, n);
-        if (!uniform) {                 /* move the pixels and the colours */
-            uint8_t line = (cs_row + r) << 3;
-            uint8_t *a = (uint8_t *)0x5800 + ((uint16_t)(cs_row + r) << 5) + cs_col;
-            for (y = 0; y < 8; y++, line++) {
-                uint8_t *p = zx_row[line] + cs_col;
-                if (dc > 0) memmove(p, p + n, keep);
-                else memmove(p + n, p, keep);
-            }
-            if (dc > 0) memmove(a, a + n, keep);
-            else memmove(a + n, a, keep);
-        }
-        for (k = 0; k < n; k++)
-            if (fill[k] != old[k]) cs_mark(edge + k, r);
-    }
+    cs_wipe_sprites(dc);
+    cs_scroll_rows(fill, n, dc > 0);
 }
