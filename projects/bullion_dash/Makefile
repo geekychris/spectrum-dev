@@ -1,7 +1,7 @@
 NAME   := bullion_dash
 TARGET := zx
-# memory map (zpragma.inc, src/memmap.h): BSS from 0x5D80, code from ORG up to 0xF000
-ORG    := 27648
+# memory map (zpragma.inc, src/memmap.h): BSS from 0x5D00, code from ORG up to 0xF000
+ORG    := 27440
 ZX_SDK ?= ../../sdk
 include $(ZX_SDK)/project.mk
 # the game's own C, smaller

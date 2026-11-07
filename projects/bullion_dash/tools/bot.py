@@ -36,7 +36,7 @@ COST_SIDE, COST_UPDOWN, COST_FALL, COST_DIG = 5, 7, 7, 12
 
 
 def build_sim():
-    srcs = [HERE / "src" / f for f in ("player.c", "enemy.c", "level.c", "play.c", "levels_data.c")]
+    srcs = [HERE / "src" / f for f in ("player.c", "enemy.c", "level.c", "play.c", "coords.c", "levels_data.c")]
     srcs += [SDK / "src" / "gridbfs.c", SDK / "src" / "gridpack.c", HERE / "tools" / "hostsim.c"]
     if SO.exists() and all(SO.stat().st_mtime > s.stat().st_mtime for s in srcs + [HERE / "src" / "game.h"]):
         return

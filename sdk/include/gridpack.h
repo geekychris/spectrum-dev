@@ -9,7 +9,7 @@
  *   gp_unpack(&set, i, out)   grid i (0-based) into out[w * h], row-major;
  *                             about 0.1 s for 28 x 16
  *
- * Tile ids are < 16. The set is made by gridpack.py, whose `unpack` is the
+ * Tile ids are < 16 and a grid packs into less than 256 bytes. The set is made by gridpack.py, whose `unpack` is the
  * reference decoder (same steps).
  */
 #ifndef ZX_GRIDPACK_H
@@ -23,7 +23,7 @@ typedef struct {
     const uint8_t *pa;              /* [prev][above]: P(not the tile before) in 1/256 */
     const uint8_t *pb;              /* [prev][above]: P(not the tile above) */
     const uint8_t *pl;              /* [above][k]: P(not order[k]) */
-    const uint16_t *grid_off;       /* grid -> its first byte in bits[] */
+    const uint8_t *grid_len;        /* each grid's bytes in bits[] (< 256) */
     const uint8_t *bits;            /* the coded grids, MSB first */
 } gp_set;
 

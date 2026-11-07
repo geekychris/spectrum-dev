@@ -8,7 +8,7 @@
 
 SECTION code_user
 
-PUBLIC _gb_run
+PUBLIC _gb_run, _gb_clear
 EXTERN _gb_cells, _gb_stride2, _gb_qhead, _gb_qtail, _gb_want, _gb_searched, _gb_overflow
 
 _gb_run:
@@ -40,8 +40,8 @@ gr_loop:
     inc hl
     ld a,(hl)
     inc a                       ; distance of its neighbours
-    cp 255
-    jr z,gr_stop                ; too far: give up
+    cp 253
+    jr z,gr_stop                ; too far (253 = "no path"): give up
     ld c,a
     dec hl
     ex de,hl                    ; DE = m
@@ -87,7 +87,7 @@ label:
     inc hl
     ld a,(hl)
     inc a
-    ret nz                      ; already has a distance
+    ret nz                      ; already has a distance (or "no path")
     ld (hl),c
     dec hl
     bit 4,(hl)
@@ -106,4 +106,46 @@ label:
     ret nz
     ld a,1                      ; the tail caught up with the head
     ld (_gb_overflow),a
+    ret
+
+; void gb_clear(uint8_t *dist, uint16_t n, uint8_t carry): every n-th other
+; byte from dist becomes 255 (unknown); with carry, 253 and 255 ("no path",
+; not reached) become 253 instead. Arguments on the stack (sdcc_ix).
+_gb_clear:
+    pop af                      ; return address
+    pop hl                      ; dist
+    pop de                      ; n
+    dec sp
+    pop bc                      ; B = carry
+    push bc
+    inc sp
+    push de
+    push hl
+    push af
+    ld a,b
+    or a
+    jr nz,gc_carry
+gc_plain:
+    ld (hl),255
+    inc hl
+    inc hl
+    dec de
+    ld a,d
+    or e
+    jr nz,gc_plain
+    ret
+gc_carry:
+    ld a,(hl)
+    cp 253
+    ld a,255
+    jr c,gc_unknown             ; it had a distance
+    ld a,253
+gc_unknown:
+    ld (hl),a
+    inc hl
+    inc hl
+    dec de
+    ld a,d
+    or e
+    jr nz,gc_carry
     ret

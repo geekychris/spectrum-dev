@@ -43,8 +43,10 @@ void gp_unpack(const gp_set *set, uint16_t index, uint8_t *out)
 {
     uint8_t *o = out, *end = out + (uint16_t)set->w * set->h;
     uint8_t n = set->ntiles, w = set->w, prev = n, i;
+    const uint8_t *len = set->grid_len;
 
-    bp = set->bits + set->grid_off[index];
+    bp = set->bits;
+    while (index--) bp += *len++;
     left = 0;
     rng = 0xFFFF;
     code = 0;

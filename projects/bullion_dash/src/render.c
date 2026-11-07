@@ -17,6 +17,7 @@
 #include "zxtext.h"
 #include "cellspr48.h"
 #include "memmap.h"
+#include "coords.h"
 
 #define PAPER   PAPER_BLACK
 #define SIDE    (PAPER_BLUE | INK_WHITE)            /* the original's dark blue sides */
@@ -52,12 +53,6 @@ static const uint8_t edit_attr[NUM_TILES] = {
 #define PRE(f) ((uint8_t *)HI_PRE + (f) * PRE_SIZE)
 static const uint8_t flip_frames[3] = { FR_RUN1, FR_RUN2, FR_DIG };
 
-/* the original's pixel positions -> pixels in the room: 8/10 across (x is
-   even), 8/14 down */
-#define scale_x ((uint8_t *)HI_SCALE_X)
-#define scale_y ((uint8_t *)HI_SCALE_Y)
-#define SCALE_X_SIZE (GRID_COLS * TILE_W / 2)
-#define SCALE_Y_SIZE ((GRID_ROWS + 1) * TILE_H)
 
 static uint8_t live;                /* the room is on screen: changed tiles are redrawn */
 
@@ -74,7 +69,6 @@ static uint8_t mirror(uint8_t b)
 void render_init(void)
 {
     uint8_t f, i, flipped[8];
-    uint16_t v;
 
     for (f = 0; f < NUM_FRAMES; f++)
         spr_preshift(frame_gfx + 8 * f, 1, 8, PRE(f));
@@ -83,8 +77,6 @@ void render_init(void)
         for (i = 0; i < 8; i++) flipped[i] = mirror(src[i]);
         spr_preshift(flipped, 1, 8, PRE(NUM_FRAMES + f));
     }
-    for (v = 0; v < SCALE_X_SIZE; v++) scale_x[v] = (uint8_t)(v * 8 / 5);
-    for (v = 0; v < SCALE_Y_SIZE; v++) scale_y[v] = (uint8_t)(v * 4 / 7);
     cs_init(&gs.tiles[0][0], GRID_COLS, GRID_ROWS, ROOM_COL, ROOM_ROW, tile_gfx, tile_attr);
     cs_nspr = 1 + MAX_ENEMIES;
 }
@@ -123,8 +115,8 @@ static void place(cs_sprite *s, int16_t px, int16_t py, uint8_t frame, uint8_t l
         else if (frame == FR_RUN2) frame = FR_RUN2_L;
         else if (frame == FR_DIG) frame = FR_DIG_L;
     }
-    s->x = scale_x[px >> 1];
-    s->y = scale_y[py];
+    s->x = ROOM_X(px);
+    s->y = ROOM_Y(py);
     s->gfx = PRE(frame);
     s->w = 1;
     s->h = 8;

@@ -249,7 +249,7 @@ int main(void)
     input_init();
     input_fast();
     ay_init();
-    hs_init(2000);                  /* table 10000 8000 6000 4000 2000 */
+    hs_init(100);                   /* port: the original has no table; 500 400 300 200 100 */
     level_init();
     render_init();
     frame_init();
@@ -272,7 +272,7 @@ int main(void)
         input_read();
         held = input_last;
         pressed = input_pressed();
-        letter = input_letter_pressed();
+        letter = (gs.state == STATE_TITLE || gs.state == STATE_EDITOR) ? input_letter_pressed() : 0;
 
         for (t = 0; t < ticks; t++) {
             game_tick(held, pressed, letter);

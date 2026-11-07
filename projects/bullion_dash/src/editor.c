@@ -38,7 +38,8 @@ static const char *const tile_names[NUM_TILES] = {
     "GOLD  ", "HIDDEN", "PLAYER", "ENEMY ", "TRAP  "
 };
 
-static uint8_t cursor_x, cursor_y, cur_idx, move_delay, status_timer;
+uint8_t ed_x, ed_y, ed_tile;                       /* cursor and tile (the test reads them) */
+static uint8_t move_delay, status_timer;
 static uint8_t redraw;                              /* the editor screen needs drawing */
 static uint8_t shown_x = 255, shown_y, shown_idx = 255;
 #define edit_grid ((uint8_t *)HI_EDIT)              /* the level while it is test-played */
@@ -79,8 +80,8 @@ void editor_init(void)
         gs.tiles[GRID_ROWS - 1][x] = TILE_SOLID;
     level_refresh_paths();
     gs.level_num = 0;
-    cursor_x = cursor_y = 0;
-    cur_idx = 1;                                    /* TILE_BRICK */
+    ed_x = ed_y = 0;
+    ed_tile = 1;                                    /* TILE_BRICK */
     move_delay = 0;
     enter();
 }
@@ -107,9 +108,9 @@ uint8_t editor_update(uint8_t held, uint8_t pressed, char letter)
     if (dx == 0 && dy == 0) {
         move_delay = 0;
     } else if (move_delay == 0) {
-        int8_t nx = cursor_x + dx, ny = cursor_y + dy;
-        if (nx >= 0 && nx < GRID_COLS) cursor_x = nx;
-        if (ny >= 0 && ny < GRID_ROWS) cursor_y = ny;
+        int8_t nx = ed_x + dx, ny = ed_y + dy;
+        if (nx >= 0 && nx < GRID_COLS) ed_x = nx;
+        if (ny >= 0 && ny < GRID_ROWS) ed_y = ny;
         move_delay = MOVE_REPEAT_DELAY;
     } else {
         move_delay--;
@@ -117,11 +118,11 @@ uint8_t editor_update(uint8_t held, uint8_t pressed, char letter)
 
     /* place the tile with fire */
     if (held & IN_FIRE)
-        tile_set(cursor_x, cursor_y, tile_cycle[cur_idx]);
+        tile_set(ed_x, ed_y, tile_cycle[ed_tile]);
 
     /* port: Z / X step through the tiles (the original: SPACE, 1-0) */
-    if (pressed & IN_FIRE2) cur_idx = cur_idx ? cur_idx - 1 : NUM_TILES - 1;
-    if (letter == 'X') cur_idx = (cur_idx + 1) % NUM_TILES;
+    if (pressed & IN_FIRE2) ed_tile = ed_tile ? ed_tile - 1 : NUM_TILES - 1;
+    if (letter == 'X') ed_tile = (ed_tile + 1) % NUM_TILES;
 
     if (letter == 'S') {                            /* the original's F1 */
         pack_level(kept);
@@ -170,22 +171,22 @@ void editor_draw(void)
         draw_palette();
         redraw = 0;
     }
-    if (cur_idx != shown_idx) {
+    if (ed_tile != shown_idx) {
         uint8_t i;
         for (i = 0; i < NUM_TILES; i++)
-            zx_print_at(1 + 2 * i, 21, i == cur_idx ? "^" : " ");
-        zx_print_at(22, 20, tile_names[cur_idx]);
-        shown_idx = cur_idx;
+            zx_print_at(1 + 2 * i, 21, i == ed_tile ? "^" : " ");
+        zx_print_at(22, 20, tile_names[ed_tile]);
+        shown_idx = ed_tile;
     }
-    if (cursor_x != shown_x || cursor_y != shown_y) {
+    if (ed_x != shown_x || ed_y != shown_y) {
         zx_print_at(21, 19, "(  ,  )");
-        text_num(22, 19, cursor_x, 2);
-        text_num(25, 19, cursor_y, 2);
+        text_num(22, 19, ed_x, 2);
+        text_num(25, 19, ed_y, 2);
         zx_print_at(1, 19, "EDITOR");
-        shown_x = cursor_x;
-        shown_y = cursor_y;
+        shown_x = ed_x;
+        shown_y = ed_y;
     }
     attr_fill(14, 0, 18, 1, PAPER_BLUE | INK_YELLOW | BRIGHT);
     zx_print_at(14, 0, status_timer ? status_msg : "              ");
-    render_cursor(cursor_x, cursor_y, (gs.frame >> 3) & 1);
+    render_cursor(ed_x, ed_y, (gs.frame >> 3) & 1);
 }

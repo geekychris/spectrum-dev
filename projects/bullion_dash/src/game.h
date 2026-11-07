@@ -120,6 +120,7 @@ typedef struct {
     uint8_t hidden_left;   /* port: hidden ladders not shown yet */
     uint8_t tiles[GRID_ROWS][GRID_COLS];   /* port: row-major */
     Hole holes[MAX_HOLES];
+    uint8_t holes_used;    /* port: slots of holes[] used this level */
 } GameState;
 
 #ifndef __SDCC
@@ -129,7 +130,8 @@ typedef struct {
 extern GameState gs;
 
 /* bounds-checked tile lookup (out of bounds is solid) - the original's tile_at */
-#define TILE(x, y) (gs.tiles[(y)][(x)])
+extern uint8_t *tile_row[GRID_ROWS];
+#define TILE(x, y) (tile_row[(y)][(x)])
 extern uint8_t tile_at(int16_t x, int16_t y);
 /* port: every tile change goes through here, so the screen redraws the cell */
 extern void tile_set(int16_t x, int16_t y, uint8_t t);

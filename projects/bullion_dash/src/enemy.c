@@ -14,6 +14,7 @@
 #include "enemy.h"
 #include "level.h"
 #include "game.h"
+#include "coords.h"
 #include "gridbfs.h"
 
 /* the original's LCG (32-bit; its state carries on from game to game) */
@@ -158,8 +159,8 @@ static void enemy_update_one(Enemy *e)
         e->state = ES_FALLING;
         e->py += ENEMY_SPEED;
 
-        new_gy = e->py / TILE_H;
-        if (new_gy != e->gy && (e->py % TILE_H) == 0) {
+        new_gy = CELL_Y(e->py);
+        if (new_gy != e->gy && ALIGNED_Y(e->py)) {
             e->gy = new_gy;
 
             if (e->gy >= GRID_ROWS) {

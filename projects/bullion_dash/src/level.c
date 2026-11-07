@@ -16,6 +16,7 @@
 #include "gridbfs.h"
 #include "levels_data.h"
 #include "memmap.h"
+#include "coords.h"
 
 /* the guards' pathfinding field (gridbfs) */
 static uint8_t path_cells[GB_CELLS(GRID_COLS, GRID_ROWS)];
@@ -25,11 +26,13 @@ static uint8_t path_cells[GB_CELLS(GRID_COLS, GRID_ROWS)];
 static uint16_t path_queue[GB_QUEUE / 2];          /* host builds (tools/hostsim.c) */
 #endif
 
+uint8_t *tile_row[GRID_ROWS];   /* port: row addresses (no multiply per lookup) */
+
 uint8_t tile_at(int16_t x, int16_t y)
 {
     if ((uint16_t)x >= GRID_COLS || (uint16_t)y >= GRID_ROWS)
         return TILE_SOLID;      /* out of bounds is solid */
-    return TILE(x, y);
+    return tile_row[y][x];
 }
 
 /* a cell's flags for gridbfs: the moves the original's BFS allows */
@@ -60,7 +63,10 @@ void level_refresh_paths(void)
 
 void level_init(void)
 {
+    uint8_t y;
+    for (y = 0; y < GRID_ROWS; y++) tile_row[y] = gs.tiles[y];
     gb_init(path_cells, path_queue, GRID_COLS, GRID_ROWS);
+    coords_init();
 }
 
 static void reset_entities(void)
@@ -69,6 +75,7 @@ static void reset_entities(void)
     uint8_t i;
 
     memset(gs.holes, 0, sizeof(gs.holes));
+    gs.holes_used = 0;
     for (i = 0; i < MAX_ENEMIES; i++)
         gs.enemies[i].active = 0;
     p->dir = DIR_NONE;
@@ -147,7 +154,7 @@ void level_tick_bricks(void)
     uint8_t n;
     int16_t i;
 
-    for (n = MAX_HOLES; n; n--, h++) {
+    for (n = gs.holes_used; n; n--, h++) {
         uint8_t x = h->x, y = h->y;
         if (!h->timer || --h->timer) continue;
         /* an enemy in the cell dies (and respawns); its gold drops above */
@@ -192,6 +199,8 @@ uint8_t level_dig_brick(int16_t gx, int16_t gy)
             h->x = (uint8_t)gx;
             h->y = (uint8_t)gy;
             h->timer = BRICK_REGEN_FRAMES;
+            n = MAX_HOLES + 1 - n;                  /* slots in use */
+            if (n > gs.holes_used) gs.holes_used = n;
             tile_set(gx, gy, TILE_EMPTY);
             return 1;
         }

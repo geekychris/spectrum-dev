@@ -34,6 +34,17 @@ void sim_load(int16_t level)
     level_load(level);
 }
 
+/* a level of your own (tiles row-major, with player/enemy markers), as the
+   editor's test play starts it */
+void sim_custom(const uint8_t *tiles)
+{
+    sim_init();
+    memcpy(gs.tiles, tiles, sizeof(gs.tiles));
+    level_activate_spawn_markers();
+    gs.gold_total = level_count_gold();
+    gs.gold_collected = 0;
+}
+
 /* after gs was written from outside: the guards' path flags from the tiles */
 void sim_sync(void)
 {

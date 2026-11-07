@@ -5,14 +5,15 @@
  * and smooth pixel-level movement between grid positions.
  *
  * port: the game state is the global `gs` (zsdcc makes slow code through a
- * struct pointer), tiles change through tile_set(), the grid-alignment tests
- * use a counter-free remainder, and picking up gold / digging asks for a
- * sound. The rules are the original's, line for line.
+ * struct pointer), tiles change through tile_set(), positions are divided
+ * by the tile size through tables (coords.h), and picking up gold / digging
+ * asks for a sound. The rules are the original's, line for line.
  */
 #include "player.h"
 #include "level.h"
 #include "enemy.h"
 #include "game.h"
+#include "coords.h"
 
 static uint8_t is_solid(uint8_t t)
 {
@@ -46,8 +47,8 @@ static uint8_t can_enter(uint8_t t)
 
 #define grid_to_pixel_x(gx) ((gx) * TILE_W)
 #define grid_to_pixel_y(gy) ((gy) * TILE_H)
-#define is_aligned_x(px) (((px) % TILE_W) == 0)
-#define is_aligned_y(py) (((py) % TILE_H) == 0)
+#define is_aligned_x(px) ALIGNED_X(px)              /* port: coords.h, no division */
+#define is_aligned_y(py) ALIGNED_Y(py)
 
 static int16_t move_toward(int16_t current, int16_t target, int16_t speed)
 {
@@ -109,7 +110,7 @@ void player_update(int8_t dx, int8_t dy, uint8_t dig_left, uint8_t dig_right)
         p->py += PLAYER_SPEED;
         p->fall_count++;
 
-        new_gy = p->py / TILE_H;
+        new_gy = CELL_Y(p->py);
         if (new_gy != p->gy && is_aligned_y(p->py)) {
             p->gy = new_gy;
 
@@ -184,7 +185,7 @@ void player_update(int8_t dx, int8_t dy, uint8_t dig_left, uint8_t dig_right)
                     p->px = move_toward(p->px, target_px, PLAYER_SPEED);
 
                     if (is_aligned_x(p->px))
-                        p->gx = p->px / TILE_W;
+                        p->gx = CELL_X(p->px);
 
                     p->dir = (dx < 0) ? DIR_LEFT : DIR_RIGHT;
 
@@ -212,7 +213,7 @@ void player_update(int8_t dx, int8_t dy, uint8_t dig_left, uint8_t dig_right)
                     p->py = move_toward(p->py, target_py, PLAYER_SPEED);
 
                     if (is_aligned_y(p->py))
-                        p->gy = p->py / TILE_H;
+                        p->gy = CELL_Y(p->py);
 
                     p->state = PS_CLIMBING;
                     p->dir = DIR_UP;
@@ -231,7 +232,7 @@ void player_update(int8_t dx, int8_t dy, uint8_t dig_left, uint8_t dig_right)
                     p->py = move_toward(p->py, target_py, PLAYER_SPEED);
 
                     if (is_aligned_y(p->py))
-                        p->gy = p->py / TILE_H;
+                        p->gy = CELL_Y(p->py);
 
                     p->state = PS_CLIMBING;
                     p->dir = DIR_DOWN;
@@ -250,8 +251,8 @@ void player_update(int8_t dx, int8_t dy, uint8_t dig_left, uint8_t dig_right)
 
     /*--- No input or can't move: update idle state ---*/
     if (is_aligned_x(p->px) && is_aligned_y(p->py)) {
-        p->gx = p->px / TILE_W;
-        p->gy = p->py / TILE_H;
+        p->gx = CELL_X(p->px);
+        p->gy = CELL_Y(p->py);
 
         if (is_on_bar(p->gx, p->gy) && !has_support(p->gx, p->gy))
             p->state = PS_HANGING;

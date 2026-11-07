@@ -141,15 +141,18 @@ def pack(grids, w, h, ntiles):
     pk = Packed()
     pk.w, pk.h, pk.n, pk.count = w, h, n, len(grids)
     pk.order, pk.pa, pk.pb, pk.pl = bytes(order), tables["a"], tables["b"], tables["l"]
-    pk.grid_off, pk.bits = grid_off, bytes(bits)
-    pk.size = len(pk.order) + len(pk.pa) + len(pk.pb) + len(pk.pl) + 2 * len(grid_off) + len(pk.bits)
+    lens = [b - a for a, b in zip(grid_off, grid_off[1:] + [len(bits) - 2])]
+    if max(lens) > 255:
+        raise ValueError(f"a grid packs into {max(lens)} bytes: gridpack stores lengths in a byte")
+    pk.grid_off, pk.grid_len, pk.bits = grid_off, bytes(lens), bytes(bits)
+    pk.size = len(pk.order) + len(pk.pa) + len(pk.pb) + len(pk.pl) + len(pk.grid_len) + len(pk.bits)
     return pk
 
 
 def unpack(pk, index):
     """The reference decoder: the same steps as sdk/src/gridpack.c."""
     n, w, size = pk.n, pk.w, pk.w * pk.h
-    pos = pk.grid_off[index] * 8
+    pos = sum(pk.grid_len[:index]) * 8
 
     def nextbit():
         nonlocal pos
@@ -214,17 +217,15 @@ def c_source(pk, prefix, names=None, header_name=None):
          "#include <stdint.h>", '#include "gridpack.h"']
     if header_name:
         c.append(f'#include "{header_name}"')
-    offs = "\n".join("    " + ", ".join(str(x) for x in pk.grid_off[k:k + 12]) + ","
-                     for k in range(0, len(pk.grid_off), 12))
     c += [f"\n/* {pk.count} grids {pk.w}x{pk.h}: {pk.size} bytes */",
           f"static const uint8_t {prefix}_order[] = {{\n{_c_bytes(pk.order)}\n}};",
           f"static const uint8_t {prefix}_pa[] = {{\n{_c_bytes(pk.pa)}\n}};",
           f"static const uint8_t {prefix}_pb[] = {{\n{_c_bytes(pk.pb)}\n}};",
           f"static const uint8_t {prefix}_pl[] = {{\n{_c_bytes(pk.pl)}\n}};",
-          f"static const uint16_t {prefix}_grid_off[] = {{\n{offs}\n}};",
+          f"static const uint8_t {prefix}_grid_len[] = {{\n{_c_bytes(pk.grid_len)}\n}};",
           f"static const uint8_t {prefix}_bits[] = {{\n{_c_bytes(pk.bits)}\n}};",
           f"const gp_set {prefix}_set = {{ {pk.w}, {pk.h}, {pk.n}, {prefix}_order, {prefix}_pa, "
-          f"{prefix}_pb, {prefix}_pl, {prefix}_grid_off, {prefix}_bits }};"]
+          f"{prefix}_pb, {prefix}_pl, {prefix}_grid_len, {prefix}_bits }};"]
     hdr = ["/* made by sdk/tools/gridpack.py */", f"#ifndef {P}_DATA_H", f"#define {P}_DATA_H",
            '#include "gridpack.h"', f"#define {P}_COUNT {pk.count}", f"#define {P}_W {pk.w}",
            f"#define {P}_H {pk.h}", f"extern const gp_set {prefix}_set;"]

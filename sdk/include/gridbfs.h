@@ -21,11 +21,15 @@
  * when it tries the neighbours in the order L, R, U, D (Bullion Dash's
  * guards): BFS finds the shortest path that comes first in that order, so the
  * first step is the first direction whose neighbour is one step closer. The
- * start cell needs no GB_IN. Paths longer than 254 steps count as none.
+ * start cell needs no GB_IN. Paths longer than 252 steps count as none.
  *
  * The queue holds the search's frontier (cells at the current distance and
  * the next): Bullion Dash's 150 levels need 32 at most; past 128 gb_overflow
  * is set and queries answer GB_NONE.
+ *
+ * When the target moves to a cell the last (complete) field reached, cells
+ * that had no path keep that answer: a chaser that can't reach the target
+ * doesn't cost a search of the whole grid each time the target moves.
  *
  * The search loop is in asm (gridbfs_run.asm, ~300 T-states a cell); a
  * C version builds on the host.

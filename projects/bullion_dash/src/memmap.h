@@ -1,8 +1,8 @@
 /*
  * Bullion Dash: where things are in a 48K Spectrum's RAM.
  *
- *   0x5D80..        variables (BSS: the game state, the screen's cell lists,
- *                   the guards' distance field), past the BASIC loader
+ *   0x5D00..        variables (BSS: the game state, the screen's cell lists,
+ *                   the guards' distance field), over the BASIC loader
  *   ORG..0xF000     code and constant data (the levels: ~8 KB)
  *   0xF000-0xF100   the SDK's IM 2 vector table, its jump at 0xF1F1
  *   0xF101-0xF1F0   and 0xF200-0xFD00: tables made at start-up (below)
