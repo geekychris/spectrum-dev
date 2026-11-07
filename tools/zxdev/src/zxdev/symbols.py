@@ -73,7 +73,9 @@ class Symbols:
             return regs[e.upper()]
         v = self.lookup(e)
         if v is not None:
-            return v
+            # z88dk links banked code/data at bank << 16 | address (BANK_n,
+            # PAGE_n sections): the CPU sees the low 16 bits once it's mapped
+            return v & 0xFFFF
         try:
             return _num(e) & 0xFFFF
         except ValueError:

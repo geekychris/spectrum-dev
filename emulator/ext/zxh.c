@@ -148,6 +148,34 @@ static int zxh_hash_on;
    skipped frame */
 int zxh_force_render(void) { return zxh_nowait || zxh_hash_on; }
 
+/* Orphan watchdog: started by the harness with ZXH_PARENT_WATCH=1, the
+   emulator exits when the process that started it is gone (it gets a new
+   parent), so a test script killed hard never leaves emulators behind. */
+#include <unistd.h>
+#include <stdlib.h>
+#ifdef USE_PTHREADS
+static pid_t zxh_parent;
+
+static void *zxh_parent_watch(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        sleep(1);
+        if (getppid() != zxh_parent) _exit(0);
+    }
+    return NULL;
+}
+
+__attribute__((constructor)) static void zxh_init_parent_watch(void)
+{
+    pthread_t t;
+    const char *w = getenv("ZXH_PARENT_WATCH");
+    if (!w || strcmp(w, "1")) return;
+    zxh_parent = getppid();
+    if (pthread_create(&t, NULL, zxh_parent_watch, NULL) == 0) pthread_detach(t);
+}
+#endif
+
 #ifdef USE_PTHREADS
 static pthread_t zxh_main_thread;
 static int zxh_main_thread_set = 0;

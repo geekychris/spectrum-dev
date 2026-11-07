@@ -166,8 +166,10 @@ class Emulator:
             if not self.sd_persist:
                 args.append("--mmc-no-persistent-writes")
         args += o["extra"]
+        # ZXH_PARENT_WATCH: the emulator exits if this process dies (zxh.c)
         self.proc = subprocess.Popen(args, stdout=self._out, stderr=subprocess.STDOUT,
-                                     stdin=subprocess.DEVNULL, start_new_session=True)
+                                     stdin=subprocess.DEVNULL, start_new_session=True,
+                                     env={**os.environ, "ZXH_PARENT_WATCH": "1"})
         try:
             self.z = Zrcp(self.port, connect_timeout=8)
         except ZrcpError as ex:
@@ -1071,6 +1073,8 @@ class Emulator:
         if bank is not None or page is not None:
             return self._zone_read(0, self._bank_offset(bank, page) + int(self.addr(addr)), length)
         a = self.addr(addr)
+        if not 0 <= a <= 0xFFFF:
+            raise EmulatorError(f"read_mem: {addr!r} is {a:#x}, outside the 64K CPU view")
         out = bytearray()
         while length > 0:
             n = min(length, 0x10000 - a, 4096)

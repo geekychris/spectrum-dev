@@ -7,6 +7,7 @@ window path is in test_remote.py (ZX_TEST_WINDOW=1).
 import json
 import subprocess
 import sys
+import os
 import tempfile
 import threading
 import time
@@ -287,6 +288,34 @@ def test_restart():
         b.close()
         check("close / reboot / power cycle stop only their own emulator",
               a.alive and a.run(3)["frames"] == 3 and kv_pid(a) == a.proc.pid)
+
+    # banked symbols (z88dk links them at bank << 16 | address): the CPU address
+    from zxdev.symbols import Symbols
+    sy = Symbols()
+    sy.addr["_banked_thing"] = 0x28006D
+    check("banked symbol -> its 16-bit address", sy.resolve("banked_thing") == 0x6D and sy.resolve("banked_thing+2") == 0x6F)
+
+    # a script killed hard (SIGKILL) leaves no emulator behind (zxh.c's watchdog)
+    import signal as _sig
+    import subprocess as _sp
+    child = _sp.Popen([sys.executable, "-c",
+                       "import sys, os, signal; sys.path.insert(0, %r)\n"
+                       "from zxdev.emu import Emulator\n"
+                       "e = Emulator(); print(e.proc.pid, flush=True); os.kill(os.getpid(), signal.SIGKILL)"
+                       % str(Path(__file__).resolve().parents[1] / "src")], stdout=_sp.PIPE, text=True)
+    epid = int(child.stdout.readline().strip() or 0)
+    child.wait()
+    gone = False
+    for _ in range(50):
+        try:
+            os.kill(epid, 0)
+        except OSError:
+            gone = True
+            break
+        time.sleep(0.1)
+    if not gone and epid:
+        os.kill(epid, _sig.SIGKILL)                    # our own orphan, by PID
+    check("emulator of a script killed hard exits by itself", epid > 0 and gone)
 
     # a session whose emulator is stuck inside a long command
     c = SessionClient.spawn(str(H48))
