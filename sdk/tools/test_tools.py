@@ -63,40 +63,34 @@ with tempfile.TemporaryDirectory() as tmp:
 
 # ---- picture helpers for programs (nextpic.quantize ... group_patterns) and
 # ---- TurboSound streams (aystream.py); the picture ones need numpy
-try:
-    import numpy as np
-except ImportError:
-    np = None
+import numpy as np  # noqa: E402  (scripts/setup-python.sh installs it into .venv)
 from aystream import Ay, decode, encode, period  # noqa: E402
 
-if np is None:
-    print("  (numpy missing: nextpic's quantize / RLE helpers not tested)")
-else:
-    idx = np.arange(5 * 3).reshape(5, 3) + 1
-    opaque = np.array([[0, 1, 1], [1, 1, 0], [1, 0, 0], [0, 0, 1], [1, 1, 1]], bool)
-    data = nextpic.rle_columns(idx, opaque)
-    img = np.zeros((5, 3), int)
-    o = 0
-    for x in range(3):
-        y = 0
-        while data[o] != 0xFF:
-            y += data[o]
-            n = data[o + 1]
-            img[y:y + n, x] = list(data[o + 2:o + 2 + n])
-            o += 2 + n
-            y += n
-        o += 1
-    check("nextpic rle_columns round trip", (img == np.where(opaque, idx, 0)).all() and o == len(data))
-    check("nextpic piece header", nextpic.piece(idx, opaque)[:2] == bytes([3, 5]))
-    im = np.arange(20 * 33).reshape(33, 20) % 200
-    b, cols, rows = nextpic.group_patterns(im)
-    check("nextpic group_patterns size", (cols, rows) == (2, 3) and len(b) == 6 * 256)
-    x, y = 17, 21
-    check("nextpic group_patterns layout", b[((y // 16) * cols + x // 16) * 256 + (y % 16) * 16 + x % 16] == im[y, x])
-    check("nextpic group_patterns fill", b[256 + 15] == 0xE3)
-    q = nextpic.quantize(np.random.default_rng(1).integers(0, 256, (500, 3)), 16)
-    check("nextpic quantize: <= n colours in RGB333 steps",
-          len(q) <= 16 and all(v in [(k * 255 + 3) // 7 for k in range(8)] for v in q.reshape(-1)))
+idx = np.arange(5 * 3).reshape(5, 3) + 1
+opaque = np.array([[0, 1, 1], [1, 1, 0], [1, 0, 0], [0, 0, 1], [1, 1, 1]], bool)
+data = nextpic.rle_columns(idx, opaque)
+img = np.zeros((5, 3), int)
+o = 0
+for x in range(3):
+    y = 0
+    while data[o] != 0xFF:
+        y += data[o]
+        n = data[o + 1]
+        img[y:y + n, x] = list(data[o + 2:o + 2 + n])
+        o += 2 + n
+        y += n
+    o += 1
+check("nextpic rle_columns round trip", (img == np.where(opaque, idx, 0)).all() and o == len(data))
+check("nextpic piece header", nextpic.piece(idx, opaque)[:2] == bytes([3, 5]))
+im = np.arange(20 * 33).reshape(33, 20) % 200
+b, cols, rows = nextpic.group_patterns(im)
+check("nextpic group_patterns size", (cols, rows) == (2, 3) and len(b) == 6 * 256)
+x, y = 17, 21
+check("nextpic group_patterns layout", b[((y // 16) * cols + x // 16) * 256 + (y % 16) * 16 + x % 16] == im[y, x])
+check("nextpic group_patterns fill", b[256 + 15] == 0xE3)
+q = nextpic.quantize(np.random.default_rng(1).integers(0, 256, (500, 3)), 16)
+check("nextpic quantize: <= n colours in RGB333 steps",
+      len(q) <= 16 and all(v in [(k * 255 + 3) // 7 for k in range(8)] for v in q.reshape(-1)))
 
 ay = Ay()
 ay.tone(0, period(440), 15)

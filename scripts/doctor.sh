@@ -40,6 +40,11 @@ if [ -x "$ZX_ROOT/.venv/bin/python" ] && "$ZX_ROOT/.venv/bin/python" -c "import 
 else
   fail "python env missing or broken" "scripts/setup-python.sh"
 fi
+if [ -x "$ZX_ROOT/.venv/bin/python" ] && "$ZX_ROOT/.venv/bin/python" -c "import numpy, PIL" 2>/dev/null; then
+  ok "python env has numpy + Pillow (sdk/tools, asset tools)"
+else
+  fail "numpy or Pillow missing from .venv (sdk/tools need them)" "scripts/setup-python.sh"
+fi
 
 if [ -x "$ZESARUX_BIN" ] && [ -x "$ZX_ROOT/.venv/bin/python" ]; then
   if "$ZX_ROOT/.venv/bin/python" - <<'PY' 2>/dev/null

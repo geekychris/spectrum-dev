@@ -5,6 +5,7 @@ description = "ZX Spectrum / Spectrum Next dev harness: scriptable ZEsarUX host,
 requires-python = ">=3.10"
 dependencies = [
   "pillow>=10",
+  "numpy>=1.24",           # sdk/tools (nextpic.py) and games' picture tools
   "mcp>=2.3,<3",
   "starlette>=0.40",
   "uvicorn>=0.30",

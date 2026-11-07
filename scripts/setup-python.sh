@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Create .venv with the zxdev package (emulator host, CLI, MCP server, DevBench).
+# Create .venv with the zxdev package (emulator host, CLI, MCP server, DevBench)
+# and what sdk/tools and the games' asset tools need (Pillow, numpy).
 source "$(dirname "$0")/lib.sh"
 
 step "python environment (.venv)"
@@ -17,6 +18,6 @@ else
   "$VENV/bin/python" -m pip install -q --upgrade pip
   "$VENV/bin/python" -m pip install -q -e "$ZX_ROOT/tools/zxdev"
 fi
-"$VENV/bin/python" -c "import zxdev.emu, PIL, mcp, starlette, uvicorn" 2>/dev/null >/dev/null \
+"$VENV/bin/python" -c "import zxdev.emu, PIL, numpy, mcp, starlette, uvicorn" 2>/dev/null >/dev/null \
   || die "python deps failed to import"
 ok "zxdev CLI at .venv/bin/zxdev, MCP server at .venv/bin/zxdev-mcp"
