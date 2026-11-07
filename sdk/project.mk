@@ -117,6 +117,8 @@ $(OUT): $(OBJS) $(SDK_LIB) $(wildcard zpragma.inc)
 	 for s in __BSS_END_tail __DATA_END_tail; do e=$$(v $$s); \
 	   if [ -n "$$e" ] && [ $$((0x$$e)) -gt $$((0xF000)) ]; then \
 	     echo "error: $(NAME) ends at 0x$$e ($$s), above 0xF000 (frame_init's IM 2 table)"; rm -f $@; exit 1; fi; done; \
+	 x=$$(grep -E 'code_l_xcc, [^ ]*/l/xcc/__(mod|div)' $$m | awk '{print $$1}' | tr '\n' ' '); \
+	 if [ -n "$$x" ]; then echo "error: $(NAME) links z88dk's xcc $$x(register arguments: called from sdcc code they return the wrong value; see CLAUDE.md)"; rm -f $@; exit 1; fi; \
 	 b=$$(v __BSS_head); be=$$(v __BSS_END_tail); c=$$(v __CODE_head); \
 	 if [ -n "$$b" ] && [ $$((0x$$b)) -lt $$((0x$$c)) ] && [ $$((0x$$be)) -gt $$((0x$$c)) ]; then \
 	   echo "error: $(NAME)'s BSS (0x$$b-0x$$be) runs into its code at 0x$$c"; rm -f $@; exit 1; fi
