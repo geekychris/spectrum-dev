@@ -121,6 +121,6 @@ case "$cmd" in
            fi
            [ "$fails" -eq 0 ] && ok "all pass" || die "$fails check(s) failed" ;;
   zxdev)   need_zxdev; exec "$ZXDEV" "$@" ;;
-  help|-h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help|-h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' ;;
   *)       die "unknown command '$cmd' (./zx help)" ;;
 esac
