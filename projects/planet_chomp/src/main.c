@@ -8,7 +8,10 @@
  *   0x6000-0x7FFF    the autopilot's arrays     page 39 (corner tables), page 40 (wall
  *                                               tables), then Layer 2 (l2poly)
  *   0x8000-0xEFFF  this, the SDK, the shared state (state.c); 0xF000- the IM 2 table, the stack
- *   banks 9-14     Layer 2 (two 256 x 192 buffers); 22-24 the starfield
+ *   page 41 at 0x6000 after drawing: view.c (the sprites' positions, the radar);
+ *   bank 21 at 0x0000 for the HUD: hud.c (the tilemap in bank 5 through slot 2)
+ *   banks 9-14     Layer 2 (two 256 x 192 buffers); 22-24 the starfield;
+ *   26-35 the sprites (actors.c)
  *
  * port: zsdcc's code for the original's rules is about 15K and the grid's
  * tables 11K, so the program is in parts that the loop maps in turn. Code
@@ -30,9 +33,15 @@
 #include "game.h"
 #include "render.h"
 #include "rtab.h"
+#include "actors.h"
+#include "hud.h"
+#include "sound.h"
+#include <input.h>
+#include <string.h>
 
 #define LOGIC() do { ZXN_WRITE_MMU0(32); ZXN_WRITE_MMU1(33); ZXN_WRITE_MMU2(34); ZXN_WRITE_MMU3(35); } while (0)
 #define DRAW()  do { ZXN_WRITE_MMU0(36); ZXN_WRITE_MMU1(37); ZXN_WRITE_MMU2(38); } while (0)
+#define HUD()   do { ZXN_WRITE_MMU0(42); ZXN_WRITE_MMU1(43); } while (0)
 #define STARS_BANK 22
 
 extern const uint16_t rd_pal[C_COUNT];
@@ -49,9 +58,6 @@ void dr_end(void) { l2p_end(); }
 void dr_poly(const int16_t *xy, uint8_t n, uint8_t colour) { l2p_poly(xy, n, colour); }
 void dr_rect(int16_t y0, int16_t y1, int16_t x0, int16_t x1, uint8_t colour) { l2p_rect(y0, y1, x0, x1, colour); }
 
-void sfx_play(uint8_t id) { (void)id; }
-void sfx_crumb(void) { }
-void sfx_ambience(uint8_t w) { (void)w; }
 
 /* profiling: raster lines spent in each part of the loop (one line is ~1800
    T-states at 28 MHz), on a clock of frames (the interrupt) and lines */
@@ -81,6 +87,18 @@ static void lap(uint8_t k)
     prof_t = t;
 }
 
+/* port: the original's Q/E (spin) are taken by QAOP: Z and X spin; P is
+   right, so pause is H; C is the whole planet, as in the original */
+static uint16_t extra_keys(void)
+{
+    uint16_t b = 0;
+    if (key_down(IN_KEY_SCANCODE_z)) b |= PAD_L;
+    if (key_down(IN_KEY_SCANCODE_x)) b |= PAD_R;
+    if (key_down(IN_KEY_SCANCODE_c)) b |= PAD_C;
+    if (key_down(IN_KEY_SCANCODE_h)) b |= PAD_P;
+    return b;
+}
+
 /* keys and Kempston -> the original's pad bits */
 static uint16_t pad_of(uint8_t in)
 {
@@ -95,10 +113,16 @@ static uint16_t pad_of(uint8_t in)
 
 int main(void)
 {
-    uint8_t ticks, i, frames = 0;
-    uint16_t held, pressed, fps_t0;
+    uint8_t ticks, i, frames = 0, last_state = 0xFF, entering = 0;
+    int8_t place = -1;
+    uint16_t held, pressed, fps_t0, extra, extra_last = 0;
+    hs_editor ed;
 
+    memcpy((void *)0x7000, (const void *)0x3D00, 768);   /* the ROM font into bank 5 (for the HUD) */
     next_init();
+    zx_border(INK_BLACK);
+    act_init();
+    ZXN_WRITE_REG(0x15, 0x13);                       /* sprites on, over the border; order U S L */
     l2_init();
     pal_load(1, rd_pal, C_COUNT);
     input_init();
@@ -107,8 +131,13 @@ int main(void)
     input_latch(1);
     DRAW();
     rd_init();
+    HUD();
+    hud_init();
+    hs_init(1000);
+    snd_init();
     LOGIC();
     game_init();
+    g.hiscore = (int32_t)hs_table[0].score;
     zx_log("pc: ready kempston=%u walls=%d\n", input_kempston, rd_nwalls);
     fps_t0 = irq_frames;
 
@@ -116,14 +145,48 @@ int main(void)
         ticks = frame_wait();
         prof_t = line_clock();
         l2_flip();
+        act_commit();
         if (ticks > 4) ticks = 4;
         LOGIC();
-        held = pad_of(input_read());
-        pressed = pad_of(input_pressed());
+        if (entering) {                              /* the initials: the keys are the editor's */
+            uint8_t r;
+            input_read();
+            r = hs_edit_step(&ed);
+            held = pressed = 0;
+            if (r & HS_EDIT_DONE) {
+                hs_insert(place, ed.name, (uint32_t)g.score);
+                g.hiscore = (int32_t)hs_table[0].score;
+                zx_log("pc: name=%s\n", ed.name);
+                game_title();
+                entering = 0;
+            }
+        } else {
+            held = pad_of(input_read());
+            pressed = pad_of(input_pressed());
+            extra = extra_keys();
+            held |= extra;
+            pressed |= extra & ~extra_last;
+            extra_last = extra;
+        }
         for (i = 0; i < ticks; i++) {
             game_step(held, pressed);
             pressed = 0;                             /* an edge counts once */
+            snd_tick();
         }
+        snd_title(g.state == GS_TITLE);
+        if (g.state != last_state) {
+            if (g.state == GS_OVER && !g.demo) {
+                place = hs_rank((uint32_t)g.score);
+                zx_log("pc: gameover score=%ld rank=%d\n", g.score, place);
+                if (place >= 0) {
+                    hs_edit_begin(&ed);
+                    entering = 1;
+                }
+            }
+            if (g.state == GS_TITLE) zx_log("pc: title\n");
+            last_state = g.state;
+        }
+        game_view();
         lap(0);
         l2_copy_to_back(STARS_BANK);
         lap(1);
@@ -188,9 +251,15 @@ int main(void)
                 zx_log("pc: bench 65536 L2 stores (11T + 1.6T loop): %lu lines\n", t0);
             }
             l2p_end();
-        } else
+        } else {
             rd_frame();
+            ZXN_WRITE_MMU3(41);
+            rd_sprites();
+        }
         lap(2);
+        HUD();
+        if (entering) hud_entry(ed.name, ed.pos, (uint8_t)place);
+        else hud_update();
         if (++frames == 50) {
             uint16_t f = irq_frames - fps_t0;
             zx_log("pc: perf fps10=%u lines/frame: logic=%lu stars=%lu draw=%lu walls=%d crumbs=%d\n",

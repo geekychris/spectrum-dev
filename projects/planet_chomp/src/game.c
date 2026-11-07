@@ -446,6 +446,22 @@ void player_world(V3 *r)
     v3_scale(r, &d, PLANET_R + Q8(0.55));
 }
 
+/* ---- port: the view's snapshot ---- */
+
+void game_view(void)
+{
+    uint8_t i;
+    V3 t;
+    mover_dir(&pv.pdir, &g.player);
+    v3_scale(&pv.pworld, &pv.pdir, PLANET_R + Q8(0.55));
+    v3_scale(&t, &g.player.heading, Q8(1));
+    v3_add(&pv.pfront, &pv.pworld, &t);
+    for (i = 0; i < 4; i++) {
+        mover_dir(&pv.gdir[i], &g.ghost[i].mv);
+        ghost_world(&pv.gworld[i], &g.ghost[i]);
+    }
+}
+
 /* ---- the director (GameDirector.cs) ---- */
 
 static void set_state(uint8_t s)
@@ -705,6 +721,14 @@ void game_init(void)
     g.cam.height = Q8(30);
     build_level();
     reset_actors();
+    set_state(GS_TITLE);
+}
+
+/* port: back to the title after the initials */
+void game_title(void)
+{
+    g.demo = 0;
+    sfx_ambience(0);
     set_state(GS_TITLE);
 }
 

@@ -5,6 +5,7 @@
 #include "render.h"
 
 Game g;
+PcView pv;
 uint8_t crumb[CELLS], key[CELLS];
 int16_t nest_dist[CELLS];
 uint8_t mz_open[CELLS];

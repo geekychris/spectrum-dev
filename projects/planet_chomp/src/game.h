@@ -82,11 +82,22 @@ extern PcWork pc_work;
 
 void game_init(void);
 void game_step(uint16_t held, uint16_t pressed);
+void game_title(void);            /* port: after the high-score initials */
 void mover_dir(V3 *r, const Mover *m);
 int16_t mover_nearest(const Mover *m);
 uint8_t ghost_dangerous(const Ghost *gh);
 void ghost_world(V3 *r, const Ghost *gh);  /* sprite centre, world Q8 */
 void player_world(V3 *r);
+
+/* port: what the view needs from the logic, worked out at the end of each
+   logic phase (game_view) into main memory: the grid's tables are only
+   mapped while the logic runs */
+typedef struct {
+    V3 pdir, pworld, pfront;        /* the chomper: direction, sprite centre, 1 unit ahead (world Q8) */
+    V3 gdir[4], gworld[4];          /* the spooks */
+} PcView;
+extern PcView pv;
+void game_view(void);
 
 /* port: the autopilot's choice at cell c (the original's bot_choose), for
    the test's bot, which steers with the keys */

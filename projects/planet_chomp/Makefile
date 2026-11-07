@@ -11,6 +11,10 @@ $(OBJDIR)/logic_tab.c.o: EXTRA_CFLAGS += --constsegBANK_17
 $(OBJDIR)/render.c.o $(OBJDIR)/rtab.c.o: EXTRA_CFLAGS += --codesegBANK_18 --constsegBANK_18 --datasegBANK_18 -DXF_ASM
 $(OBJDIR)/rtab_a.c.o: EXTRA_CFLAGS += --constsegPAGE_39
 $(OBJDIR)/rtab_b.c.o: EXTRA_CFLAGS += --constsegPAGE_40
+# the HUD: bank 21 at 0x0000
+$(OBJDIR)/hud.c.o: EXTRA_CFLAGS += --codesegBANK_21 --constsegBANK_21 --datasegBANK_21
+# the sprites' positions and the radar: page 41 at 0x6000 after drawing
+$(OBJDIR)/view.c.o: EXTRA_CFLAGS += --codesegPAGE_41 --constsegPAGE_41 --datasegPAGE_41
 
 # the tables and pictures are made on the host (checked in):
 #   sh tools/make_assets.sh
@@ -19,7 +23,7 @@ $(OBJDIR)/rtab_b.c.o: EXTRA_CFLAGS += --constsegPAGE_40
 # its last 1.5K for draw.asm's jump table and row buffers)
 all: banks-check
 banks-check: $(OUT)
-	@for s in BANK_16:16384 BANK_17:16384 BANK_18:14848 PAGE_38:8192 PAGE_39:8192 PAGE_40:8192; do \
+	@for s in BANK_16:16384 BANK_17:16384 BANK_18:14848 BANK_21:16384 PAGE_38:8192 PAGE_39:8192 PAGE_40:8192 PAGE_41:8192; do \
 	   n=$${s%%:*}; max=$${s##*:}; \
 	   h=$$(awk "/^__$${n}_head/ {print \$$3}" $(BUILD)/$(NAME).map | tr -d '$$'); \
 	   t=$$(awk "/^__$${n}_tail/ {print \$$3}" $(BUILD)/$(NAME).map | tr -d '$$'); \
