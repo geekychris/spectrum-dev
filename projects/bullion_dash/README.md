@@ -60,14 +60,16 @@ original's (`src/levels.txt`, extracted from its `level.c` by
 
 ## The levels as they are
 
-The original's levels are mostly not winnable, and the port keeps them so.
-The win needs all the gold and then the top row, but on most levels no ladder
-reaches row 0, and the guards (a tile every 3 frames) are much faster than the
-player (a tile every 5). A guard on the bottom row often walks straight into
-the start. The test bot (below), which plans with the game's own rules, dies
-on 138 of the 150 levels (half of them within 69 frames) and finishes none.
-It takes gold on 88. The test therefore clears a level built in the editor,
-and plays the main game to its end.
+The original's levels can't be won, and the port keeps them as they are. A
+win needs all the gold and then the top row. On 149 of the 150 levels a route
+search from the start (digging allowed, guards ignored) can't reach all the
+gold, or can't reach row 0. The guards also move a tile every 3 frames, the
+player every 5. The test bot, which plans with the game's own rules,
+finishes none of the levels and is caught on 138 (half of them within 69
+frames). The evidence, the method and possible fixes for the originals are in
+[ORIGINAL_BUGS.md](ORIGINAL_BUGS.md) (`tools/level_report.py`,
+`tools/try_levels.py`). The test therefore clears a level built in the
+editor, and plays the main game to its end.
 
 ## 48K notes
 

@@ -219,8 +219,9 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   10 x 14 coordinates, one 8 x 8 cell a tile through cellspr48; its 150 levels
   arithmetic-coded into 7.9 KB; the guards' BFS as one cached distance field
   from the player (same first step); the level editor (S / L keep a level in
-  memory instead of files). 24-50 fps. The original's levels are practically
-  unwinnable (no ladder to row 0, guards 1.67x the player's speed): the test
+  memory instead of files). 24-50 fps. The original's levels can't be won (no
+  route to all the gold and row 0 on 149 of 150; guards 1.67x the player's
+  speed; ORIGINAL_BUGS.md): the test
   clears an editor-built level (dig a trap, gold, climb) and checks every game
   loop against a host build of the rules. SDK: `gridpack` (+ tools/gridpack.py),
   `gridbfs`; tests in projects/sdktestgrid.
