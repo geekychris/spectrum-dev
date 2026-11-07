@@ -2,6 +2,6 @@
   "title": "Uranus Lander",
   "ready": "uranus: ready",
   "description": "Land on the pads of Uranus: thrust gently, touch down slow and upright before the fuel runs out.",
-  "controls": "O/P turn, SPACE thrust, Z autopilot",
+  "controls": "O/P turn, Q/fire thrust, Z autopilot",
   "picture": "screenshots/play.png"
 }
