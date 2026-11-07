@@ -28,7 +28,7 @@
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
 (one object per file, so files are split where a game might want only
-part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest` and `projects/splittest` (split screens, two-player input).
+part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest`, `projects/splittest` (split screens, two-player input) and `projects/geomtest` (polygons, bands, projection).
 
 | header | module (src/) | what |
 |---|---|---|
@@ -76,6 +76,8 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | `tmap.h` | `tmap.c` | one tile map with a row table: `tmap_load` (a `tools/levelpack.py` stream), `TMAP(c, r)`, `tmap_at` (bounds-checked), `tmap_find`, `tmap_count`, `tmap_replace`; builds on the host too |
 | `plat.h` | `plat.c`, `plat_kind.asm` | platformer movement against tmap: `plat_move_x` / `plat_move_y` (move X then Y, test the box's corners, snap to the tile edge, gravity, max fall, `on_ground`), `plat_kind_at` / `plat_solid_at`; tile and body size and a solid table are parameters. It is Miner Meteor's original code, snaps included; builds on the host too |
 | `cellspr48.h` | `cellspr48.c`, `cellspr48_spr.asm`, `cellspr48_out.asm`, `cellspr48_ref.asm` | 48K tile room + sprites composed per character cell (tile, then each sprite ORed in from a pre-shifted copy, written once: no flicker; a sprite inks the cells it covers). `cs_update` redraws only the cells that changed (moved sprites, `cs_set`, `cs_mark`); `cs_refresh` rewrites a few lines of animated tiles (belts) without a compose. Tests: projects/sdktestroom |
+| `l2poly.h` | `next/l2poly.asm`, `next/l2poly_c.c` | filled convex polygons (any winding, 16-bit coordinates, clipped), spans, rectangles (whole rows by one DMA a page) and *bands* on the 256 x 192 Layer 2 back buffer, in Z80N asm: edges step in 16.8 with slopes from a reciprocal table and MUL; short spans by an unrolled store, long ones by the zxnDMA. A band fills many strips that share their top and bottom rows (a road's cross-section between two depths) in one row loop. ScAIry Fun draws its road with it. Test: `projects/geomtest` |
+| `persp.h` | `next/persp.asm`, `next/persp.c` | perspective for pseudo-3D: `persp_scale(z)` = fov x 4096 / z (one division a depth, 16 rounds), then `persp_mul`, `persp_x1/y1`, `persp_xs`, `persp_xy` (a MUL a coordinate, clamped for l2poly); inline C on a host compiler. Test: `projects/geomtest` |
 | `isosort.h` | `isosort.c` | isometric draw order for boxes (separating axis + depth key, then a depth-first sort); `iso_behind` for "is this scenery in front of the sprite" |
 
 `zxlog` and `zxtext` are linked into every z88dk project.

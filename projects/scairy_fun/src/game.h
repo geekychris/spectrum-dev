@@ -7,7 +7,8 @@
 /* main.c (resident) */
 extern World world;
 extern uint8_t render_skip;             /* profiling: bits skip parts of the frame (render.c) */
-extern uint8_t sfx_queue;               /* an effect for the interrupt to start (SFX_*) */
+extern uint8_t sfx_queue;
+extern uint8_t keys_latched;            /* V, H, S taps seen by the interrupt (bits 0-2) */               /* an effect for the interrupt to start (SFX_*) */
 void map_sim(void);                     /* MMU slots 0-3: the simulation's banks */
 void map_render(void);                  /*                the renderer's */
 void map_front(void);                   /*                the front end's (game.c) */

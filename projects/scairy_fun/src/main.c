@@ -9,9 +9,11 @@
  *   0x8000-0xEFFF  resident: world.c, track.c, the SDK, the C library, data
  *   0xF000-        the IM 2 table, the stack
  */
+#ifndef SC_TRACE
 #include <stdint.h>
 #include <string.h>
 #include <arch/zxn.h>
+#include <input.h>
 #include "zxgame.h"
 #include "nextgfx.h"
 #include "zxlog.h"
@@ -117,10 +119,15 @@ static void start_sfx(uint8_t id)
     }
 }
 
+uint8_t keys_latched;                           /* V, H, S seen since game_input looked */
+
 static void on_frame(void)
 {
     frames50++;
     input_sample();
+    if (key_down(IN_KEY_SCANCODE_v)) keys_latched |= 1;
+    if (key_down(IN_KEY_SCANCODE_h)) keys_latched |= 2;
+    if (key_down(IN_KEY_SCANCODE_s)) keys_latched |= 4;
     modplay_tick();
     if (sfx_queue) {
         start_sfx(sfx_queue);
@@ -224,3 +231,4 @@ int main(void)
         }
     }
 }
+#endif

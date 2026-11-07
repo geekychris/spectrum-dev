@@ -1,6 +1,11 @@
 NAME   := scairy_fun
 TARGET := zxn
 ZX_SDK ?= ../../sdk
+# make TRACE=1: the simulation's trace instead of the game (src/trace.c, tools/check_trace.sh)
+ifeq ($(TRACE),1)
+BUILD := build-trace
+EXTRA_CFLAGS += -DSC_TRACE
+endif
 include $(ZX_SDK)/project.mk
 
 # memory map: see src/main.c; the link addresses are in zpragma.inc
@@ -16,9 +21,12 @@ $(OBJDIR)/render.c.o: EXTRA_CFLAGS += --codesegBANK_18 --constsegBANK_18 --datas
 $(OBJDIR)/sprites.c.o $(OBJDIR)/spr_tab.c.o: EXTRA_CFLAGS += --codesegPAGE_38 --constsegPAGE_38 --datasegPAGE_38 --bsssegPAGE_38
 # the sprites' patterns: banks 40.. (tools/gen_sprites.py, src/spr_data.asm)
 # the front end (game.c): 16K bank 20 at 0x0000, its variables too
-# and the SDK modules only it uses (nexttile, hiscore)
+# and the SDK modules only it uses (nexttile, hiscore); (the trace build keeps
+# game.c's event names resident)
+ifneq ($(TRACE),1)
 $(OBJDIR)/game.c.o $(OBJDIR)/sdk/next/nexttile.c.o $(OBJDIR)/sdk/hiscore.c.o: \
 	EXTRA_CFLAGS += --opt-code-size --codesegBANK_20 --constsegBANK_20 --datasegBANK_20 --bsssegBANK_20
+endif
 # the music (music.c from scairy.mod by sdk/tools/mod2ay.py): linked at 0xF200,
 # loaded into page 39, copied up at start-up (see main.c)
 $(OBJDIR)/music.c.o: EXTRA_CFLAGS += --constsegPAGE_39

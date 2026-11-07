@@ -74,6 +74,18 @@ Details: docs/emulator-harness.md.
   to left (store rnd16() results first); for the 48K, `((int32_t)a << 14) / d`
   came out wrong (fixmath.c writes it as a multiply). Profile with breakpoints + `get-tstates-partial`
   before guessing, and move real hot loops to asm.
+- zsdcc also miscompiled `dz = (o->z - c->z) >> 4` (int32_t fields through pointers: byte 2
+  of the subtraction was never loaded) and once emitted an impossible `ld iyl,l` for
+  `z = ((int32_t)i << 7) + c->dz[side]` (assembler "syntax error" in the .asm line). Compare
+  ported code with a host build (scairy_fun's tools/check_trace.sh) rather than trust it.
+- More code than 0x8000-0xEFFF: put files in banks with `--codesegBANK_n --constsegBANK_n
+  --datasegBANK_n --bsssegBANK_n` (`#pragma output CRT_ORG_BANK_n = (2n << 16) | addr` in
+  zpragma.inc; 8K pages: `PAGE_n`, `(n << 16) | addr`) and map them before calling. SDK C
+  modules can be banked the same way from a project Makefile (target-specific EXTRA_CFLAGS on
+  `$(OBJDIR)/sdk/...c.o`). A banked file's variables are only visible while it is mapped:
+  copy what resident code needs (scairy_fun's main.c reads game.c's `game_in` before mapping
+  the simulation). Page sections that overflow 8K are not reported by the linker: check the
+  map's `__PAGE_n_size`.
 - Game loops: fixed timestep (`ticks = frame_wait()`, logic `ticks` times, draw once),
   so game speed stays the original's when drawing is slow. A tap shorter than a slow
   frame is lost unless input is latched: `frame_hook = input_sample; input_latch(1);`

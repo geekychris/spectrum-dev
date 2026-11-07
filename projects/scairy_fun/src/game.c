@@ -86,6 +86,7 @@ const char *const ev_name[EV_COUNT] = {
     "mult_up", "siren", "route_start", "hit_animal", "say", "win"
 };
 
+#ifndef SC_TRACE
 static const char *const state_names[] = { "title", "intro", "play", "arrived", "update", "gameover", "win" };
 
 /* ---------- text ---------- */
@@ -184,9 +185,15 @@ uint8_t game_input(void)
     if (k & IN_FIRE_SDK) in |= IN_FIRE;
     if (k & IN_START_SDK) in |= IN_START;
     if (k & IN_QUIT_SDK) in |= IN_ESC;
-    if (key_down(IN_KEY_SCANCODE_v)) in |= IN_VIEW;
-    if (key_down(IN_KEY_SCANCODE_h)) in |= IN_HELP;
-    if (key_down(IN_KEY_SCANCODE_s)) in |= IN_PAUSE;
+    /* (latched by the interrupt, like input_read's: a tap shorter than a frame
+       of the game still counts) */
+    {
+        uint8_t l = keys_latched;
+        keys_latched = 0;
+        if (l & 1 || key_down(IN_KEY_SCANCODE_v)) in |= IN_VIEW;
+        if (l & 2 || key_down(IN_KEY_SCANCODE_h)) in |= IN_HELP;
+        if (l & 4 || key_down(IN_KEY_SCANCODE_s)) in |= IN_PAUSE;
+    }
     edge = in & ~prev_in;
     prev_in = in;
     game_in = in;
@@ -794,3 +801,4 @@ void game_init(void)
     hs_init(2000);
     screen = 0xFF;
 }
+#endif
