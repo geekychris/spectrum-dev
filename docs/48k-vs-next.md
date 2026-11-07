@@ -58,7 +58,7 @@ the CPU is slow, so the work goes into drawing less:
   leaves no room for the variables above 0x8000, so they go below (in
   contended memory: hot loops are in assembly)
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -109,6 +109,14 @@ the 48K:
   finished boards in spare banks and shows one by pointing Layer 2's start
   bank (NextReg 0x12) at it; new boards are drawn in each frame's spare
   time so the marble and the rules never wait
+- Stack Tower's 3D tower turns only about its axis, under a fixed camera, so
+  everything the view shows is drawn on the host with the original's own
+  geometry: the backdrop and core for 8 steps within a column, and every
+  brick at each of 41 positions round the tower and each row (2,952 images
+  in 1.3 MB of banks, drawn as base pen + offset so one image serves every
+  colour). The board as drawn is kept in four pages and copied back by DMA
+  when only the piece moved (50 fps); the drop guide is the copper changing
+  the core panels' own palette entries between two lines
 
 ## Things to know
 
