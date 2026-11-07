@@ -214,6 +214,17 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   scores. Loop 50 fps, rules 25 ticks/s, boards 6-8/s while tilting. SDK:
   fix16, isqrt32 fix, spr_pattern_dma; projects/fix16test.
 
+- **Bullion Dash** (48K): the original's rules (player, guards, digging,
+  regrowing bricks, gold stealing, hidden ladders) at 50 Hz in the original's
+  10 x 14 coordinates, one 8 x 8 cell a tile through cellspr48; its 150 levels
+  arithmetic-coded into 7.9 KB; the guards' BFS as one cached distance field
+  from the player (same first step); the level editor (S / L keep a level in
+  memory instead of files). 24-50 fps. The original's levels are practically
+  unwinnable (no ladder to row 0, guards 1.67x the player's speed): the test
+  clears an editor-built level (dig a trap, gold, climb) and checks every game
+  loop against a host build of the rules. SDK: `gridpack` (+ tools/gridpack.py),
+  `gridbfs`; tests in projects/sdktestgrid.
+
 ### Cleanup (2026-11-06)
 
 SDK modules pulled out of the games, each with a test (sdktest,
@@ -248,6 +259,9 @@ READMEs; docs/48k-vs-next.md.
 
 - Frank's redraw stays ~19 fps: the floor is ~5K T-states per lane object
   (about 17 a frame); moving draw_lane's loop to asm would give ~20 fps.
+- Bullion Dash: 24-30 fps where guards with no path wander (the original's
+  32-bit LCG per random step, `input_read` ~15% of a frame); a new level's
+  first frame takes ~0.3 s (unpack, path flags, whole-room draw).
 - Miner Meteor's caverns 4 and 6 draw 33-36 fps: three guardians and the miner
   move every frame (~10 cells composed, ~2,500 T-states each), the logic is
   ~14K T-states a tick in C and `input_read` ~15K (with `input_fast`).

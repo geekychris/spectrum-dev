@@ -197,6 +197,7 @@ They are part of `./zx selftest`.
 | [Uranus Lander](projects/uranus_lander/README.md) | 48K `.tap`: the original's terrain and 16.16 physics, line-drawn ship, an autopilot (Z); AY on a 128K | ![](docs/images/uranus_lander.gif) |
 | [Sky Knights](projects/sky_knights/README.md) | 48K `.tap`: one or two players, the per-frame loops in asm (checked against the original C) | ![](docs/images/sky_knights.gif) |
 | [Miner Meteor](projects/miner_meteor/README.md) | 48K `.tap`: single-screen platformer, sprites composed per cell over the tiles (no flicker, colour per cell), a demo of all six caverns | ![](docs/images/miner_meteor.gif) |
+| [Bullion Dash](projects/bullion_dash/README.md) | 48K `.tap`: the original's 150 levels arithmetic-coded into 8 KB, guards' pathfinding from one cached distance field, the level editor; tested against a host build of its own rules | ![](docs/images/bullion_dash.gif) |
 | [StakAttack](projects/stakattack/README.md) | Next `.nex`: Layer 2, hardware sprites, TurboSound music | ![](docs/images/stakattack.gif) |
 | [Boing Pinball](projects/boing_pinball/README.md) | Next `.nex`: the original's physics and rules in 16-bit, 320x256 Layer 2, sprites, banked code | ![](docs/images/boing_pinball.gif) |
 | [Block Breaker 3D](projects/block_breaker_3d/README.md) | Next `.nex`: breakout down a tunnel; the original's rules bit-exact (its tests pass in the game), the tunnel on 320x256 Layer 2 with a palette-lit depth ring, bricks drawn with a depth plane, 4-bit sprites masked behind bricks, tilemap HUD, DMA, TurboSound, banked code | ![](docs/images/block_breaker_3d.gif) |
@@ -222,7 +223,8 @@ moving objects), `font5.h`, `modplay.h`
 TurboSound, DMA), the Next modules `l2rle.h` (RLE pictures), `nextspr.h`
 (sprite groups and masking), `isosort.h`, `nextcopper.h`, `nexttile.h`
 (tilemap text), `palfx.h`, `aystream.h` (TurboSound streams), `nextsplit.h`
-(copper split screens), `input2.h` (two-player input), `zxrle.h`, and
+(copper split screens), `input2.h` (two-player input), `zxrle.h`, `gridpack.h`
+(level sets packed by arithmetic coding), `gridbfs.h` (chasers' pathfinding), and
 the tools in `sdk/tools`; see [sdk/README.md](sdk/README.md).
 
 ## Arcade
@@ -270,7 +272,7 @@ card. NextZXOS is never included (its licence wants the whole distribution).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `fix16test`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `bullion_dash`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestgrid`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `fix16test`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 

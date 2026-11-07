@@ -58,6 +58,13 @@ the CPU is slow, so the work goes into drawing less:
   leaves no room for the variables above 0x8000, so they go below (in
   contended memory: hot loops are in assembly)
 
+- Bullion Dash keeps the original's 10 x 14 pixel coordinates for its rules
+  and draws one 8 x 8 cell a tile; 150 levels go into 8 KB by arithmetic
+  coding (sdk `gridpack`), and its guards share one breadth-first distance
+  field from the player instead of a search each (sdk `gridbfs`). Code, levels
+  and variables take the whole RAM from 0x5D00, with tables made at start-up
+  above the IM 2 table
+
 **Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower): the hardware does what the CPU did on
 the 48K:
 

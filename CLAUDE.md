@@ -268,6 +268,17 @@ Details: docs/emulator-harness.md.
   and set the next tick's keys at a breakpoint on the tick function; set them at
   the frame boundary instead and a slow frame (two ticks) or the interrupt's
   latch (`input_latch`) gives a tick the wrong keys (miner_meteor/test.py).
+- A test bot can plan with the game's own C built for the host (Bullion Dash's
+  tools/hostsim.c): `#pragma pack(push, 1)` on the state structs (not -fpack-struct:
+  it breaks pointer alignment in other structs) gives `gs` the Z80's layout, so it
+  is copied from the emulator; checking each game loop against the host build
+  catches asm/C differences. Stop at `frame_wait` to read a consistent state: at an
+  arbitrary frame boundary the loop may be half way through its ticks.
+- zsdcc passes `uint8_t`/`int8_t` varargs as one byte: `zx_log("%d", gs.gx)` with an
+  8-bit field prints garbage; cast to `(int)`.
+- A key held for fewer frames than a slow frame (a full-screen redraw) is seen by the
+  latch only as edges: SPACE's fire edge survives, BREAK (CAPS + SPACE, a held
+  combination) does not. Tests press BREAK after the redraw, or hold it ~10 frames.
 
 ## Layout
 
