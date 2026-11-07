@@ -25,22 +25,35 @@ void l2pic_scroll(uint16_t s)
     ZXN_WRITE_REG(0x71, (uint8_t)(s >> 8) & 1);
 }
 
-void l2pic_column(uint16_t lx, uint16_t x)
+/* picture column x into dst (row 0 of a mapped Layer 2 column, not in
+   slot 2): slot 2 holds the index, then the column's page, and is put back */
+static void decode(uint8_t *dst, uint16_t x)
 {
-    uint8_t s2 = ZXN_READ_REG(0x52), s3 = ZXN_READ_REG(0x53), page;
+    uint8_t s2 = ZXN_READ_REG(0x52);
     const uint8_t *e;
     uint16_t addr;
-    if (x >= ncols) return;
     ZXN_WRITE_REG(0x52, index_page);
     e = (const uint8_t *)0x4000 + x * 3;
-    page = e[0];
     addr = e[1] | (uint16_t)e[2] << 8;
-    ZXN_WRITE_REG(0x52, page);
-    ZXN_WRITE_REG(0x53, l2w_bank * 2 + (uint8_t)(lx >> 5));
-    l2pic_rle((uint8_t *)0x6000 + ((lx & 31) << 8) + row0, (const uint8_t *)addr, (uint8_t)(256 - row0));
+    ZXN_WRITE_REG(0x52, e[0]);
+    l2pic_rle(dst + row0, (const uint8_t *)addr, (uint8_t)(256 - row0));
     ZXN_WRITE_REG(0x52, s2);
-    ZXN_WRITE_REG(0x53, s3);
     l2pic_copied++;
+}
+
+void l2pic_column(uint16_t lx, uint16_t x)
+{
+    uint8_t s3 = ZXN_READ_REG(0x53);
+    if (x >= ncols) return;
+    ZXN_WRITE_REG(0x53, l2w_bank * 2 + (uint8_t)(lx >> 5));
+    decode((uint8_t *)0x6000 + ((lx & 31) << 8), x);
+    ZXN_WRITE_REG(0x53, s3);
+}
+
+void l2pic_fill(uint8_t band, uint32_t wx, uint8_t *col)
+{
+    (void)band;
+    if (wx < ncols) decode(col, (uint16_t)wx);
 }
 
 /* x mod 320 without %: zsdcc can call z88dk's xcc __moduint for it, which

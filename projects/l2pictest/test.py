@@ -1,7 +1,7 @@
 """l2pictest - sdk l2pic: after each view Layer 2's ring holds picture
 columns x..x+319 (column c in Layer 2 column c mod 320, rows 16..255), the
 X scroll registers say x mod 320, and only the columns that came into view
-were copied."""
+were copied. Then the picture as an l2scroll.h band (l2pic_fill)."""
 import re
 import sys
 from pathlib import Path
@@ -44,6 +44,13 @@ with Emulator(machine="next") as e:
               and not bad, f"{line!r}, {len(bad)} wrong, first {bad[:3]}")
         check(f"view {x}: scroll {v % 320} (the registers too)", scroll == v % 320 and reg == v % 320, f"{scroll} {reg}")
         check(f"view {x}: {want} columns copied", copied == want, str(copied))
+    ok = e.run_until("lp: band 500", 100)
+    e.run(1)
+    off = int(re.search(r"lp: band 500 offset (\d+)", e.log(0)).group(1))
+    l2 = e._zone_read(0, video.NEXT_RAM + 9 * 16384, 80 * 1024)
+    bad = [c for c in range(500, 820)
+           if l2[((off + c - 500) % 320) * 256 + 16:((off + c - 500) % 320) * 256 + 256] != PIC[c]]
+    check("l2pic_fill as an l2scroll band: columns 500..819 in the band's ring", ok and not bad, f"{len(bad)} wrong")
     check("done", e.run_until("ZX:DONE", 100))
 print(f"{'FAIL' if failures else 'PASS'}: l2pictest")
 sys.exit(1 if failures else 0)

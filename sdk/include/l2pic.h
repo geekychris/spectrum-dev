@@ -41,6 +41,7 @@ extern uint16_t l2pic_view(int16_t x);
 extern void l2pic_scroll(uint16_t s);
 extern void l2pic_reset(void);
 extern void l2pic_column(uint16_t lx, uint16_t x);
+extern void l2pic_fill(uint8_t band, uint32_t wx, uint8_t *col);
 /* the decoder: rows bytes of column RLE at src -> dst (one Layer 2 column, mapped) */
 extern void l2pic_rle(uint8_t *dst, const uint8_t *src, uint8_t rows);
 

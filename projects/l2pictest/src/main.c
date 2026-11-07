@@ -3,7 +3,8 @@
  * (tools/gen.py) viewed at a list of positions, forwards, backwards and in
  * jumps. After each view it logs the position, the scroll and the columns
  * copied, and waits 10 frames; test.py reads Layer 2 and the scroll
- * registers then and checks them against the picture.
+ * registers then and checks them against the picture. Last, the picture
+ * as a band of l2scroll.h (l2pic_fill) at world x 500.
  */
 #include <stdint.h>
 #include <arch/zxn.h>
@@ -11,6 +12,7 @@
 #include "zxlog.h"
 #include "nextgfx.h"
 #include "l2pic.h"
+#include "l2scroll.h"
 
 static const int16_t views[] = { 0, 5, 100, 419, 425, 420, 300, 100, 0, 680, 361, 680, -20 };
 
@@ -34,6 +36,14 @@ int main(void)
     l2pic_scroll(l2pic_view(680));
     zx_log("lp: view 680 scroll %u copied %u reset\n", 680 % 320, l2pic_copied);
     for (k = 0; k < 10; k++) frame_wait();
+    {                                    /* the picture as an l2scroll band */
+        uint8_t b;
+        l2s_reset();
+        b = l2s_band(16, 255, l2pic_fill);
+        l2s_goto(b, 500);
+        zx_log("lp: band 500 offset %u\n", l2s_offset(b));
+        for (k = 0; k < 10; k++) frame_wait();
+    }
     zx_log("ZX:DONE\n");
     for (;;) frame_wait();
 }
