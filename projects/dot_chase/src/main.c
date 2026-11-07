@@ -83,11 +83,7 @@ static void scr_tab_init(void)
 /* ------------------------------------------------------------ the maze (in the shadow) */
 
 /* hedge: open around the maze, so the outer edge gets a line too */
-static uint8_t hedge(int8_t x, int8_t y)
-{
-    if (x < 0 || y < 0 || x >= MAZE_W || y >= MAZE_H) return 0;
-    return maze_row[y][x] == T_WALL;
-}
+#define hedge(x, y) ((uint8_t)(x) < MAZE_W && (uint8_t)(y) < MAZE_H && maze_row[y][x] == T_WALL)
 
 /* port: the original fills hedge tiles with leafy green; filled 6x6 blocks
    would turn the colour of every sprite passing by (the cells' ink is the
@@ -149,14 +145,17 @@ static void tile_update(uint8_t tx, uint8_t ty)
     if (n_dirty < MAX_DIRTY) dirty_xy[n_dirty++] = xy;
 }
 
-static void maze_to_shadow(void)
+/* the maze, drawn on the screen (it appears row by row, about a third of
+   a second), then copied to the shadow */
+static void maze_draw(void)
 {
     uint8_t tx, ty;
-    spr8_plane = SHADOW_PLANE;
-    for (ty = 0; ty < MAZE_H; ty++)
+    for (ty = 0; ty < MAZE_H; ty++) {
+        const uint8_t *row = maze_row[ty];
         for (tx = 0; tx < MAZE_W; tx++)
-            spr8_draw(TILE_XY(tx, ty), tile_img(tx, ty));
-    spr8_plane = SHADOW_SCREEN;
+            if (row[tx] != T_EMPTY) spr8_draw(TILE_XY(tx, ty), tile_img(tx, ty));
+    }
+    shadow_save();
 }
 
 /* the flowers pulse between bright and dim every 8 frames */
@@ -180,13 +179,19 @@ static void flowers(void)
 static uint8_t banner_shown;          /* 0, 1 = GO BUG GO, 2 = GARDEN CLEAR */
 static uint8_t band_dirty;
 
+static uint8_t banner_under[8 * BANNER_W];   /* the shadow under the banner */
+
 static void banner(uint8_t which)
 {
-    uint8_t i, tx, ty;
+    uint8_t i, *u = banner_under;
     if (which == banner_shown) return;
+    for (i = 0; i < 8; i++, u += BANNER_W) {
+        uint8_t *sh = zx_row[BANNER_ROW * 8 + i] + BANNER_C0 + 0x2000;
+        if (!banner_shown) memcpy(u, sh, BANNER_W);      /* keep the maze */
+        if (which) memset(sh, 0, BANNER_W);
+        else memcpy(sh, u, BANNER_W);                    /* the maze again */
+    }
     banner_shown = which;
-    for (i = 0; i < 8; i++)
-        memset(zx_row[BANNER_ROW * 8 + i] + BANNER_C0 + 0x2000, 0, BANNER_W);
     if (which) {
         const char *s = which == 1 ? "GO BUG GO" : "GARDEN CLEAR";
         uint8_t c = BANNER_C0 + (BANNER_W - strlen(s) + 1) / 2;
@@ -194,15 +199,8 @@ static void banner(uint8_t which)
             const uint8_t *g = (const uint8_t *)0x3C00 + (uint16_t)(uint8_t)*s * 8;
             for (i = 0; i < 8; i++) zx_row[BANNER_ROW * 8 + i][c + 0x2000] = g[i];
         }
-        memset(SHADOW_ATTR + BANNER_ROW * 32 + BANNER_C0, A_BANNER, BANNER_W);
-    } else {
-        /* the maze tiles under the band again (rows 16..18 cover lines 99..116) */
-        spr8_plane = SHADOW_PLANE;
-        for (ty = 16; ty <= 18; ty++)
-            for (tx = 0; tx < MAZE_W; tx++) spr8_draw(TILE_XY(tx, ty), tile_img(tx, ty));
-        spr8_plane = SHADOW_SCREEN;
-        memset(SHADOW_ATTR + BANNER_ROW * 32 + BANNER_C0, A_MAZE, BANNER_W);
     }
+    memset(SHADOW_ATTR + BANNER_ROW * 32 + BANNER_C0, which ? A_BANNER : A_MAZE, BANNER_W);
     band_dirty = 1;
 }
 
@@ -222,7 +220,7 @@ static void render(void)
     for (i = 0; i < n_dirty; i++) spr8_restore(dirty_xy[i], TILE_PX);
     n_dirty = 0;
     if (band_dirty) {
-        shadow_show_rect(0, BANNER_ROW * 8 - 5, 23, 18);
+        shadow_show_rect(BANNER_C0, BANNER_ROW * 8, BANNER_W, 8);
         memcpy((uint8_t *)0x5800 + BANNER_ROW * 32 + BANNER_C0,
                SHADOW_ATTR + BANNER_ROW * 32 + BANNER_C0, BANNER_W);
         band_dirty = 0;
@@ -390,10 +388,7 @@ static void game_screen(void)
 {
 
     screen_clear(A_MAZE, INK_BLACK);
-    memset(SHADOW_ADDR, 0, 6144);
-    memset(SHADOW_ATTR, A_MAZE, 768);
-    maze_to_shadow();
-    shadow_show();
+    maze_draw();
     hud_labels();
     hud();
     memset(obj, 0, sizeof(obj));

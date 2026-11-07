@@ -192,7 +192,7 @@ with Emulator() as e:
     e.run(30)
     e.press("SPACE")
     check("FIRE starts the game", e.run_until("dot: state=ready", 100))
-    e.run(20)
+    e.run(60)
     e.screenshot(SHOTS / "ready.png")
     log, frames = bot_game(e)
     scores = [int(s) for s in re.findall(r"score=(\d+)", log)]

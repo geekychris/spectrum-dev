@@ -222,7 +222,7 @@ void game_start_life(GameState *gs);
 void game_update(GameState *gs, InputState *input);
 
 /* Maze data (defined in game.c) */
-extern const UBYTE maze_template[MAZE_H][MAZE_W];
+extern const UBYTE maze_template[MAZE_H][MAZE_W / 2];   /* port: left halves */
 extern UBYTE *const maze_row[MAZE_H];   /* port: rows of gs->maze without a multiply */
 /* port: the one game, at a fixed address below the program (0x7B00-0x7F37,
    free once the loader has run; main.c lists the memory map) */
