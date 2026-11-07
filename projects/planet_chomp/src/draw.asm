@@ -829,6 +829,9 @@ draw_wall:
     call poly4
     ld a,(pfast)                ; the top shares the side's first edge (the
     ld (pskip0),a               ; same rows, the same buffer) if both are fast
+    ld a,(ix+3)                 ; no thickness: no top (it would be a line over the side's edge)
+    or (ix+4)
+    ret z
     ; the top: A + o, B + o stay; B top - o, A top - o
     ld e,(ix+7)
     ld d,(ix+8)

@@ -657,6 +657,10 @@ static void check_catches(void)
     for (i = 0; i < 4; i++) {
         Ghost *gh = &g.ghost[i];
         if (gh->mode == GM_EATEN) continue;
+        /* port: a spook whose cell is more than ~0.55 rad from the chomper's
+           can't be within reach (each is at most an edge, 0.21 rad, from its
+           cell; a catch is 0.08): skip the exact test and its normalising */
+        if (v3_dot(DIR(gh->mv.from), DIR(g.player.from)) < 14000) continue;
         mover_dir(&gd, &gh->mv);
         if (v3_dot(&gd, &pd) < CATCH_COS) continue;
         if (gh->fright) {
