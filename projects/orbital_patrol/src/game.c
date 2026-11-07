@@ -11,6 +11,40 @@
 #include <string.h>
 #include "game.h"
 
+/* port: the collision loops scan with hit_scan (coll.asm) on the Next; the
+   original's loops are kept under COLL_IN_C (the host reference uses them,
+   and test.py checks the two give the same game) */
+#ifndef COLL_IN_C
+#ifdef __SDCC
+#define COLL_IN_C 0
+#else
+#define COLL_IN_C 1
+#endif
+#endif
+#if !COLL_IN_C
+extern LONG hs_ax, hs_ay, hs_hw, hs_hh;
+extern void *hs_list;
+extern UBYTE hs_n, hs_stride, hs_act;
+extern signed char hit_scan(void);
+
+/* the first active entity of list[0..n-1] whose box overlaps (ax, ay):
+   check_collision's test with these half sizes */
+static WORD first_hit(LONG ax, LONG ay, WORD aw, WORD ah, void *list, UBYTE n,
+                      UBYTE stride, UBYTE act, WORD bw, WORD bh)
+{
+    hs_ax = ax;
+    hs_ay = ay;
+    hs_hw = TO_FP((aw + bw) / 2);
+    hs_hh = TO_FP((ah + bh) / 2);
+    hs_list = list;
+    hs_n = n;
+    hs_stride = stride;
+    hs_act = act;
+    return hit_scan();
+}
+#define ACT_OFS(type, f) ((UBYTE)(unsigned)&((type *)0)->f)
+#endif
+
 /* Simple RNG */
 static ULONG game_rng_state = 54321;
 static LONG game_rand(void)
@@ -917,6 +951,7 @@ void game_update(GameState *gs, WORD input)
         WORD j;
         if (!b->active) continue;
 
+#if COLL_IN_C
         for (j = 0; j < MAX_ENEMIES; j++) {
             Enemy *e = &gs->enemies[j];
             if (!e->active) continue;
@@ -931,10 +966,22 @@ void game_update(GameState *gs, WORD input)
                 break;
             }
         }
+#else
+        j = first_hit(b->wx, b->wy, 8, 2, gs->enemies, MAX_ENEMIES, sizeof(Enemy),
+                      ACT_OFS(Enemy, active), 10, 10);
+        if (j >= 0) {
+            Enemy *e = &gs->enemies[j];
+            b->active = 0;
+            e->hp--;
+            if (e->hp <= 0)
+                kill_enemy(gs, j);
+        }
+#endif
 
         /* Player bullets vs mines */
         if (b->active) {
             WORD j;
+#if COLL_IN_C
             for (j = 0; j < MAX_MINES; j++) {
                 Mine *m = &gs->mines[j];
                 if (!m->active) continue;
@@ -949,11 +996,24 @@ void game_update(GameState *gs, WORD input)
                     break;
                 }
             }
+#else
+            j = first_hit(b->wx, b->wy, 8, 2, gs->mines, MAX_MINES, sizeof(Mine),
+                          ACT_OFS(Mine, active), 6, 6);
+            if (j >= 0) {
+                Mine *m = &gs->mines[j];
+                b->active = 0;
+                m->active = 0;
+                gs->score += SCORE_MINE;
+                spawn_explosion(gs, m->wx, m->wy);
+                gs->ev_explode = 1;
+            }
+#endif
         }
     }
 
     /* ---- Collisions: enemies vs ship ---- */
     if (ship->alive && ship->invuln_timer <= 0) {
+#if COLL_IN_C
         for (i = 0; i < MAX_ENEMIES; i++) {
             Enemy *e = &gs->enemies[i];
             if (!e->active) continue;
@@ -977,10 +1037,32 @@ void game_update(GameState *gs, WORD input)
                 break;
             }
         }
+#else
+        i = first_hit(ship->wx, ship->wy, SHIP_W, SHIP_H, gs->enemies, MAX_ENEMIES, sizeof(Enemy),
+                      ACT_OFS(Enemy, active), 10, 10);
+        if (i >= 0) {
+            Enemy *e = &gs->enemies[i];
+
+                /* Ship dies */
+                ship->alive = 0;
+                gs->lives--;
+                gs->state = STATE_DYING;
+                gs->state_timer = 50;
+                gs->ev_die = 1;
+                spawn_explosion(gs, ship->wx, ship->wy);
+
+                /* Release carried human */
+                if (ship->carried_human >= 0) {
+                    gs->humans[ship->carried_human].state = HUMAN_FALLING;
+                    ship->carried_human = -1;
+                }
+        }
+#endif
     }
 
     /* ---- Collisions: enemy bullets vs ship ---- */
     if (ship->alive && ship->invuln_timer <= 0) {
+#if COLL_IN_C
         for (i = 0; i < MAX_ENEMY_BULLETS; i++) {
             Bullet *b = &gs->enemy_bullets[i];
             if (!b->active) continue;
@@ -1002,10 +1084,30 @@ void game_update(GameState *gs, WORD input)
                 break;
             }
         }
+#else
+        i = first_hit(ship->wx, ship->wy, SHIP_W, SHIP_H, gs->enemy_bullets, MAX_ENEMY_BULLETS, sizeof(Bullet),
+                      ACT_OFS(Bullet, active), 4, 4);
+        if (i >= 0) {
+            Bullet *b = &gs->enemy_bullets[i];
+
+                b->active = 0;
+                ship->alive = 0;
+                gs->lives--;
+                gs->state = STATE_DYING;
+                gs->state_timer = 50;
+                gs->ev_die = 1;
+                spawn_explosion(gs, ship->wx, ship->wy);
+                if (ship->carried_human >= 0) {
+                    gs->humans[ship->carried_human].state = HUMAN_FALLING;
+                    ship->carried_human = -1;
+                }
+        }
+#endif
     }
 
     /* ---- Collisions: mines vs ship ---- */
     if (ship->alive && ship->invuln_timer <= 0) {
+#if COLL_IN_C
         for (i = 0; i < MAX_MINES; i++) {
             Mine *m = &gs->mines[i];
             if (!m->active) continue;
@@ -1027,6 +1129,25 @@ void game_update(GameState *gs, WORD input)
                 break;
             }
         }
+#else
+        i = first_hit(ship->wx, ship->wy, SHIP_W, SHIP_H, gs->mines, MAX_MINES, sizeof(Mine),
+                      ACT_OFS(Mine, active), 6, 6);
+        if (i >= 0) {
+            Mine *m = &gs->mines[i];
+
+                m->active = 0;
+                ship->alive = 0;
+                gs->lives--;
+                gs->state = STATE_DYING;
+                gs->state_timer = 50;
+                gs->ev_die = 1;
+                spawn_explosion(gs, ship->wx, ship->wy);
+                if (ship->carried_human >= 0) {
+                    gs->humans[ship->carried_human].state = HUMAN_FALLING;
+                    ship->carried_human = -1;
+                }
+        }
+#endif
     }
 
     /* ---- Particles update ---- */
