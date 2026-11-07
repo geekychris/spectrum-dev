@@ -177,7 +177,7 @@ static void help(uint8_t page)
 {
     uint8_t k;
     say(S_BIG, CENTRE, 2, page == 1 ? "HOW TO PLAY" : "CONTROLS", P_CYAN, 2, 0);
-    for (k = 0; k < 12; k++) say(S_HELP + k, 1, 6 + 2 * k, help_lines[page - 1][k], P_WHITE, 1, 0);
+    for (k = 0; k < 12; k++) say(S_HELP + k, 0, 6 + 2 * k, help_lines[page - 1][k], P_WHITE, 1, 0);   /* lines up to 40 */
     say(S_HELP + 12, 1, 30, page == 1 ? "PAGE 1 OF 2" : "PAGE 2 OF 2", P_GREY, 1, 0);
     say(S_HELP + 13, 19, 30, "H: NEXT  FIRE: PLAY", P_YELLOW, 1, 0);
 }

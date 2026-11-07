@@ -58,7 +58,7 @@ the CPU is slow, so the work goes into drawing less:
   leaves no room for the variables above 0x8000, so they go below (in
   contended memory: hot loops are in assembly)
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -92,6 +92,13 @@ the 48K:
   Even so it runs at ~5 frames a second (the original's 32-bit simulation,
   banked across three memory maps a frame, keeps its 25 steps). Vehicles are
   sprites streamed into pattern memory by DMA
+- Block Breaker 3D keeps the original's 3D: its tunnel is a Layer 2 picture
+  from the original's camera, its bricks are drawn into Layer 2 where they
+  change, with a depth byte per pixel; sprites deeper than a brick face are
+  masked against those depths, so the ball goes behind bricks. The ring
+  showing the ball's depth is palette entries, one set per depth band of
+  the walls. Its rules are bit-exact with the Amiga's (the original's tests
+  run in the game)
 
 ## Things to know
 

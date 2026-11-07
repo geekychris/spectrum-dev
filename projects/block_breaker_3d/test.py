@@ -313,9 +313,10 @@ with Emulator(machine="next") as e:
     check("then the high-score entry", e.run_until("bb: HISCORE rank=", 200))
     e.run(10)
     for ch in "ZXN":
+        if ch == "N":
+            e.screenshot(SHOTS / "entry.png")
         e.press(ch)
         e.run(4)
-    e.screenshot(SHOTS / "entry.png")
     check("initials typed: back to the title", e.run_until("bb: STATE TITLE", 100) and "bb: NAME ZXN" in e.log(0))
     hs = e.read_mem("hs_table", 40)
     names = [hs[i * 8:i * 8 + 3].decode() for i in range(5)]

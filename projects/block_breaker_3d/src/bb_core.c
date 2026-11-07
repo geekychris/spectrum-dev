@@ -59,9 +59,9 @@ static void event(BBGame *g, int type, int32_t a, int b)
     if (g->nev < BB_MAX_EVENTS) { g->ev[g->nev].type = type; g->ev[g->nev].a = a; g->ev[g->nev].b = b; g->nev++; }
 }
 
-/* port: written out with a counter and a pointer: zsdcc -SO3 compiled the
-   original (`*e = g->ev[0]`, memmove, `g->nev--`) into an LDIR from an
-   uninitialised stack slot and a decrement that left nev at -1 */
+/* port: written out field by field with a pointer: zsdcc compiled the
+   original's `*e = g->ev[0]` (and a memcpy in its place) into an LDIR whose
+   source came from an uninitialised stack slot */
 int bb_pop_event(BBGame *g, BBEvent *e)
 {
     int n = g->nev, i;

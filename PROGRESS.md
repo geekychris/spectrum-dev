@@ -171,6 +171,17 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   loops (PHYS_IN_C) and requires the same game. Logic 50 Hz from a 64-frame input
   ring sampled by the interrupt; screen 48-50 fps at wave 1, 15-18 with eight
   enemies. SDK: sprclip (signed-x XOR sprites, sdktest checks).
+- **Block Breaker 3D** (Next): the original's rules (bb_core.c) with only the
+  16-bit int changes; its own 42 tests, including the 20,000-tick autopilot
+  hash, pass on the host and inside the game. The tunnel is a 320x256 Layer 2
+  picture from the original's camera and palette, cut into depth bands whose
+  palette entries make the depth ring; the bricks are drawn into Layer 2 where
+  they change (l2wpoly) with a depth plane; the ball, shadow, capsules, bits
+  and paddle are 4-bit sprites, masked by the depth plane behind bricks;
+  tilemap HUD; effects and an original tune on TurboSound; code in two banks
+  at 0x0000 and two pages at 0x6000. Logic 25 Hz, picture ~49.6 fps. Port:
+  the camera doesn't lean with the paddle. SDK: l2wpoly, nextsprl,
+  tm_glyphnx. Two zsdcc miscompiles found (CLAUDE.md).
 
 - **Miner Meteor** (48K): the original's rules (`game.cpp`) at 50 Hz on the
   half-size cavern (one 16-px tile per character cell), its six caverns

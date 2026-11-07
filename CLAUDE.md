@@ -158,6 +158,16 @@ Details: docs/emulator-harness.md.
   Next), not at line 0: a list does lines 248..311 (the top border) first, then 0..247.
 - Don't write Next registers from the interrupt: a register write is two port writes
   (select 0x243B, value 0x253B) and an interrupt in between redirects the program's value.
+- zsdcc miscompiles small struct copies and stores: `*e = g->ev[0]` (an 8-byte
+  struct, and a memcpy in its place) became an LDIR whose source came from an
+  uninitialised stack slot; `g->nev = 0` after three 32-bit assignments became
+  `LD L,H / LD (nev),HL` with H taken to still be 0 (at -SO0 too: it's codegen).
+  Copy structs field by field; if a value is wrong, read the disassembly
+  (`emu_disasm`) and a write watchpoint before suspecting the logic.
+  block_breaker_3d runs the original's tests in the game to catch these.
+- `dma_copy_banks`/`dma_fill_banks` map MMU slots 0-1 and give the ROM back:
+  don't call them from code banked at 0x0000, and remap your bank after.
+- `frame_count` counts frame_wait() calls (loop iterations), not frames.
 - Banked code: a function at 0x0000/0x6000 must not call code in another bank, and an SDK
   call it makes must not map over the bank its arguments live in (nexttile uses slot 2 only).
   zsdcc won't initialise arrays of structs (`= {0}`): put big tables at a fixed address.

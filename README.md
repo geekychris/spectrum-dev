@@ -199,6 +199,7 @@ They are part of `./zx selftest`.
 | [Miner Meteor](projects/miner_meteor/README.md) | 48K `.tap`: single-screen platformer, sprites composed per cell over the tiles (no flicker, colour per cell), a demo of all six caverns | ![](docs/images/miner_meteor.gif) |
 | [StakAttack](projects/stakattack/README.md) | Next `.nex`: Layer 2, hardware sprites, TurboSound music | ![](docs/images/stakattack.gif) |
 | [Boing Pinball](projects/boing_pinball/README.md) | Next `.nex`: the original's physics and rules in 16-bit, 320x256 Layer 2, sprites, banked code | ![](docs/images/boing_pinball.gif) |
+| [Block Breaker 3D](projects/block_breaker_3d/README.md) | Next `.nex`: breakout down a tunnel; the original's rules bit-exact (its tests pass in the game), the tunnel on 320x256 Layer 2 with a palette-lit depth ring, bricks drawn with a depth plane, 4-bit sprites masked behind bricks, tilemap HUD, DMA, TurboSound, banked code | ![](docs/images/block_breaker_3d.gif) |
 | [Spectral Keep](projects/spectral_keep/README.md) | Next `.nex`: isometric rooms on 320x256 Layer 2, sprites masked behind scenery, tilemap HUD, copper, DMA, TurboSound, banked code | ![](docs/images/spectral_keep.gif) |
 | [Rotoball](projects/rotoball/README.md) | Next `.nex`: split screen for one or two players; the perspective floor moved by palette rotation and the copper, per-pane sprite clipping, zoomed sprites, tilemap HUD, DMA, TurboSound | ![](docs/images/rotoball.gif) |
 | [ScAIry Fun](projects/scairy_fun/README.md) | Next `.nex`: the original simulation (bit-identical), road segments on Layer 2 (asm bands and polygons), copper line doubling and sky, sprites streamed by DMA, tilemap HUD, banked code | ![](docs/images/scairy_fun.gif) |
@@ -266,7 +267,7 @@ card. NextZXOS is never included (its licence wants the whole distribution).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `scairy_fun`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestnext`, `nextlibtest`, `splittest`, `geomtest`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `scairy_fun`, `block_breaker_3d`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestnext`, `nextlibtest`, `splittest`, `geomtest`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 
