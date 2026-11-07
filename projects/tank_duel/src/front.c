@@ -279,8 +279,8 @@ static void draw_help(void)
 {
     uint8_t k;
     box(0, 0, 40, 32, C_WHITE);
-    pcentre(3, du.help == 1 ? "HOW TO PLAY" : "CONTROLS", C_YELLOW);
-    for (k = 0; k < 12; k++) ptext(1, 7 + k * 2, help_lines[du.help - 1][k], C_WHITE);
+    pcentre(2, du.help == 1 ? "HOW TO PLAY" : "CONTROLS", C_YELLOW);
+    for (k = 0; k < 12; k++) ptext(1, 5 + k * 2, help_lines[du.help - 1][k], C_WHITE);
     ptext(1, 30, du.help == 1 ? "PAGE 1 OF 2" : "PAGE 2 OF 2", C_GREY);
     ptext(17, 30, "H: NEXT  FIRE: PLAY", C_YELLOW);
 }

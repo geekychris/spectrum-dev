@@ -1,0 +1,7 @@
+{
+  "title": "Tank Duel",
+  "description": "A tank fight in a walled arena, seen from the turret: scouts, mortars and shielded bulwarks.",
+  "controls": "Q/A drive, O/P turn, SPACE fire",
+  "picture": "screenshots/fight.png",
+  "ready": "td: ready"
+}
