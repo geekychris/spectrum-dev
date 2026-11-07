@@ -94,11 +94,12 @@ int main(void)
         return 1;
     }
 
-    out = fopen("src/maze_tab.c", "w");
-    if (!out) { perror("src/maze_tab.c"); return 1; }
-    fprintf(out, "/* made by tools/gen_data.c from the original's maze.c: do not edit */\n"
+    out = fopen("src/logic_tab.c", "w");
+    if (!out) { perror("src/logic_tab.c"); return 1; }
+    fprintf(out, "/* made by tools/gen_data.c from the original's maze.c: do not edit\n"
+                 "   the grid game.c reads, in bank 17 (0x4000, while the logic runs): [cell * 4 + exit] */\n"
                  "#include <stdint.h>\n#include \"pc.h\"\n\n");
-    fprintf(out, "/* the grid: [cell * 4 + exit] */\nconst uint16_t mz_nb[CELLS * 4] = {\n");
+    fprintf(out, "const uint16_t mz_nb[CELLS * 4] = {\n");
     for (c = 0; c < CELLS; c++) for (k = 0; k < 4; k++) item("%d,", mz_nb[c][k]);
     end_array();
     fprintf(out, "const uint8_t mz_rev[CELLS * 4] = {\n");
@@ -114,33 +115,76 @@ int main(void)
     fprintf(out, "/* directions, Q14 */\nconst vec3 mz_dir[CELLS] = {\n");
     for (c = 0; c < CELLS; c++)
         fprintf(out, "    { %d, %d, %d },\n", mz_dir[c].x, mz_dir[c].y, mz_dir[c].z);
-    fprintf(out, "};\n/* surface tangents toward each neighbour, Q14 */\nconst vec3 mz_tan[CELLS * 4] = {\n");
-    for (c = 0; c < CELLS; c++)
-        for (k = 0; k < 4; k++)
-            fprintf(out, "    { %d, %d, %d },\n", mz_tan[c][k].x, mz_tan[c][k].y, mz_tan[c][k].z);
-    fprintf(out, "};\n\n/* the renderer's: directions in Q7 (128 = 1.0) */\nconst int8_t rd_cell8[CELLS * 3] = {\n");
-    for (c = 0; c < CELLS; c++) { item("%d,", q7(mz_dir[c].x)); item("%d,", q7(mz_dir[c].y)); item("%d,", q7(mz_dir[c].z)); }
-    end_array();
-    fprintf(out, "const int8_t rd_corner8[CORNERS * 3] = {\n");
+    fprintf(out, "};\n");
+    fclose(out);
+
+    out = fopen("src/maze_tab.c", "w");
+    fprintf(out, "/* made by tools/gen_data.c: do not edit */\n#include <stdint.h>\n#include \"pc.h\"\n\n"
+                 "/* the keys' and the nest's directions, Q14 (main memory, for the view) */\nconst vec3 mz_spot[5] = {\n");
+    for (k = 0; k < 4; k++) fprintf(out, "    { %d, %d, %d },\n", mz_dir[mz_keys[k]].x, mz_dir[mz_keys[k]].y, mz_dir[mz_keys[k]].z);
+    fprintf(out, "    { %d, %d, %d }\n};\n", mz_dir[mz_nest].x, mz_dir[mz_nest].y, mz_dir[mz_nest].z);
+    fclose(out);
+
+    out = fopen("src/rtab_b.c", "w");
+    fprintf(out, "/* made by tools/gen_data.c: do not edit\n"
+                 "   the renderer's wall tables, page 40 at 0x6000 while walls are listed */\n"
+                 "#include <stdint.h>\n#include \"rtab.h\"\n\n");
+    fprintf(out, "/* each edge's wall (edges: (cell, exit) with neighbour > cell, in order):\n"
+                 "   its corners' records, its side normal (Q7) */\nconst Edge ed_rec[EDGES] = {\n");
+    for (i = 0; i < e; i++)
+        fprintf(out, "    { CREC(%d), CREC(%d), { %d, %d, %d }, 0 },\n", ed_a[i], ed_b[i],
+                q7(ed_side[i].x), q7(ed_side[i].y), q7(ed_side[i].z));
+    fprintf(out, "};\n");
+    fclose(out);
+
+    out = fopen("src/rtab_a.c", "w");
+    fprintf(out, "/* made by tools/gen_data.c: do not edit\n"
+                 "   the renderer's corner and cell tables, page 39 at 0x6000 */\n"
+                 "#include <stdint.h>\n#include \"rtab.h\"\n\n");
+    fprintf(out, "/* lattice corners' directions, Q7 (128 = 1.0) + 128 (offset binary: xform.asm's\n"
+                 "   products are unsigned) */\nconst uint8_t rd_corner8[CORNERS * 3] = {\n");
     for (i = 0; i < ncorner; i++) {
         V3 v = mz_lattice_dir(corner_lat[i][0], corner_lat[i][1], corner_lat[i][2]);
-        item("%d,", q7(v.x)); item("%d,", q7(v.y)); item("%d,", q7(v.z));
+        item("%d,", q7(v.x) + 128); item("%d,", q7(v.y) + 128); item("%d,", q7(v.z) + 128);
     }
     end_array();
-    fprintf(out, "/* edges (cell, exit) with neighbour > cell: the cell * 4 + exit */\nconst uint16_t ed_ck[EDGES] = {\n");
-    for (i = 0; i < e; i++) item("%d,", ed_cell[i] * 4 + ed_k[i]);
-    end_array();
-    fprintf(out, "/* the edge of each (cell, exit) */\nconst uint16_t ed_of[CELLS * 4] = {\n");
-    for (c = 0; c < CELLS; c++) for (k = 0; k < 4; k++) item("%d,", ed_of[c][k]);
-    end_array();
-    fprintf(out, "/* each edge's wall: corners A, B */\nconst uint16_t ed_corner[EDGES * 2] = {\n");
-    for (i = 0; i < e; i++) { item("%d,", ed_a[i]); item("%d,", ed_b[i]); }
-    end_array();
-    fprintf(out, "/* the wall's side normal and midpoint direction, Q7 */\nconst int8_t ed_side8[EDGES * 3] = {\n");
-    for (i = 0; i < e; i++) { item("%d,", q7(ed_side[i].x)); item("%d,", q7(ed_side[i].y)); item("%d,", q7(ed_side[i].z)); }
-    end_array();
-    fprintf(out, "const int8_t ed_mid8[EDGES * 3] = {\n");
-    for (i = 0; i < e; i++) { item("%d,", q7(ed_mid[i].x)); item("%d,", q7(ed_mid[i].y)); item("%d,", q7(ed_mid[i].z)); }
+    fprintf(out, "/* each cell's four lattice corners (-a-b, +a-b, +a+b, -a+b) */\nconst uint16_t rd_cell_corner[CELLS * 4] = {\n");
+    for (c = 0; c < CELLS; c++) {
+        int a[3], b[3], sa, sb;
+        face_axes(mz_face[c], a, b);
+        for (k = 0; k < 4; k++) {
+            sa = (k == 1 || k == 2) ? 1 : -1;
+            sb = k >= 2 ? 1 : -1;
+            i = corner_index(mz_lat[c][0] + sa * a[0] + sb * b[0], mz_lat[c][1] + sa * a[1] + sb * b[1],
+                             mz_lat[c][2] + sa * a[2] + sb * b[2]);
+            if (i >= 6 * GRID_N * GRID_N + 2) { fprintf(stderr, "cell %d: corner not on an edge\n", c); return 1; }
+            fprintf(out, "%sCREC(%d),", k ? "" : "    ", i);
+        }
+        fprintf(out, "\n");
+    }
+    fprintf(out, "};\n");
+    fclose(out);
+
+    /* rtab.c: the nest's rim, the projection's scales (bank 18, with the renderer) */
+    out = fopen("src/rtab.c", "w");
+    fprintf(out, "/* made by tools/gen_data.c: do not edit */\n#include <stdint.h>\n#include \"rtab.h\"\n\n");
+    {
+        static const int cs[8][2] = { {16384,0},{11585,11585},{0,16384},{-11585,11585},
+            {-16384,0},{-11585,-11585},{0,-16384},{11585,-11585} };
+        V3 n = mz_dir[mz_nest], t1 = mz_tan[mz_nest][0], t2 = mz_tan[mz_nest][1];
+        V3 ctr = v3_scale14(n, PLANET_R + Q8(0.02));
+        fprintf(out, "/* the nest's rim (the original's render_cel.c), world Q8 */\nconst V3 rd_nest_rim[8] = {\n");
+        for (k = 0; k < 8; k++) {
+            V3 p = v3_add(ctr, v3_add(v3_scale14(t1, (Q8(1.25) * cs[k][0]) >> 14), v3_scale14(t2, (Q8(1.25) * cs[k][1]) >> 14)));
+            fprintf(out, "    { %d, %d, %d },\n", p.x, p.y, p.z);
+        }
+        fprintf(out, "};\n");
+    }
+    fprintf(out, "/* 196.8 (the original's focal length, 246, at 0.8) * 16384 / z */\nconst int16_t rd_recip[RECIP_N] = {\n");
+    for (i = 0; i < 1024; i++) {
+        double v = 196.8 * 16384.0 / (i * 16 + 8);
+        item("%d,", v > 32767 ? 32767 : (int)(v + 0.5));
+    }
     end_array();
     fclose(out);
 

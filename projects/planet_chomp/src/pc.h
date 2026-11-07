@@ -25,26 +25,21 @@ typedef vec3 V3;
 #define CELLS       486
 #define PLANET_R    Q8(12)
 
-/* the grid (maze_tab.c) */
+/* the grid (logic_tab.c: bank 17, mapped while the logic runs) */
 extern const uint16_t mz_nb[CELLS * 4];
 extern const uint8_t mz_rev[CELLS * 4];
 extern const uint8_t mz_len8[CELLS * 4];
 extern const vec3 mz_dir[CELLS];
-extern const vec3 mz_tan[CELLS * 4];
-/* the renderer's (maze_tab.c) */
-extern const int8_t rd_cell8[CELLS * 3];
-extern const int8_t rd_corner8[CORNERS * 3];
-extern const uint16_t ed_ck[EDGES];
-extern const uint16_t ed_of[CELLS * 4];
-extern const uint16_t ed_corner[EDGES * 2];
-extern const int8_t ed_side8[EDGES * 3];
-extern const int8_t ed_mid8[EDGES * 3];
+/* the surface tangent at c toward neighbour k (Q14), worked out as the
+   original's build_grid does (port: not a 12K table) */
+void mz_tan(vec3 *r, int16_t c, uint8_t k);
+/* the keys' and the nest's directions (maze_tab.c, main memory: for the view) */
+extern const vec3 mz_spot[5];
 
 #define CK(c, k)    (((uint16_t)(c) << 2) + (k))
 #define NB(c, k)    ((int16_t)mz_nb[CK(c, k)])
 #define REV(c, k)   (mz_rev[CK(c, k)])
 #define LEN(c, k)   ((int16_t)mz_len8[CK(c, k)] + MZ_LEN_BASE)
-#define TAN(c, k)   (&mz_tan[CK(c, k)])
 #define DIR(c)      (&mz_dir[c])
 
 /* the maze (maze.c): bit k of mz_open[c] = exit k is a passage */

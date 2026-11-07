@@ -8,8 +8,8 @@
 #include <string.h>
 #include "pc.h"
 #include "game.h"
+#include "render.h"
 
-uint8_t mz_open[CELLS];
 const uint8_t bit4[4] = { 1, 2, 4, 8 };
 const int16_t mz_keys[4] = { MZ_KEY0, MZ_KEY1, MZ_KEY2, MZ_KEY3 };
 
@@ -19,6 +19,16 @@ static int16_t rnd(int16_t n)
 {
     rng = rng * 1103515245UL + 12345UL;
     return (int16_t)((uint16_t)(rng >> 16) % (uint16_t)n);
+}
+
+void mz_tan(vec3 *r, int16_t c, uint8_t k)
+{
+    const vec3 *d = DIR(c);
+    vec3 t, u;
+    v3_sub(&t, DIR(NB(c, k)), d);
+    v3_scale(&u, d, v3_dot(&t, d));
+    v3_sub(&t, &t, &u);
+    v3_norm(r, &t);
 }
 
 uint8_t mz_degree(int16_t c)
@@ -103,4 +113,21 @@ void mz_build(uint32_t seed)
 {
     rng = seed;
     carve();
+    rd_walls_build();
+}
+
+/* the walls of this maze, for the renderer: the closed edges, numbered as
+   the original's mz_build_walls goes through them (cell, then exit, each
+   edge once from its lower cell) */
+void rd_walls_build(void)
+{
+    int16_t c, e = 0;
+    uint8_t k;
+    rd_nwalls = 0;
+    for (c = 0; c < CELLS; c++)
+        for (k = 0; k < 4; k++) {
+            if (NB(c, k) < c) continue;
+            if (!OPEN(c, k) && rd_nwalls < MAX_WALLS) rd_wall[rd_nwalls++] = e;
+            e++;
+        }
 }

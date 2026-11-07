@@ -13,10 +13,6 @@
 #include "pc.h"
 #include "game.h"
 
-Game g;
-uint8_t crumb[CELLS], key[CELLS];
-int16_t nest_dist[CELLS];
-PcWork pc_work;
 const char *const ghost_name[4] = { "GLOOM", "SPARK", "MIST", "MOSS" };
 
 #define START_LIVES   3
@@ -34,7 +30,7 @@ static void mover_place(Mover *m, int16_t cell, const V3 *facing)
 {
     int16_t d = v3_dot(facing, DIR(cell));
     V3 t;
-    m->from = cell; m->to = -1; m->prev = -1; m->t = 0; m->moving = 0; m->exitk = -1;
+    m->from = cell; m->to = -1; m->prev = -1; m->t = 0; m->moving = 0; m->exitk = -1; m->hd_k = -1;
     v3_scale(&t, DIR(cell), d);
     v3_sub(&t, facing, &t);
     v3_norm(&m->heading, &t);
@@ -68,6 +64,7 @@ static void mover_reverse(Mover *m)
     m->t = 65536L - m->t;
     m->prev = m->from;
     v3_scale(&m->heading, &m->heading, -ONE14);
+    m->hd_k = -1;
 }
 
 static void mover_advance(Mover *m, int16_t dist, Chooser choose, Arrived arrived, void *ctx)
@@ -97,13 +94,19 @@ static void mover_advance(Mover *m, int16_t dist, Chooser choose, Arrived arrive
             m->to = -1;
             m->t = 0;
             m->moving = 0;
-            v3_scale(&m->heading, TAN(m->from, back), -ONE14);
+            mz_tan(&m->heading, m->from, back);
+            v3_scale(&m->heading, &m->heading, -ONE14);
+            m->hd_k = -1;
             cruising = 1;
             if (arrived) arrived(ctx, m->from);
         }
     }
-    if (m->moving)
-        m->heading = *TAN(m->from, m->exitk);
+    if (m->moving && (m->hd_from != m->from || m->hd_k != m->exitk)) {
+        /* port: the original sets this every tick; it only changes with the edge */
+        mz_tan(&m->heading, m->from, m->exitk);
+        m->hd_from = m->from;
+        m->hd_k = m->exitk;
+    }
 }
 
 /* exit at c best matching a wanted direction (projected onto the surface) */
@@ -119,7 +122,8 @@ static int8_t best_exit(int16_t c, const V3 *want_in, int16_t min_dot)
     v3_norm(&want, &t);
     for (k = 0; k < 4; k++) {
         if (!OPEN(c, k)) continue;
-        dot = v3_dot(TAN(c, k), &want);
+        mz_tan(&t, c, k);
+        dot = v3_dot(&t, &want);
         if (dot > bd) { bd = dot; best = k; }
     }
     return best;
@@ -427,7 +431,8 @@ void ghost_world(V3 *r, const Ghost *gh)
         /* huddle round the nest, bobbing */
         static const int16_t bob[16] = { 0, 12, 22, 28, 30, 28, 22, 12, 0, -12, -22, -28, -30, -28, -22, -12 };
         int16_t lift = Q8(0.15) + bob[((g.clock >> 2) + gh->slot * 4) & 15];
-        v3_scale(&t, TAN(mz_nest, gh->slot), Q8(0.55));
+        mz_tan(&t, mz_nest, gh->slot);
+        v3_scale(&t, &t, Q8(0.55));
         v3_add(r, r, &t);
         v3_scale(&t, &n, lift);
         v3_add(r, r, &t);
@@ -491,16 +496,18 @@ static void reset_actors(void)
 {
     static const int16_t release[4] = { 25, 150, 300, 450 };    /* 0.5, 3, 6, 9 s */
     int16_t s = mz_start, denom = 6 + 4 * g.level;               /* (0.6 + 0.4 L) * 10 */
-    const V3 *facing = TAN(s, 0);
+    V3 facing_v, t;
+    const V3 *facing = &facing_v;
     uint8_t i;
-    V3 t;
+    mz_tan(&facing_v, s, 0);
     if (denom < 10) denom = 10;
     mover_place(&g.player, s, facing);
     g.powered = 0;
     pend_x = pend_y = last_x = last_y = 0;
     for (i = 0; i < 4; i++) {
         Ghost *gh = &g.ghost[i];
-        mover_place(&gh->mv, mz_nest, TAN(mz_nest, i));
+        mz_tan(&t, mz_nest, i);
+        mover_place(&gh->mv, mz_nest, &t);
         gh->mode = GM_NEST;
         gh->fright = 0;
         gh->release_at = (int32_t)release[i] * 10 / denom;

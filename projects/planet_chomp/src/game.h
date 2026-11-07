@@ -28,6 +28,8 @@ typedef struct {
     uint8_t moving;
     int32_t t;                      /* Q16 along the edge */
     V3      heading;                /* Q14 */
+    int16_t hd_from;                /* port: the edge heading was last set from */
+    int8_t  hd_k;
 } Mover;
 
 typedef struct {

@@ -1,0 +1,179 @@
+/*
+ * Planet Chomp for the Spectrum Next: memory map, start-up, input and the
+ * loop (the original's main_68k.c).
+ *
+ *                  while the logic runs        while drawing
+ *   0x0000-0x3FFF  bank 16: game.c, maze.c      bank 18: render.c, rtab.c, the draw list
+ *   0x4000-0x5FFF  bank 17: the grid tables,    page 38: the corners
+ *   0x6000-0x7FFF    the autopilot's arrays     page 39 (corner tables), page 40 (wall
+ *                                               tables), then Layer 2 (l2poly)
+ *   0x8000-0xEFFF  this, the SDK, the shared state (state.c); 0xF000- the IM 2 table, the stack
+ *   banks 9-14     Layer 2 (two 256 x 192 buffers); 22-24 the starfield
+ *
+ * port: zsdcc's code for the original's rules is about 15K and the grid's
+ * tables 11K, so the program is in parts that the loop maps in turn. Code
+ * in one bank only calls main memory, never another bank.
+ *
+ * Each frame: the frame interrupt, then Layer 2 flips to the frame drawn
+ * last time, the logic runs once per frame that passed (fixed timestep, at
+ * most 4), the starfield is copied into the back buffer by DMA and the
+ * planet drawn over it.
+ */
+#include <stdint.h>
+#include <stdio.h>
+#include <arch/zxn.h>
+#include "zxgame.h"
+#include "nextgfx.h"
+#include "l2poly.h"
+#include "zxlog.h"
+#include "pc.h"
+#include "game.h"
+#include "render.h"
+#include "rtab.h"
+
+#define LOGIC() do { ZXN_WRITE_MMU0(32); ZXN_WRITE_MMU1(33); ZXN_WRITE_MMU2(34); ZXN_WRITE_MMU3(35); } while (0)
+#define DRAW()  do { ZXN_WRITE_MMU0(36); ZXN_WRITE_MMU1(37); ZXN_WRITE_MMU2(38); } while (0)
+#define STARS_BANK 22
+
+extern const uint16_t rd_pal[C_COUNT];
+extern void bench_loop(void);
+extern void bench_store(void);
+
+void rd_map_corners(void) { ZXN_WRITE_MMU3(39); }
+void rd_map_walls(void) { ZXN_WRITE_MMU3(40); }
+void dr_begin(void) { l2p_begin(); }
+void dr_end(void) { l2p_end(); }
+void dr_poly(const int16_t *xy, uint8_t n, uint8_t colour) { l2p_poly(xy, n, colour); }
+void dr_rect(int16_t y0, int16_t y1, int16_t x0, int16_t x1, uint8_t colour) { l2p_rect(y0, y1, x0, x1, colour); }
+
+void sfx_play(uint8_t id) { (void)id; }
+void sfx_crumb(void) { }
+void sfx_ambience(uint8_t w) { (void)w; }
+
+/* profiling: raster lines spent in each part of the loop (one line is ~1800
+   T-states at 28 MHz), on a clock of frames (the interrupt) and lines */
+static volatile uint16_t irq_frames;
+static void on_frame(void) { irq_frames++; input_sample(); }
+static uint32_t line_clock(void)
+{
+    uint16_t f, r;
+    do {
+        f = irq_frames;
+        r = ((uint16_t)(ZXN_READ_REG(0x1E) & 1) << 8) | ZXN_READ_REG(0x1F);
+    } while (f != irq_frames);
+    /* the interrupt comes at line 248 (the frame's start): lines since then */
+    return (uint32_t)f * 312 + (r >= 248 ? r - 248 : r + 64);
+}
+static uint32_t prof_t, prof[4], rprof[5];
+void rd_lap(uint8_t k)
+{
+    uint32_t t = line_clock();
+    rprof[k] += t - prof_t;
+    prof_t = t;
+}
+static void lap(uint8_t k)
+{
+    uint32_t t = line_clock();
+    prof[k] += t - prof_t;
+    prof_t = t;
+}
+
+/* keys and Kempston -> the original's pad bits */
+static uint16_t pad_of(uint8_t in)
+{
+    uint16_t b = 0;
+    if (in & IN_UP) b |= PAD_UP;
+    if (in & IN_DOWN) b |= PAD_DOWN;
+    if (in & IN_LEFT) b |= PAD_LEFT;
+    if (in & IN_RIGHT) b |= PAD_RIGHT;
+    if (in & (IN_FIRE | IN_START)) b |= PAD_A;
+    return b;
+}
+
+int main(void)
+{
+    uint8_t ticks, i, frames = 0;
+    uint16_t held, pressed, fps_t0;
+
+    next_init();
+    l2_init();
+    pal_load(1, rd_pal, C_COUNT);
+    input_init();
+    frame_init();
+    frame_hook = on_frame;
+    input_latch(1);
+    LOGIC();
+    game_init();
+    zx_log("pc: ready kempston=%u walls=%d\n", input_kempston, rd_nwalls);
+    fps_t0 = irq_frames;
+
+    for (;;) {
+        ticks = frame_wait();
+        prof_t = line_clock();
+        l2_flip();
+        if (ticks > 4) ticks = 4;
+        LOGIC();
+        held = pad_of(input_read());
+        pressed = pad_of(input_pressed());
+        for (i = 0; i < ticks; i++) {
+            game_step(held, pressed);
+            pressed = 0;                             /* an edge counts once */
+        }
+        lap(0);
+        l2_copy_to_back(STARS_BANK);
+        lap(1);
+        DRAW();
+        if (rd_dbg & 8) {                            /* benchmark: 200 quads 4 x 20, then 200 quads 20 x 4 */
+            static int16_t q[8];
+            uint16_t n;
+            uint32_t t0;
+            l2p_begin();
+            t0 = line_clock();
+            for (n = 0; n < 200; n++) {
+                q[0] = n & 127; q[1] = 20 + (n & 63); q[2] = q[0] + 4; q[3] = q[1] + 1;
+                q[4] = q[2] + 1; q[5] = q[1] + 21; q[6] = q[0] + 1; q[7] = q[1] + 20;
+                l2p_poly(q, 4, 9);
+            }
+            t0 = line_clock() - t0;
+            zx_log("pc: bench tall quads: %lu lines\n", t0);
+            t0 = line_clock();
+            for (n = 0; n < 200; n++) {
+                q[0] = n & 127; q[1] = 20 + (n & 63); q[2] = q[0] + 20; q[3] = q[1] + 1;
+                q[4] = q[2] + 1; q[5] = q[1] + 5; q[6] = q[0] + 1; q[7] = q[1] + 4;
+                l2p_poly(q, 4, 9);
+            }
+            t0 = line_clock() - t0;
+            zx_log("pc: bench wide quads: %lu lines\n", t0);
+            t0 = line_clock();
+            for (n = 0; n < 200; n++) l2p_rect(20 + (n & 63), 23 + (n & 63), n & 127, (n & 127) + 2, 7);
+            t0 = line_clock() - t0;
+            zx_log("pc: bench rects: %lu lines\n", t0);
+            {
+                t0 = line_clock();
+                bench_loop();
+                t0 = line_clock() - t0;
+                zx_log("pc: bench 65536 x 26T loop: %lu lines\n", t0);
+                ZXN_WRITE_MMU3(l2_back * 2);
+                t0 = line_clock();
+                bench_store();
+                t0 = line_clock() - t0;
+                zx_log("pc: bench 65536 L2 stores (11T + 1.6T loop): %lu lines\n", t0);
+            }
+            l2p_end();
+        } else
+            rd_frame();
+        lap(2);
+        if (++frames == 50) {
+            uint16_t f = irq_frames - fps_t0;
+            zx_log("pc: perf fps10=%u lines/frame: logic=%lu stars=%lu draw=%lu walls=%d crumbs=%d\n",
+                   (uint16_t)(500UL * 50 / f), prof[0] / 50, prof[1] / 50, prof[2] / 50, rd_stats_walls,
+                   rd_stats_crumbs);
+            zx_log("pc: perf draw lines/frame: camera=%lu corners=%lu crumbs=%lu walls=%lu fill=%lu\n",
+                   rprof[0] / 50, rprof[1] / 50, rprof[2] / 50, rprof[3] / 50, rprof[4] / 50);
+            prof[0] = prof[1] = prof[2] = 0;
+            rprof[0] = rprof[1] = rprof[2] = rprof[3] = rprof[4] = 0;
+            frames = 0;
+            fps_t0 = irq_frames;
+        }
+    }
+}
