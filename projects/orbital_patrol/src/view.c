@@ -203,7 +203,7 @@ static void scanner_update(GameState *gs, int16_t vx)
     }
     /* the viewport's brackets */
     left = (int16_t)((uint16_t)vx / 6);
-    right = left + SCREEN_W * SCREEN_W / WORLD_W;
+    right = left + (int16_t)((LONG)SCREEN_W * SCREEN_W / WORLD_W);   /* 53 (port: 16-bit int) */
     for (y = 1; y <= SCANNER_H - 2; y++) {
         dot(left % SCREEN_W, y, C_WHITE);
         dot(right % SCREEN_W, y, C_WHITE);
