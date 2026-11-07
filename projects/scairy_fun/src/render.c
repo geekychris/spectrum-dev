@@ -616,8 +616,8 @@ static void draw_segment(const World *w, int i, int k, int16_t zra, int16_t zrb,
     }
 
     if (k < SCENE_SEGS && !(render_skip & 1)) {
-        if (n2 == 2) scenery(w, i + 1);
-        scenery(w, i);
+        uint8_t j;
+        for (j = n2; j-- > 0; ) scenery(w, i + j);
     }
 
     if ((s->flags & SF_OVERPASS) && !(w->seg[i - 1 >= 0 ? i - 1 : 0].flags & SF_OVERPASS)) {
@@ -734,7 +734,8 @@ void render_init(void)
     make_skylines();
 }
 
-#define LOD_SEGS 10
+#define LOD_SEGS 6                      /* port: segments in pairs from here */
+#define LOD4_SEGS 14                    /* and in fours */
 #define LOD_FLAGS (SF_FINISH | SF_OVERPASS | SF_GHOST | SF_CONES)
 
 static uint8_t mergeable(const Seg *a, const Seg *b)
@@ -805,14 +806,14 @@ void render_world(const World *w)
         int16_t zra = (int16_t)(((int32_t)i << SEG_BITS) - cam.z);
         int16_t zrb = zra + SEG_LEN;
         int k = i - s0;
-        uint8_t n2 = 1;
+        uint8_t n2 = 1, most = k >= LOD4_SEGS ? 4 : k >= LOD_SEGS ? 2 : 1;
         if (zrb < NEAR) continue;
         fog = k >= 26 ? 3 * 32 : k >= 20 ? 2 * 32 : k >= 13 ? 32 : 0;
-        if (k >= LOD_SEGS && i - 1 > s0 && mergeable(&w->seg[i - 1], &w->seg[i])) {
-            /* port: far away, two segments drawn as one */
+        while (n2 < most && i - 1 > s0 && mergeable(&w->seg[i - 1], &w->seg[i])) {
+            /* port: far away, two (further, four) segments drawn as one */
             i--; k--;
             zra -= SEG_LEN;
-            n2 = 2;
+            n2++;
         }
         draw_segment(w, i, k, zra, zrb, i + n2 <= s1, n2);
     }
