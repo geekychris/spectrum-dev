@@ -540,7 +540,7 @@ static void hud(const World *w)
     }
     if ((uint8_t)w->cover != bar_cover) {
         bar_cover = (uint8_t)w->cover;
-        bar(21, 26, 6, w->cover > 0 ? w->cover : 0, 100, w->cover < 30 ? C_RED : C_AI2);
+        bar(22, 26, 6, w->cover > 0 ? w->cover : 0, 100, w->cover < 30 ? C_RED : C_AI2);
     }
     {
         /* progress along the route: a marker on a line */
@@ -549,7 +549,7 @@ static void hud(const World *w)
         if (pos != bar_pos) {
             bar_pos = pos;
             for (k = 0; k < 6; k++)
-                tm_put(21 + k, 27, (pos >> 3) == k ? T_BAR + 9 + (pos & 7) : T_BAR + 17, C_GREY);
+                tm_put(22 + k, 27, (pos >> 3) == k ? T_BAR + 9 + (pos & 7) : T_BAR + 17, C_GREY);
         }
     }
 }
@@ -569,6 +569,8 @@ static void ai_view(const World *w)
 #define AX(u) (X0 + 2 + (int16_t)((((int32_t)(u) - l) * (X1 - X0 - 4)) / span))
 #define AY(dz) (Y1 - 4 - (int16_t)(((dz) * (Y1 - Y0 - 8)) / (12 * SEG_LEN)))
     l2p_begin();
+    l2p_top = 0;
+    l2p_bot = 192;
     l2p_rect(Y0 - 1, Y1 + 2, X0 - 1, X1 + 1, PEN_BLACK);
     if (a->blinded) {
         uint32_t h = (uint32_t)w->frame * 2654435761UL;
