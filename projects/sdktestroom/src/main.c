@@ -2,7 +2,9 @@
  * sdktestroom - tests the tile room modules on a 48K: tmap + plat cases
  * (plat_cases.c, also built on the host by test.py: the logs must match),
  * then cellspr48: a room with a sprite composed over its tiles, moved,
- * switched off, and cs_refresh. test.py checks the screen bytes.
+ * switched off, cs_refresh, cs_scroll (left and right, with a sprite) and
+ * cs_put_tile after cs_wipe_sprites;
+ * spr16_shift against spr_preshift's copies. test.py checks the screen bytes.
  */
 #include <stdint.h>
 #include <string.h>
@@ -27,6 +29,22 @@ static uint8_t map[6 * 4] = {
 static const uint8_t cross[8] = { 0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81 };
 static uint8_t cross_pre[8 * 2 * 8];
 static const uint8_t ref_c[3] = { 3, 2, 3 }, ref_r[3] = { 1, 2, 2 };
+/* cs_scroll: the column that comes in on the right (1 a row), then the two on the left */
+static const uint8_t fill_r[4] = { 1, 0, 2, 1 }, fill_l[8] = { 1, 1, 2, 0, 0, 2, 1, 1 };
+static const uint8_t figure[2 * 5] = { 0x80, 0x01, 0xFF, 0xFF, 0x3C, 0x5A, 0x00, 0x00, 0xA5, 0x0F };
+static uint8_t fig_pre[8 * 3 * 5], fig_one[3 * 5];
+
+/* spr16_shift makes each of spr_preshift's 8 copies */
+static void spr16_cases(void)
+{
+    uint8_t s, bad = 0;
+    spr_preshift(figure, 2, 5, fig_pre);
+    for (s = 0; s < 8; s++) {
+        spr16_shift(fig_one, figure, 5, s);
+        if (memcmp(fig_one, fig_pre + s * 15, 15)) bad++;
+    }
+    zx_log("spr16: shifts=8 bad=%u\n", bad);
+}
 
 /* test.py reads the screen at each "room:" line (the program waits 3 frames) */
 static void step(const char *what)
@@ -43,6 +61,7 @@ int main(void)
     screen_clear(INK_WHITE, INK_BLACK);
     frame_init();
     cases();
+    spr16_cases();
 
     spr_preshift(cross, 1, 8, cross_pre);
     cs_init(map, 6, 4, 4, 4, tiles, attrs);
@@ -71,6 +90,23 @@ int main(void)
     cs_set(1, 1, 2);
     cs_update();
     step("off");
+    cs_spr[0].on = 1;                             /* (24, 16): cell (3, 2) */
+    cs_update();
+    step("on");
+    cs_scroll(1, fill_r);                         /* the view moves a cell right */
+    cs_spr[0].x = 16;                             /* the sprite stays with the room */
+    cs_update();
+    step("scrolled");
+    cs_scroll(-2, fill_l);                        /* two cells left */
+    cs_spr[0].x = 29;
+    cs_update();
+    step("back");
+    cs_wipe_sprites(0);                           /* a view that jumps: new tiles */
+    cs_put_tile(0, 1, 2);
+    cs_put_tile(5, 2, 0);
+    cs_spr[0].x = 8;
+    cs_update();
+    step("put");
     zx_log("ZX:DONE\n");
     for (;;) frame_wait();
 }

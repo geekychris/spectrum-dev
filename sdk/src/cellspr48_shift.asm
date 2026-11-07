@@ -240,7 +240,12 @@ sr_cmp_done:
     add hl,de
     ld a,(sr_keep)
     ld b,a
-    ld c,0
+    ld c,0                          ; left: cell k shows row[k + n]; right: cell
+    ld a,(sr_left)                  ; k + n shows row[k]
+    or a
+    jr nz,sr_dmark
+    ld a,(sr_n)
+    ld c,a
 sr_dmark:
     ld a,(de)
     cp (hl)

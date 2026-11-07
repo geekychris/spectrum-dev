@@ -5,8 +5,11 @@
 - tmap + plat: plat_cases.c logs the same lines on the Spectrum and built on
   the host (and the values are the ones worked out by hand below)
 - cellspr48: the screen bytes and attributes of a room with a sprite over its
-  tiles, after a move, a cs_refresh and the sprite switched off, against a
-  Python model of the composition
+  tiles, after a move, a cs_refresh, the sprite switched off, cs_scroll a cell
+  left and two right (only the cells that change are redrawn, counted against
+  a model of it), and cs_put_tile after cs_wipe_sprites, against a Python model
+  of the composition
+- spr16_shift gives each of spr_preshift's 8 copies
 """
 import re
 import subprocess
@@ -173,6 +176,40 @@ with Emulator() as e:
     check("cellspr48: switching off redraws its cell, cs_set another", n == 2, str(n))
     MAP[1][1] = 2
     compare(e, None, "switched off + cs_set: the tiles alone")
+    check("cellspr48: switched on again: one cell", at_step("on") == 1)
+
+    def scroll_model(n, fill, sprite_cells):
+        """cs_scroll's cells: per row, the cells k with row[k] != row[k + n]
+        (dc > 0) are redrawn (up to 8 a row; more: the row is moved), then the
+        new cells that differ from what was there, and the sprite's cells (where
+        it was and where the shift moved it). Returns the cells redrawn."""
+        left, m, w, cells = n > 0, abs(n), 6, set()
+        for r in range(4):
+            row = MAP[r]
+            diff = [k for k in range(w - m) if (row[k] != row[k + m] if left else row[k + m] != row[k])]
+            if len(diff) <= 8:
+                cells |= {(k if left else k + m, r) for k in diff}
+            edge = range(w - m, w) if left else range(m)
+            new = fill[r * m:(r + 1) * m]
+            cells |= {(c, r) for c, v in zip(edge, new) if v != row[c]}
+            MAP[r] = row[m:] + new if left else new + row[:w - m]
+        return cells | sprite_cells
+
+    n = at_step("scrolled")
+    want = scroll_model(1, [1, 0, 2, 1], {(3, 2), (2, 2)})
+    check("cs_scroll: a cell left redraws the cells that change (and the sprite's)", n == len(want), f"{n} {sorted(want)}")
+    compare(e, (16, 16), "cs_scroll 1: the room a cell on, the sprite with it")
+    n = at_step("back")
+    want = scroll_model(-2, [1, 1, 2, 0, 0, 2, 1, 1], {(2, 2), (4, 2)})
+    check("cs_scroll: two cells right, the same", n == len(want), f"{n} {sorted(want)}")
+    compare(e, (29, 16), "cs_scroll -2: back the other way, the sprite unaligned over two cells")
+    n = at_step("put")
+    MAP[1][0] = 2
+    MAP[2][5] = 0
+    check("cs_wipe_sprites + cs_put_tile: the sprite's old and new cells composed", n == 3, str(n))
+    compare(e, (8, 16), "cs_put_tile: tiles drawn straight, the sprite moved")
+    m = re.search(r"spr16: shifts=8 bad=(\d+)", log)
+    check("spr16_shift: all 8 shifts equal spr_preshift's copies", m and m.group(1) == "0", str(m and m.group(0)))
     check("finishes", e.run_until("ZX:DONE", 10))
 
 print(f"{'FAIL' if failures else 'PASS'}: sdktestroom")
