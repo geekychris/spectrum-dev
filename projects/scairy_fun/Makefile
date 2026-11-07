@@ -12,7 +12,7 @@ include $(ZX_SDK)/project.mk
 # the simulation's objects and traffic: 16K bank 16 at 0x0000
 $(OBJDIR)/world_traffic.c.o: EXTRA_CFLAGS += --opt-code-size --codesegBANK_16 --constsegBANK_16
 # the autopilot and the car: 16K bank 17 at 0x4000
-$(OBJDIR)/world_ai.c.o: EXTRA_CFLAGS += --opt-code-size --codesegBANK_17 --constsegBANK_17
+$(OBJDIR)/world_ai.c.o: EXTRA_CFLAGS += --codesegBANK_17 --constsegBANK_17   # (for speed: no --opt-code-size)
 $(OBJDIR)/world_flow.c.o: EXTRA_CFLAGS += --opt-code-size --codesegBANK_16 --constsegBANK_16
 $(OBJDIR)/route.c.o $(OBJDIR)/world_scene.c.o: EXTRA_CFLAGS += --opt-code-size --codesegBANK_17 --constsegBANK_17
 # the renderer: 16K bank 18 at 0x0000

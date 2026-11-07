@@ -516,7 +516,7 @@ static void hud(const World *w)
         hud_line(0, 1, 25, "A NEXT GAME", C_WHITE);
         hud_line(1, 1, 26, "AUTOPILOT DEMO", C_AI);
         hud_line(2, 1, 27, "TAKE OVER WHEN", C_GREY);
-        hud_line(3, 15, 27, "IT MATTERS", C_GREY);
+        hud_line(3, 16, 27, "IT MATTERS", C_GREY);
         return;
     }
     strcpy(tmp, "SCORE ");

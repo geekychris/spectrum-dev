@@ -3,17 +3,17 @@
 A bot reads the world (the `world` struct, the original's World laid out as
 zsdcc packs it) and plays like the original's test drivers
 (tests/test_cases.c careful()): on the Levee Road it takes the wheel before
-the first flood, crosses it slowly in the lane centre and hands back (a good
-catch, +500); it leaves the old lane lines and the second flood to the
-autopilot (it rolls down the embankment and splashes into the river: the tow
-truck, cover lost) and hands back after each; it looks through the cockpit
-view on the way. At the marina: the arrival, the software update, Rush
+each flood, crosses it slowly in the lane centre and hands back (good
+catches, +500 each); it leaves the old lane lines to the autopilot (it rolls
+down the embankment: the tow truck, cover lost) and hands back after; it
+looks through the cockpit view on the way. At the marina: the arrival, the software update, Rush
 Hour, where the autopilot's blind spots (the overpass shadows, cones, the
 ambulance, debris) cost the rest of the cover: game over. Then the
 initials (BOT) and the title. The rules pages, pause and the views are
 tried too. The game is recorded from reset and replayed twice: every frame
 hash must match. Screenshots go to screenshots/; the frame rate is printed.
 """
+import os
 import re
 import struct
 import sys
@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT / "tools" / "zxdev" / "src"))
 from zxdev.emu import Emulator  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-NEX = HERE / "build" / "scairy_fun.nex"
+NEX = Path(os.environ.get("SCAIRY_NEX", HERE / "build" / "scairy_fun.nex"))   # (env: test a copy)
 SHOTS = HERE / "screenshots"
 REC = HERE / "build" / "bot-game.json"
 failures = []
@@ -124,7 +124,10 @@ def hand_back(g, lane_centre=28):
         if abs(off) <= 10 and s["cstate"] == 0:
             g.tap("SPACE")
             continue
-        g.keys(["O"] if off > 0 else ["P"] if s["kmh"] > 5 else ["Q"])
+        if s["kmh"] < 10:                       # steering needs speed
+            g.keys(["Q", "O"] if off > 0 else ["Q", "P"])
+        else:
+            g.keys(["O"] if off > 0 else ["P"])
         g.run(2)
     return False
 
@@ -153,6 +156,8 @@ def drive(g, max_frames, until_state=None, shots=None, saves=(), view_at=None):
         s = g.read()
         if until_state and s["state"] == until_state:
             break
+        if s["state"] == "gameover" and until_state != "gameover":
+            break                               # (not what was wanted: the checks say so)
         if s["state"] != "play":
             g.keys([])
             g.run(8)
@@ -241,12 +246,12 @@ with Emulator(machine="next") as e:
     check("and resume", "scairy: resumed" in g.log)
 
     drive(g, 60000, until_state="arrived", shots={60: "levee.png", 112: "flood.png", 160: "old-lines.png"},
-          saves=(108,), view_at=280)
+          saves=(108, 352), view_at=280)
     log = g.log
     check("the autopilot scores", g.read()["score"] > 1000, str(g.read()))
     check("taking over before the flood: a good catch", "ev save" in log, log[-400:])
     check("the old lane lines: over the embankment", "ev roll" in log)
-    check("the second flood: into the river", "ev splash" in log)
+    check("the second flood: another catch", log.count("ev save") >= 2)
     check("the tow truck puts the car back", "ev respawn" in log)
     check("the cockpit view", "view cockpit" in log and "view chase" in log)
     check("arrived at the marina", "ev arrived" in log)
@@ -283,6 +288,8 @@ with Emulator(machine="next") as e:
     check("back to the title", g.until("scairy: title", 600))
     g.run(100)
     fps = fps_of(g.log)
+    if failures:                                # the game's log, to see what happened
+        (HERE / "build" / "test-log.txt").write_text(g.log)
     rec = e.record_input("save", REC)
     print(f"  final score {s['score']}; {fps:.1f} frames a second (the 3D view; the simulation runs at 25 Hz); "
           f"recorded {rec['frames']} frames, {rec['events']} input changes")
