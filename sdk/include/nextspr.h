@@ -15,6 +15,14 @@
  *                                 top-left at (x, y) on the 320 x 256
  *                                 sprite plane; patterns slot.. in order.
  *                                 Returns the next free sprite number.
+ *   sprg_show_ex(first, x, y, cols, rows, slot, flags, pal, zoom)
+ *                                 the same with a palette offset (pal 0..15:
+ *                                 adds 16 * pal to the patterns' indices)
+ *                                 and hardware zoom (0..3: x1, x2, x4, x8,
+ *                                 both axes): a group image shown 2, 4 or 8
+ *                                 times its size (made at 1/2, 1/4, 1/8)
+ *   sprg_hide(first, n)           hide sprites first..first+n-1 (one OTIR
+ *                                 per 16)
  *   sprg_hide_from(n)             hide sprites n..127
  *   sprg_mask_rle(img, cols, rows, px, py, piece)
  *                                 make transparent every pixel of the group
@@ -38,6 +46,9 @@
 extern void sprg_upload(uint8_t slot, const uint8_t *img, uint8_t n);
 extern uint8_t sprg_show(uint8_t first, int16_t x, int16_t y, uint8_t cols, uint8_t rows,
                          uint8_t slot, uint8_t flags);
+extern uint8_t sprg_show_ex(uint8_t first, int16_t x, int16_t y, uint8_t cols, uint8_t rows,
+                            uint8_t slot, uint8_t flags, uint8_t pal, uint8_t zoom);
+extern void sprg_hide(uint8_t first, uint8_t n);
 extern void sprg_hide_from(uint8_t n);
 extern void sprg_mask_rle(uint8_t *img, uint8_t cols, uint8_t rows, int16_t px, int16_t py,
                           const uint8_t *piece);

@@ -25,7 +25,8 @@
  * line that has already gone by waits until the next frame's restart.
  *
  * The list is built in a RAM buffer (copper_buf, 2 bytes an instruction) and
- * sent with NextReg 0x60; copper_end() can be called again after editing.
+ * sent to NextReg 0x60 by DMA (a few T-states a byte, so a list can be
+ * rebuilt every frame); copper_end() can be called again after editing.
  */
 #ifndef NEXTCOPPER_H
 #define NEXTCOPPER_H
@@ -38,7 +39,7 @@
 /* a line's position in the copper's frame (0 = the restart at line 248) */
 #define copper_line_order(l) ((uint16_t)((l) >= COPPER_START_LINE ? (l) - COPPER_START_LINE : (l) + 312 - COPPER_START_LINE))
 
-extern uint8_t copper_buf[COPPER_MAX * 2];
+extern uint8_t copper_buf[COPPER_MAX * 2 + 2];
 extern uint16_t copper_n;
 
 extern void copper_begin(void);

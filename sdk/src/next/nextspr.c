@@ -12,24 +12,25 @@ void sprg_upload(uint8_t slot, const uint8_t *img, uint8_t n)
 
 static uint8_t attr[5 * 16];            /* a group's attributes, sent with one OTIR */
 
-uint8_t sprg_show(uint8_t first, int16_t x, int16_t y, uint8_t cols, uint8_t rows,
-                  uint8_t slot, uint8_t flags)
+uint8_t sprg_show_ex(uint8_t first, int16_t x, int16_t y, uint8_t cols, uint8_t rows,
+                     uint8_t slot, uint8_t flags, uint8_t pal, uint8_t zoom)
 {
-    uint8_t r, c, *a = attr, n = 0;
+    uint8_t r, c, *a = attr, n = 0, step = 16 << zoom;
+    uint8_t a2 = (pal << 4) | (flags & 0x0E), a4 = (zoom << 3) | (zoom << 1);
     int16_t sx, sy = y;
     z80_outp(0x303B, first & 127);
-    for (r = 0; r < rows; r++, sy += 16) {
+    for (r = 0; r < rows; r++, sy += step) {
         sx = x;
-        for (c = 0; c < cols && n < 16; c++, sx += 16, slot++, n++, a += 5) {
-            if (sx <= -16 || sx >= 320 || sy <= -16 || sy >= 256) {
+        for (c = 0; c < cols && n < 16; c++, sx += step, slot++, n++, a += 5) {
+            if (sx <= -step || sx >= 320 || sy <= -step || sy >= 256) {
                 a[0] = a[1] = a[2] = a[4] = 0;
                 a[3] = 0x40;                                         /* hidden, 5 bytes */
             } else {
                 a[0] = (uint8_t)sx;
                 a[1] = (uint8_t)sy;
-                a[2] = (flags & 0x0E) | ((sx >> 8) & 1);
+                a[2] = a2 | ((sx >> 8) & 1);
                 a[3] = 0xC0 | (slot & 63);                           /* visible, 5 bytes */
-                a[4] = (sy >> 8) & 1;
+                a[4] = a4 | ((sy >> 8) & 1);
             }
         }
     }
@@ -37,14 +38,26 @@ uint8_t sprg_show(uint8_t first, int16_t x, int16_t y, uint8_t cols, uint8_t row
     return first + n;
 }
 
+uint8_t sprg_show(uint8_t first, int16_t x, int16_t y, uint8_t cols, uint8_t rows,
+                  uint8_t slot, uint8_t flags)
+{
+    return sprg_show_ex(first, x, y, cols, rows, slot, flags, 0, 0);
+}
+
+static uint8_t zero[64];                /* 16 hidden sprites' attributes (4 bytes each) */
+
+void sprg_hide(uint8_t first, uint8_t n)
+{
+    if (first >= 128) return;
+    if (n > 128 - first) n = 128 - first;
+    z80_outp(0x303B, first);
+    for (; n > 16; n -= 16) z80_otir(zero, 0x57, 64);
+    if (n) z80_otir(zero, 0x57, n << 2);
+}
+
 void sprg_hide_from(uint8_t n)
 {
-    static uint8_t zero[4] = { 0, 0, 0, 0 };
-    if (n >= 128) return;
-    z80_outp(0x303B, n);
-    do {
-        z80_otir(zero, 0x57, 4);
-    } while (++n < 128);
+    sprg_hide(n, 128 - n);
 }
 
 /* nextspr_fill.asm: the mask, in asm (it is the hot loop of an isometric game) */

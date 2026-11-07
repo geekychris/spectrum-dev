@@ -15,6 +15,12 @@
  *                                           mul 8 add 0 = as is, mul 4 = half
  *                                           brightness, mul 7 add ink/3 = a
  *                                           flash towards an ink
+ *   palfx_load_bytes(sel, first, src, nbytes)
+ *                                           raw NextReg 0x44 bytes (two an
+ *                                           entry: RRRGGGBB, then B's low
+ *                                           bit) sent by DMA: ~2 T-states a
+ *                                           byte, for palettes rewritten
+ *                                           every frame (colour cycling)
  *   palfx_active(l2_second, spr_second)       which palettes are shown (keeps
  *                                           the selector bits it doesn't own)
  *
@@ -38,6 +44,7 @@
 extern void palfx_load(uint8_t sel, uint8_t first, uint16_t n, const uint16_t *src);
 extern void palfx_load_fx(uint8_t sel, uint8_t first, uint16_t n, const uint16_t *src,
                         uint8_t mul, uint16_t add);
+extern void palfx_load_bytes(uint8_t sel, uint8_t first, const uint8_t *src, uint16_t nbytes);
 extern uint16_t pal_fx(uint16_t c, uint8_t mul, uint16_t add);
 extern void palfx_active(uint8_t l2_second, uint8_t spr_second);
 
