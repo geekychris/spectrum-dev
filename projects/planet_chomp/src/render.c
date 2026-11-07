@@ -120,19 +120,14 @@ void xf_corners(void)
 #define BUCKETS 256
 #define MAX_ITEMS 360
 enum { IT_WALL, IT_CRUMB, IT_NEST };
-#ifndef __SDCC                         /* on the Next: mem.asm (bank 18, page 38) */
+#ifndef XF_ASM
+/* the C reference of draw.asm's list (the host; the corners live in mem.asm on the Next) */
 Corner cn_host[CORNERS];
 int16_t rd_bucket[BUCKETS];
 int16_t it_next[MAX_ITEMS], it_a[MAX_ITEMS], it_b[MAX_ITEMS];
 int8_t it_ox[MAX_ITEMS], it_oy[MAX_ITEMS];
 uint8_t it_type[MAX_ITEMS], it_col[MAX_ITEMS];
-#else
-extern int16_t rd_bucket[BUCKETS];
-extern int16_t it_next[MAX_ITEMS], it_a[MAX_ITEMS], it_b[MAX_ITEMS];
-extern int8_t it_ox[MAX_ITEMS], it_oy[MAX_ITEMS];
-extern uint8_t it_type[MAX_ITEMS], it_col[MAX_ITEMS];
-#endif
-static int16_t nitems, nest_xy[16];
+static int16_t nitems;
 
 static int16_t add_item(uint8_t type, int16_t z)
 {
@@ -146,6 +141,7 @@ static int16_t add_item(uint8_t type, int16_t z)
     rd_bucket[b] = n;
     return n;
 }
+#endif
 
 /* ---- the planet's silhouette: a circle where sight lines graze the
    sphere, the same on screen for a given camera height (cached) ---- */
@@ -237,42 +233,40 @@ static void camera(void)
 
 /* a wall: its two corners' ground and top points; the side facing the
    camera and the top, the thickness across the wall's top edge */
+#ifndef XF_ASM
+static int16_t tsize(int16_t z) { uint16_t i = (uint16_t)z >> 7; return rd_tsize[i < 128 ? i : 127]; }
+
+/* q = M d for an offset-binary Q7 direction (the rows xform.asm uses) */
+static int16_t row8(const int8_t *m, const int8_t *d) { return m[0] * d[0] + m[1] * d[1] + m[2] * d[2]; }
+
+/* a wall: its two corners' ground and top points; the side facing the
+   camera and the top; its thickness the side normal through the camera at
+   the wall's depth, toward the ground points (the side the camera sees) */
 static void add_wall(int16_t e)
 {
     const Edge *ed = &ed_rec[e];
     const Corner *ca = CN(ed->a), *cb = CN(ed->b);
-    int16_t z, ex, ey, ax, ay, len, t16, ox, oy, n, k;
+    int16_t z, t, qx, qy, qz, ox, oy, n, k;
+    int32_t face;
     if (!ca->vis || !cb->vis) return;
     if ((ca->dot >> 1) + (cb->dot >> 1) < xf_thr_wall) return;   /* (sums of two pass 16 bits) */
     z = (ca->z >> 1) + (cb->z >> 1);
     n = add_item(IT_WALL, z);
     if (n < 0) return;
-    ex = cb->tx - ca->tx;
-    ey = cb->ty - ca->ty;
-    ax = ex < 0 ? -ex : ex;
-    ay = ey < 0 ? -ey : ey;
-    len = (ax > ay ? ax + (ay >> 1) : ay + (ax >> 1)) + 1;     /* ~|e| */
-    t16 = rd_size16(WALL_HALFT, z);                           /* 1/16 px */
-    ox = (int16_t)(mul16(-ey, t16) / len);
-    oy = (int16_t)(mul16(ex, t16) / len);
-    /* toward the ground points: the side the camera sees */
-    if ((int32_t)ox * (ca->bx - ca->tx + cb->bx - cb->tx) + (int32_t)oy * (ca->by - ca->ty + cb->by - cb->ty) < 0) {
-        ox = -ox;
-        oy = -oy;
-    }
-    ox = (ox + 8) >> 4;
-    oy = (oy + 8) >> 4;
-    if (ox > 127) ox = 127;
-    if (ox < -127) ox = -127;
-    if (oy > 127) oy = 127;
-    if (oy < -127) oy = -127;
+    t = tsize(z);
+    qx = row8(xf_m8[0], ed->side);
+    qy = row8(xf_m8[1], ed->side);
+    qz = row8(xf_m8[2], ed->side);
+    ox = (int16_t)((int32_t)qx * t >> 14);                    /* 1/16 px */
+    oy = (int16_t)(-(int32_t)qy * t >> 14);
+    face = (int32_t)ox * (ca->bx - ca->tx + cb->bx - cb->tx) + (int32_t)oy * (ca->by - ca->ty + cb->by - cb->ty);
+    if (face < 0) { ox = -ox; oy = -oy; }
     it_a[n] = (int16_t)ed->a;
     it_b[n] = (int16_t)ed->b;
-    it_ox[n] = (int8_t)ox;
-    it_oy[n] = (int8_t)oy;
+    it_ox[n] = (int8_t)((ox + 8) >> 4);
+    it_oy[n] = (int8_t)((oy + 8) >> 4);
     /* shade: the original's 120 + 150 |side . fwd| */
-    k = (ed->side[0] * xf_fwd8[0] + ed->side[1] * xf_fwd8[1] + ed->side[2] * xf_fwd8[2]) >> 11;   /* Q14 -> 0..8 */
-    if (k < 0) k = -k;
+    k = (qz < 0 ? -qz : qz) >> 11;
     if (k > 7) k = 7;
     it_col[n] = C_WALL_SIDE + (uint8_t)k;
     rd_stats_walls++;
@@ -284,20 +278,18 @@ static void add_crumb(int16_t c)
 {
     const uint16_t *cc = &rd_cell_corner[c * 4];
     const Corner *a = CN(cc[0]), *b = CN(cc[1]), *d = CN(cc[2]), *f = CN(cc[3]);
-    int16_t n, bx, by, tx, ty, x, y, z, r;
+    int16_t n, x, y, z, r;
     if (!a->vis || !b->vis || !d->vis || !f->vis) return;
     if ((a->dot >> 2) + (b->dot >> 2) + (d->dot >> 2) + (f->dot >> 2) < xf_thr_crumb) return;
     if (a->tx < -512 || a->tx > 767 || a->ty < -512 || a->ty > 703) return;   /* far off screen */
     z = (a->z >> 2) + (b->z >> 2) + (d->z >> 2) + (f->z >> 2);
     n = add_item(IT_CRUMB, z);
     if (n < 0) return;
-    bx = a->bx + b->bx + d->bx + f->bx;                   /* x4 */
-    by = a->by + b->by + d->by + f->by;
-    tx = a->tx + b->tx + d->tx + f->tx;
-    ty = a->ty + b->ty + d->ty + f->ty;
-    x = (int16_t)((int32_t)(bx + tx * 2) * 4 / 3);        /* x16: (b + 2 t) / 3 */
-    y = (int16_t)((int32_t)(by + ty * 2) * 4 / 3);
-    r = rd_size16(CRUMB_R, z);                            /* 1/16 px */
+    /* port: 3/4 of the way up the walls (0.56; the original's crumbs float
+       at 0.5, 2/3): x16 = sum b + 3 sum t, no division */
+    x = a->bx + b->bx + d->bx + f->bx + 3 * (a->tx + b->tx + d->tx + f->tx);
+    y = a->by + b->by + d->by + f->by + 3 * (a->ty + b->ty + d->ty + f->ty);
+    r = tsize(z);                                         /* 1/16 px */
     if (r < 8) r = 8;
     it_a[n] = (x - r) >> 4;                  /* left, top, size */
     it_b[n] = (y - r) >> 4;
@@ -306,22 +298,20 @@ static void add_crumb(int16_t c)
     it_col[n] = C_CRUMB;
     rd_stats_crumbs++;
 }
+#endif
 
-/* the nest: a flat violet disc on the surface (precomputed rim directions) */
-static void add_nest(void)
+/* the nest: a flat violet disc on the surface (precomputed rim directions);
+   drawn straight after the planet: a disc on the ground hides nothing
+   standing on the ground behind it (port: the original sorts it) */
+static int16_t nest_xy[16];
+
+static void draw_nest(void)
 {
-    int16_t i, z, zc, n;
-    V3 p;
-    p.x = mulq14(mz_spot[4].x, PLANET_R + 5);
-    p.y = mulq14(mz_spot[4].y, PLANET_R + 5);
-    p.z = mulq14(mz_spot[4].z, PLANET_R + 5);
+    int16_t i, z;
     if (rd_horizon(&mz_spot[4]) < PLANET_R - Q8(1.25)) return;
-    if (!rd_project(&p, &n, &n, &zc)) return;
-    n = add_item(IT_NEST, zc + Q8(0.3));          /* under anything standing on it */
-    if (n < 0) return;
     for (i = 0; i < 8; i++)
-        if (!rd_project(&rd_nest_rim[i], &nest_xy[i * 2], &nest_xy[i * 2 + 1], &z)) { it_type[n] = 0xFF; return; }
-    it_col[n] = C_NEST;
+        if (!rd_project(&rd_nest_rim[i], &nest_xy[i * 2], &nest_xy[i * 2 + 1], &z)) return;
+    dr_poly(nest_xy, 8, C_NEST);
 }
 
 #ifdef __SDCC
@@ -330,6 +320,34 @@ extern void rd_lap(uint8_t k);
 #define rd_lap(k)
 #endif
 
+#ifdef XF_ASM
+/* draw.asm */
+void rd_lists_reset(void);
+void rd_crumbs(void);
+void rd_walls(void);
+void rd_draw(void);
+
+void rd_frame(void)
+{
+    camera();
+    rd_lap(0);
+    rd_map_corners();
+    xf_corners();
+    rd_lap(1);
+    rd_lists_reset();
+    rd_crumbs();
+    rd_lap(2);
+    rd_map_walls();
+    rd_walls();
+    rd_lap(3);
+    dr_begin();
+    if (disc_h >= 0 && !(rd_dbg & 1)) dr_poly(disc_xy, 24, C_PLANET);
+    draw_nest();
+    if (!(rd_dbg & 2)) rd_draw();
+    dr_end();
+    rd_lap(4);
+}
+#else
 void rd_frame(void)
 {
     int16_t i, b;
@@ -345,10 +363,10 @@ void rd_frame(void)
     rd_lap(2);
     rd_map_walls();
     for (i = 0; i < rd_nwalls; i++) add_wall(rd_wall[i]);
-    add_nest();
     rd_lap(3);
     dr_begin();
     if (disc_h >= 0 && !(rd_dbg & 1)) dr_poly(disc_xy, 24, C_PLANET);
+    draw_nest();
     for (b = BUCKETS - 1; b >= 0; b--)
         for (i = rd_bucket[b]; i >= 0; i = it_next[i]) {
             int16_t a = it_a[i], c = it_b[i], ox = it_ox[i], oy = it_oy[i], xy[8];
@@ -370,11 +388,9 @@ void rd_frame(void)
                 if (rd_dbg & 4) break;
                 dr_rect(c, c + ox, a, a + ox - 1, it_col[i]);
                 break;
-            case IT_NEST:
-                dr_poly(nest_xy, 8, it_col[i]);
-                break;
             }
         }
     dr_end();
     rd_lap(4);
 }
+#endif

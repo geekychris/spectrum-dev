@@ -23,6 +23,7 @@ extern Corner cn_host[];
 
 #define RECIP_N 1024
 extern const int16_t rd_recip[RECIP_N];          /* focal * 16384 / (16 i + 8): z = 16 i .. 16 i + 15 (Q8) */
+extern const uint8_t rd_tsize[128];              /* 0.13 at depth (i + 0.5) / 2 units, in 1/16 px */
 extern const V3 rd_nest_rim[8];                  /* the nest disc's rim, world Q8 */
 extern const uint8_t rd_corner8[CORNERS * 3];    /* rtab_a.c: corner directions, Q7 + 128 */
 extern const uint16_t rd_cell_corner[CELLS * 4]; /* rtab_a.c: each cell's four corners' records */

@@ -15,10 +15,11 @@ $(OBJDIR)/rtab_b.c.o: EXTRA_CFLAGS += --constsegPAGE_40
 # the tables and pictures are made on the host (checked in):
 #   sh tools/make_assets.sh
 
-# every banked part must fit its slot(s): 16K banks, 8K pages
+# every banked part must fit its slot(s): 16K banks, 8K pages (bank 18 keeps
+# its last 1.5K for draw.asm's jump table and row buffers)
 all: banks-check
 banks-check: $(OUT)
-	@for s in BANK_16:16384 BANK_17:16384 BANK_18:16384 PAGE_38:8192 PAGE_39:8192 PAGE_40:8192; do \
+	@for s in BANK_16:16384 BANK_17:16384 BANK_18:14848 PAGE_38:8192 PAGE_39:8192 PAGE_40:8192; do \
 	   n=$${s%%:*}; max=$${s##*:}; \
 	   h=$$(awk "/^__$${n}_head/ {print \$$3}" $(BUILD)/$(NAME).map | tr -d '$$'); \
 	   t=$$(awk "/^__$${n}_tail/ {print \$$3}" $(BUILD)/$(NAME).map | tr -d '$$'); \

@@ -21,6 +21,7 @@
 SECTION BANK_18
 
 PUBLIC _xf_setup, _xf_corners
+PUBLIC row_x, row_y, row_z     ; for draw.asm (wall side normals)
 EXTERN _xf_m8, _xf_chat, _xf_c, _xf_thr, _rd_recip, _rd_corner8
 
 CN_BASE equ 0x4000
@@ -31,7 +32,7 @@ CY equ 96
 
 ; ---------------------------------------------------------------- the rows
 
-; Each row block (row_pre, row_z, row_x, row_y in the loop below):
+; Each row block (row_pre, row_z, row_x, row_y: subroutines below):
 ; HL = sum m d (mod 2^16) for the direction in B, C, IXL (offset binary).
 ;   +1  ld hl,-128 sum m      +4 ld d,m0 / ld e,b / mul / add hl,de
 ;   +10 ld d,m1 / ld e,c ...  +16 ld d,m2 / ld e,ixl ...
@@ -158,28 +159,7 @@ xc_loop:
     inc hl
     ld (src),hl
     ld ixl,a
-row_pre:
-    ld hl,0
-    ld d,0
-    ld e,b
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,c
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,ixl
-    mul d,e
-    add hl,de
-    ld a,h
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    ld h,a
+    call row_pre
     ld (iy+10),l
     ld (iy+11),h
     ld (iy+12),0                ; hidden until shown
@@ -189,74 +169,11 @@ row_pre:
     or a
     sbc hl,de
     jp c,xc_next                ; dot < threshold (both positive here)
-row_z:
-    ld hl,0
-    ld d,0
-    ld e,b
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,c
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,ixl
-    mul d,e
-    add hl,de
-    ld a,h
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    ld h,a
+    call row_z
     ld (qz),hl
-row_x:
-    ld hl,0
-    ld d,0
-    ld e,b
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,c
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,ixl
-    mul d,e
-    add hl,de
-    ld a,h
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    ld h,a
+    call row_x
     ld (qx),hl
-row_y:
-    ld hl,0
-    ld d,0
-    ld e,b
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,c
-    mul d,e
-    add hl,de
-    ld d,0
-    ld e,ixl
-    mul d,e
-    add hl,de
-    ld a,h
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    ld h,a
+    call row_y
     ld (qy),hl
 
     ; z: the ground and the top, both in front of the near plane
@@ -348,6 +265,103 @@ xc_next:
     jp nz,xc_loop
     pop iy
     pop ix
+    ret
+
+; the row blocks (see above), patched by xf_setup
+row_pre:
+    ld hl,0
+    ld d,0
+    ld e,b
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,c
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,ixl
+    mul d,e
+    add hl,de
+    ld a,h
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    ld h,a
+    ret
+
+row_z:
+    ld hl,0
+    ld d,0
+    ld e,b
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,c
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,ixl
+    mul d,e
+    add hl,de
+    ld a,h
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    ld h,a
+    ret
+
+row_x:
+    ld hl,0
+    ld d,0
+    ld e,b
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,c
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,ixl
+    mul d,e
+    add hl,de
+    ld a,h
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    ld h,a
+    ret
+
+row_y:
+    ld hl,0
+    ld d,0
+    ld e,b
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,c
+    mul d,e
+    add hl,de
+    ld d,0
+    ld e,ixl
+    mul d,e
+    add hl,de
+    ld a,h
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    ld h,a
     ret
 
 ; HL = q: q3 = q + q / 2 (floor); HL = q3 >> 3, DE = q3 >> 7 (arithmetic)

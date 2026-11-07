@@ -38,6 +38,9 @@
 extern const uint16_t rd_pal[C_COUNT];
 extern void bench_loop(void);
 extern void bench_store(void);
+int16_t rd_test[16];
+extern void rd_init(void);
+extern void rd_quad(const int16_t *xy, uint8_t colour);
 
 void rd_map_corners(void) { ZXN_WRITE_MMU3(39); }
 void rd_map_walls(void) { ZXN_WRITE_MMU3(40); }
@@ -102,6 +105,8 @@ int main(void)
     frame_init();
     frame_hook = on_frame;
     input_latch(1);
+    DRAW();
+    rd_init();
     LOGIC();
     game_init();
     zx_log("pc: ready kempston=%u walls=%d\n", input_kempston, rd_nwalls);
@@ -123,7 +128,14 @@ int main(void)
         l2_copy_to_back(STARS_BANK);
         lap(1);
         DRAW();
-        if (rd_dbg & 8) {                            /* benchmark: 200 quads 4 x 20, then 200 quads 20 x 4 */
+        if (rd_dbg & 16) {                           /* test: quads from rd_test (set by test.py) */
+            l2_clear(C_SPACE);
+            DRAW();                                  /* (the DMA gave slots 0-1 to the ROM) */
+            l2p_begin();
+            rd_quad(rd_test, C_WALL_SIDE);
+            rd_quad(rd_test + 8, C_CRUMB);
+            l2p_end();
+        } else if (rd_dbg & 8) {                            /* benchmark: 200 quads 4 x 20, then 200 quads 20 x 4 */
             static int16_t q[8];
             uint16_t n;
             uint32_t t0;
@@ -144,6 +156,22 @@ int main(void)
             }
             t0 = line_clock() - t0;
             zx_log("pc: bench wide quads: %lu lines\n", t0);
+            t0 = line_clock();
+            for (n = 0; n < 200; n++) {
+                q[0] = n & 127; q[1] = 20 + (n & 63); q[2] = q[0] + 4; q[3] = q[1] + 1;
+                q[4] = q[2] + 1; q[5] = q[1] + 21; q[6] = q[0] + 1; q[7] = q[1] + 20;
+                rd_quad(q, 9);
+            }
+            t0 = line_clock() - t0;
+            zx_log("pc: bench rd_quad tall: %lu lines\n", t0);
+            t0 = line_clock();
+            for (n = 0; n < 200; n++) {
+                q[0] = n & 127; q[1] = 20 + (n & 63); q[2] = q[0] + 20; q[3] = q[1] + 1;
+                q[4] = q[2] + 1; q[5] = q[1] + 5; q[6] = q[0] + 1; q[7] = q[1] + 4;
+                rd_quad(q, 9);
+            }
+            t0 = line_clock() - t0;
+            zx_log("pc: bench rd_quad wide: %lu lines\n", t0);
             t0 = line_clock();
             for (n = 0; n < 200; n++) l2p_rect(20 + (n & 63), 23 + (n & 63), n & 127, (n & 127) + 2, 7);
             t0 = line_clock() - t0;

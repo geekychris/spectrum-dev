@@ -180,6 +180,13 @@ int main(void)
         }
         fprintf(out, "};\n");
     }
+    fprintf(out, "/* 0.13 (a crumb's radius, a wall's half thickness) at depth z = (i + 0.5) / 2 units,\n"
+                 "   in 1/16 px: render.c's and draw.asm's sizes */\nconst uint8_t rd_tsize[128] = {\n");
+    for (i = 0; i < 128; i++) {
+        double v = 0.13 * 196.8 * 16.0 / ((i + 0.5) / 2.0);
+        item("%d,", v > 255 ? 255 : (int)(v + 0.5));
+    }
+    end_array();
     fprintf(out, "/* 196.8 (the original's focal length, 246, at 0.8) * 16384 / z */\nconst int16_t rd_recip[RECIP_N] = {\n");
     for (i = 0; i < 1024; i++) {
         double v = 196.8 * 16384.0 / (i * 16 + 8);
