@@ -150,19 +150,25 @@ const uint8_t enemy_attr[3] = {           /* draw.asm reads it */
 
 /* ------------------------------------------------------------ playfield */
 
+/* a line of pattern pat from pixel x0 to x1 (inclusive), a byte at a time */
+static void pattern_line(uint8_t x0, uint8_t x1, uint8_t y, uint8_t pat)
+{
+    uint8_t *d = zx_row[y] + (x0 >> 3);
+    uint8_t c0 = x0 >> 3, c1 = x1 >> 3;
+    uint8_t lm = 0xFF >> (x0 & 7), rm = (uint8_t)(0xFF << (7 - (x1 & 7)));
+    if (c0 == c1) { *d |= pat & lm & rm; return; }
+    *d++ |= pat & lm;
+    for (c0++; c0 < c1; c0++) *d++ = pat;
+    *d |= pat & rm;
+}
+
 static void draw_platform(const Platform *pl)
 {
     uint8_t x0 = (uint8_t)scr_x(pl->x), y = scr_y(pl->y), i;
     int16_t x1 = scr_x(pl->x + pl->w) - 1;
     if (x1 > 255) x1 = 255;
-    for (i = 0; i < 6; i++) {                       /* 8 lines at 3/4: surface, then shade */
-        uint8_t x;
-        if (i < 2) { gfx_hline(x0, (uint8_t)x1, y + i); continue; }
-        for (x = x0 + (i & 1); x <= (uint8_t)x1; x += 2) {
-            gfx_plot(x, y + i);
-            if (x >= 254) break;
-        }
-    }
+    for (i = 0; i < 6; i++)                  /* 8 lines at 3/4: the surface, then shade */
+        pattern_line(x0, (uint8_t)x1, y + i, i < 2 ? 0xFF : (i & 1) ? 0x55 : 0xAA);
 }
 
 static void draw_ground(void)
@@ -219,8 +225,12 @@ Player *dr_players;
 Enemy *dr_enemies;
 Egg *dr_eggs;
 uint8_t dr_nplayers;
+#if !DRAW_IN_C
 extern void draw_pass(void);
 extern void tint_pass(void);
+#else
+static void tint_pass(void);
+#endif
 
 static void slots_reset(void)
 {
@@ -548,8 +558,12 @@ static void sound_events(uint8_t ev)
 #define SRC_P2  (IN2_KEMPSTON1 | IN2_SINCLAIR1)
 static uint16_t src_p1 = SRC_ALL, src_p2;
 static volatile uint8_t src_changed;
-static uint8_t ring_p1[8], ring_p2[8], ring_num[8];
-static volatile uint8_t isr_n;
+#define RING 64                      /* frames of input kept (a power of two) */
+#define ring_p1  ((uint8_t *)MEM_RING)
+#define ring_p2  ((uint8_t *)MEM_RING + RING)
+#define ring_num ((uint8_t *)MEM_RING + 2 * RING)
+static uint16_t ticks_dropped;
+volatile uint8_t isr_n;              /* frames sampled (test.py aligns input on it) */
 static uint8_t rd_n;
 
 extern uint8_t isr_scan(void);       /* cells.asm: reads the keys and stick into in2_rows/in2_kemp, 1 = changed */
@@ -557,7 +571,7 @@ extern uint8_t isr_scan(void);       /* cells.asm: reads the keys and stick into
 static void isr_work(void)
 {
     static uint8_t b1, b2;
-    uint8_t i = (uint8_t)(isr_n + 1) & 7;
+    uint8_t i = (uint8_t)(isr_n + 1) & (RING - 1);
     /* decoding is slow in C: only when a key or the stick changed */
     if (isr_scan() || src_changed) {
         src_changed = 0;
@@ -583,14 +597,30 @@ static UWORD to_inp(uint8_t b)
 static uint8_t prev_p1, prev_num;
 static WORD startup_delay = 30;      /* the original: ignore input just after starting */
 
+/* test hooks (test.py): from the boot on, what every tick took from player
+   1's controls is recorded at MEM_TEST_TAPE (until it is full); with
+   tick_tape set, ticks play back from there instead of the controls
+   (tick_left bytes): tick-exact, whatever the frame timing */
+uint8_t *tick_rec = (uint8_t *)MEM_TEST_TAPE, *tick_tape;
+uint16_t tick_left = MEM_TEST_TAPE_LEN;
+
 static void tick_input(InputState *in, uint8_t idx)
 {
-    uint8_t b1 = ring_p1[idx], pressed = b1 & ~prev_p1, num = ring_num[idx];
-    uint8_t num_pressed = num & ~prev_num;
+    uint8_t b1 = ring_p1[idx], b2 = ring_p2[idx], num = ring_num[idx], pressed, num_pressed;
+    if (tick_tape) {
+        b1 = tick_left ? (tick_left--, *tick_tape++) : 0;
+        b2 = num = 0;
+    }
+    else if (tick_rec && tick_left) {
+        *tick_rec++ = b1;
+        tick_left--;
+    }
+    pressed = b1 & ~prev_p1;
+    num_pressed = num & ~prev_num;
     prev_p1 = b1;
     prev_num = num;
     in->p1 = to_inp(b1);
-    in->p2 = to_inp(ring_p2[idx]);
+    in->p2 = to_inp(b2);
     in->sys = 0;
     if (gs.state == STATE_TITLE) {
         if (num_pressed & 1) in->sys |= INP_START1;
@@ -642,6 +672,11 @@ static void log_tick(uint8_t ev)
 #define OFS(t, f) ((uint16_t)&((t *)0)->f)
 static void layout_check(void)
 {
+    /* mem.h's tables must not overlap */
+    if (MEM_PRE_EGG + 8 * 2 * EGG_H > MEM_SX_TAB || MEM_SX_TAB + 2 * (SCREEN_W - WX_MIN + 1) > MEM_SY_TAB ||
+        MEM_SY_TAB + SCREEN_H + 1 > MEM_CELLS_BG || MEM_CELLS_BG + 768 > MEM_RING ||
+        MEM_RING + 3 * RING > MEM_END)
+        zx_log("sky: layout mismatch (mem.h)\n");
     if (sizeof(Slot) != 14 || OFS(Slot, img) != 7 || OFS(Slot, t) != 9 ||
         sizeof(Egg) != 14 || OFS(Egg, timer) != 8 ||
         sizeof(Enemy) != 22 || OFS(Enemy, type) != 8 || OFS(Enemy, anim_frame) != 14 ||
@@ -686,29 +721,35 @@ int main(void)
 
     for (;;) {
         WORD prev_state = gs.state;
-        uint8_t ticks, ev = 0;
+        uint8_t ticks, ev = 0, rd_end;
 
         frame_wait();
         intrinsic_di();
         ticks = isr_n - rd_n;
         intrinsic_ei();
-        if (ticks > 6) { rd_n += ticks - 6; ticks = 6; }   /* the ring holds 8 */
+        if (ticks > RING - 4) {                  /* far behind: let the oldest go */
+            ticks_dropped += ticks - (RING - 4);
+            rd_n += ticks - (RING - 4);
+            ticks = RING - 4;
+        }
+        if (ticks > 6) ticks = 6;                /* the rest next time: draw now and then */
 
         /* draw what the last tick left */
         if (gs.state == STATE_PLAYING) { draw_sprites(); draws++; }
         else if (gs.state == STATE_TITLE) title_anim();
         if (hud_check) { hud(0); hud_check = 0; }
 
-        while (ticks--) {
+        rd_end = rd_n + ticks;
+        while (rd_n != rd_end) {
             InputState in;
-            tick_input(&in, ++rd_n & 7);
+            tick_input(&in, ++rd_n & (RING - 1));
             game_update(&gs, &in);
             ev |= (uint8_t)gs.ev_flags;
             if (gs.ev_flags || gs.state != prev_state) log_tick((uint8_t)gs.ev_flags);
             gs.ev_flags = 0;
-            if (gs.state == STATE_PLAYING && ++fps_ticks == 250) {
+            if (gs.state == STATE_PLAYING && ++fps_ticks == 250) {   /* 5 s of play */
+                zx_log("sky: fps=%u enemies=%d dropped=%u\n", draws / 5, gs.enemies_alive, ticks_dropped);
                 fps_ticks = 0;
-                zx_log("sky: fps=%u overruns=%u\n", draws / 5, frame_overruns);
                 draws = 0;
             }
             if (gs.state != prev_state || (gs.state == STATE_TITLE && in.sys & INP_SELECT)) break;
@@ -743,6 +784,7 @@ int main(void)
                 cells_capture();
                 hud(1);
                 draws = 0;
+                fps_ticks = 0;
                 break;
             case STATE_GAMEOVER:
                 zx_log("sky: gameover s1=%ld s2=%ld wave=%d\n", gs.score[0], gs.score[1], gs.wave);

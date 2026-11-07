@@ -11,7 +11,7 @@
 
 SECTION code_user
 
-DEFC _cells_bg = 0x7100        ; MEM_CELLS_BG (mem.h)
+DEFC _cells_bg = 0x6500        ; MEM_CELLS_BG (mem.h)
 
 PUBLIC _cells_capture, _cells_restore, _cells_paint
 PUBLIC _cells_plain, _cl_off, _cl_w, _cl_h, _cl_attr

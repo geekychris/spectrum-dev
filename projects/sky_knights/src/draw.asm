@@ -21,9 +21,9 @@ EXTERN _tint_dirty, _enemy_attr
 EXTERN asm_sprc_xor, asm_fix_int
 EXTERN _cells_restore, _cells_paint, _cl_off, _cl_w, _cl_h, _cl_attr
 
-DEFC SX_TAB  = 0x6C80           ; mem.h
-DEFC SY_TAB  = 0x6F00
-DEFC PRE_EGG = 0x6C00
+DEFC SX_TAB  = 0x6080           ; mem.h
+DEFC SY_TAB  = 0x6340
+DEFC PRE_EGG = 0x6000
 
 DEFC S_X = 0
 DEFC S_Y = 2
