@@ -23,6 +23,7 @@ static const note j_clear[] = { { P(523), 5 }, { P(659), 5 }, { P(1046), 12 }, {
 static const note j_level[] = { { P(392), 6 }, { P(523), 6 }, { P(784), 14 }, { 0, 0 } };
 static const note j_win[] = { { P(523), 6 }, { P(659), 6 }, { P(784), 6 }, { P(1046), 15 }, { 0, 0 } };
 static const note *jingle;
+uint8_t snd_sounding[3];                /* frames each chip had a channel up, since snd_reg's caller cleared them */
 static uint8_t jingle_left;
 
 void snd_init(void)
@@ -79,6 +80,8 @@ void snd_tick(void)
         if (jingle_left) jingle_left--;
     }
     sound_tick();
+    if ((snd_reg(1, 8) | snd_reg(1, 9) | snd_reg(1, 10)) & 15) snd_sounding[1]++;
+    if (snd_reg(2, 8) & 15) snd_sounding[2]++;
 }
 
 /* what an AY chip plays now (the test checks music and effects through

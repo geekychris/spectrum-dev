@@ -60,6 +60,17 @@ static void brick(uint8_t set, int8_t rel, uint8_t row, uint8_t base)
     tower_bricks++;
 }
 
+/* a board brick in a column whose block (page, table) is known */
+static void column_brick(uint8_t page, const uint16_t *table, uint8_t row, int16_t x, uint8_t mirror, uint8_t base)
+{
+    uint16_t off;
+    ZXN_WRITE_REG(0x50, page);
+    off = table[row];
+    if (off >= 0x2000) ZXN_WRITE_REG(0x50, page + (off >> 13));
+    l2wr_blit((const uint8_t *)(off & 0x1FFF), x, mirror, base);
+    tower_bricks++;
+}
+
 static void piece_bricks(uint8_t set, const Piece *p, uint8_t base)
 {
     int8_t cells[5][2];
@@ -113,17 +124,24 @@ static void draw_board(void)
     }
     for (k = 0; k < ncols; k++) {
         int8_t rel, row;
+        uint8_t v, a, page, mirror;
+        int16_t x;
         const uint8_t *p;
-        uint8_t v;
+        const uint16_t *table;
         c = cols[k];
         rel = rel_of(c);
+        a = rel < 0 ? -rel : rel;
+        mirror = rel < 0;
+        x = mirror ? GFX_VIEW_MIRROR : 0;
+        page = brick_page[a];                   /* SET_BOARD's blocks come first */
+        table = (const uint16_t *)brick_addr[a];
         /* rows above the eye from the top down, then from the bottom up */
         p = &g->board[(uint16_t)(top - 1) * ST_COLS + c];
         for (row = top - 1; row >= EYE_ROW + 1; row--, p -= ST_COLS)
-            if ((v = *p)) brick(SET_BOARD, rel, (uint8_t)row, lit_pen(v));
+            if ((v = *p)) column_brick(page, table, (uint8_t)row, x, mirror, lit_pen(v));
         p = &g->board[c];
         for (row = 0; row < top && row <= EYE_ROW; row++, p += ST_COLS)
-            if ((v = *p)) brick(SET_BOARD, rel, (uint8_t)row, lit_pen(v));
+            if ((v = *p)) column_brick(page, table, (uint8_t)row, x, mirror, lit_pen(v));
     }
 }
 

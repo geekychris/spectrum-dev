@@ -79,6 +79,7 @@ void snd_event(uint8_t type, int16_t a);
 void snd_music(uint8_t on);
 void snd_tick(void);
 uint8_t snd_reg(uint8_t chip, uint8_t reg);
+extern uint8_t snd_sounding[3];
 
 /* text helpers (panel.c) */
 char *fmt_u32(char *p, uint32_t v);

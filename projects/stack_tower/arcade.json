@@ -1,0 +1,7 @@
+{
+  "title": "Stack Tower",
+  "ready": "stack: ready",
+  "description": "Falling blocks round a 3D tower of 16 columns: turn the tower, fill whole rings to clear them.",
+  "controls": "O/P turn, Q/X Z rotate, A drop, SPACE, C hold, Kempston",
+  "picture": "screenshots/stacked.png"
+}

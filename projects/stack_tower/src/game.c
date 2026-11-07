@@ -51,6 +51,7 @@ typedef struct {
     uint16_t pieces, lines;
     int8_t hold, rank;
     uint16_t view;
+    uint8_t sel_mode, sel_level;        /* the title's choice */
 } Probe;
 Probe st_probe;
 
@@ -315,6 +316,8 @@ static void probe(uint8_t fps)
     p->hold = game.hold;
     p->rank = stack.rank;
     p->view = stack.view;
+    p->sel_mode = stack.mode;
+    p->sel_level = (uint8_t)stack.start_level;
 }
 
 int main(void)
@@ -360,6 +363,7 @@ int main(void)
         if (steps > MAX_STEPS) steps = MAX_STEPS;
         perf_steps += steps;
         while (steps--) game_step();
+        probe(fps);                             /* before the drawing (a busy frame takes several) */
 
         if (stack.state != last_state) {
             static const char *const st[] = { "title", "play", "over", "name" };
@@ -396,6 +400,9 @@ int main(void)
             fps = (uint8_t)(perf_drawn / 2);
             zx_log("perf fps=%u steps=%u frames=%u bricks=%u redraws=%u state=%u\n", fps, perf_steps, perf_frames,
                    perf_drawn ? perf_bricks / perf_drawn : 0, tower_redraws, stack.state);
+            /* the music's chips: frames of the last 100 with a channel sounding (the test reads them) */
+            zx_log("ay chip1=%u chip2=%u\n", snd_sounding[1], snd_sounding[2]);
+            snd_sounding[1] = snd_sounding[2] = 0;
             perf_frames = perf_drawn = perf_steps = perf_bricks = tower_redraws = 0;
         }
         probe(fps);
