@@ -123,6 +123,95 @@ pm_nsat:
     ld hl,-32767
     ret
 
+; pmul16: HL = v, DE = s << 4 (s < 4096) -> HL = (v * s) >> 12 as pmul: the
+; product's top 16 bits, no shifting (persp_xs/ys use it when s is small)
+pmul16:
+    ld a,h
+    ld (pm_neg),a
+    rla
+    jr nc,p16_pos
+    xor a
+    sub l
+    ld l,a
+    sbc a,a
+    sub h
+    ld h,a
+p16_pos:
+    ld b,h
+    ld c,l                      ; BC = |v|
+    ld h,d
+    ld l,e                      ; HL = s << 4
+    ld d,b
+    ld e,h
+    mul d,e                     ; vh x sh: bits 16..31
+    push de
+    ld d,b
+    ld e,l
+    mul d,e                     ; vh x sl
+    push de
+    ld d,c
+    ld e,h
+    mul d,e                     ; vl x sh
+    push de
+    ld d,c
+    ld e,l
+    mul d,e                     ; vl x sl
+    ld a,e                      ; bits 0..7
+    ld l,d
+    ld h,0                      ; bits 8..
+    pop de
+    add hl,de
+    ld c,0
+    rl c
+    pop de
+    add hl,de
+    jr nc,p16_mid
+    inc c                       ; C:H:L = the middle (bits 8..25)
+p16_mid:
+    or l
+    ld b,a                      ; B != 0: bits 0..15 not all zero
+    ld e,h
+    ld d,c
+    pop hl
+    add hl,de                   ; HL = bits 16..31
+    jr c,p16_big
+    ld a,(pm_neg)
+    rla
+    jr c,p16_neg
+    bit 7,h
+    ret z
+    ld hl,32767
+    ret
+p16_neg:
+    ld a,b                      ; ceil
+    or a
+    jr z,p16_n0
+    inc hl
+p16_n0:
+    ld a,h
+    cp 0x80
+    jr c,p16_nok
+    jr nz,p16_nsat
+    ld a,l
+    or a
+    jr nz,p16_nsat              ; (32768 exactly: -32768 fits)
+p16_nok:
+    xor a
+    sub l
+    ld l,a
+    sbc a,a
+    sub h
+    ld h,a
+    ret
+p16_big:
+    ld a,(pm_neg)
+    rla
+    ld hl,32767
+    ret nc
+p16_nsat:
+    ld hl,-32767
+    ret
+
 ; void persp_xy(const int16_t *pts, uint8_t n, int16_t bx, int16_t by, uint16_t s,
 ;               int16_t cx, int16_t cy, int16_t *out)
 ; out = cx + persp_mul(x + bx, s), cy - persp_mul(y + by, s), clamped to +-16000
@@ -205,87 +294,82 @@ px_done:
 ; void persp_xs(const int16_t *xs, uint8_t n, int16_t bx, uint16_t s, int16_t cx, int16_t *out)
 ; out[i] = cx + persp_mul(xs[i] + bx, s), clamped to +-16000
 _persp_xs:
-    push ix
-    ld ix,0
-    add ix,sp
-    ; (ix+4) xs, (ix+6) n, (ix+7) bx, (ix+9) s, (ix+11) cx, (ix+13) out
-    ld l,(ix+4)
-    ld h,(ix+5)
-    ld (px_src),hl
-    ld l,(ix+13)
-    ld h,(ix+14)
-    ld (px_dst),hl
-    ld a,(ix+6)
-    or a
-    jr z,pxs_done
-    ld (px_n),a
-pxs_loop:
-    ld hl,(px_src)
-    ld e,(hl)
-    inc hl
-    ld d,(hl)
-    inc hl
-    ld (px_src),hl
-    ld l,(ix+7)
-    ld h,(ix+8)
-    call add_sat
-    ld e,(ix+9)
-    ld d,(ix+10)
-    call pmul
-    ld e,(ix+11)
-    ld d,(ix+12)
-    call add_clamp
-    ex de,hl
-    ld hl,(px_dst)
-    ld (hl),e
-    inc hl
-    ld (hl),d
-    inc hl
-    ld (px_dst),hl
-    ld hl,px_n
-    dec (hl)
-    jr nz,pxs_loop
-pxs_done:
-    pop ix
-    ret
+    xor a
+    jr pb_args
 
 ; void persp_ys(const int16_t *ys, uint8_t n, int16_t by, uint16_t s, int16_t cy, int16_t *out)
 ; out[i] = cy - persp_mul(ys[i] + by, s), clamped to +-16000 (persp_y1 for n heights)
 _persp_ys:
-    push ix
-    ld ix,0
-    add ix,sp
-    ld l,(ix+4)
-    ld h,(ix+5)
-    ld (px_src),hl
-    ld l,(ix+13)
-    ld h,(ix+14)
-    ld (px_dst),hl
-    ld a,(ix+6)
+    ld a,1
+pb_args:
+    ld (px_neg),a
+    ld hl,2
+    add hl,sp
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld (px_src),de
+    ld a,(hl)
+    inc hl
     or a
-    jr z,pys_done
+    ret z
     ld (px_n),a
-pys_loop:
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld (px_b),de
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl                      ; DE = s
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld (px_c),bc
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    ld (px_dst),bc
+    ld hl,pmul
+    ld a,d
+    cp 0x10
+    jr nc,pb_slow               ; s >= 4096
+    ex de,hl                    ; s < 4096: s << 4 for pmul16
+    add hl,hl
+    add hl,hl
+    add hl,hl
+    add hl,hl
+    ex de,hl
+    ld hl,pmul16
+pb_slow:
+    ld (px_s),de
+    ld (pb_call + 1),hl
+pb_loop:
     ld hl,(px_src)
     ld e,(hl)
     inc hl
     ld d,(hl)
     inc hl
     ld (px_src),hl
-    ld l,(ix+7)
-    ld h,(ix+8)
-    call add_sat
-    ld e,(ix+9)
-    ld d,(ix+10)
-    call pmul
-    xor a                       ; HL = -HL
+    ld hl,(px_b)
+    call add_sat                ; HL = v + b
+    ld de,(px_s)
+pb_call:
+    call pmul                   ; (pmul or pmul16: set above)
+    ld a,(px_neg)
+    or a
+    jr z,pb_pos
+    xor a                       ; y: HL = -HL
     sub l
     ld l,a
     sbc a,a
     sub h
     ld h,a
-    ld e,(ix+11)
-    ld d,(ix+12)
+pb_pos:
+    ld de,(px_c)
     call add_clamp
     ex de,hl
     ld hl,(px_dst)
@@ -296,9 +380,7 @@ pys_loop:
     ld (px_dst),hl
     ld hl,px_n
     dec (hl)
-    jr nz,pys_loop
-pys_done:
-    pop ix
+    jr nz,pb_loop
     ret
 
 ; uint16_t persp_scale(uint16_t z)      persp_k / z (persp_k < 2^24), 65535 if more
@@ -494,3 +576,7 @@ px_src: defs 2
 px_dst: defs 2
 px_n:   defs 1
 pm_neg: defs 1                  ; pmul: bit 7 = the sign of v
+px_b:   defs 2                  ; persp_xs/ys: bx or by, s (or s << 4), cx or cy, x or y
+px_s:   defs 2
+px_c:   defs 2
+px_neg: defs 1
