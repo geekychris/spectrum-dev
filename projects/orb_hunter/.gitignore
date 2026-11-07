@@ -1,0 +1,3 @@
+build/
+tests/host_diff
+tools/__pycache__/

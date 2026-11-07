@@ -2,7 +2,8 @@
  * game.c - Orb Hunter's rules: the original's game.c (amiga_mcp
  * examples/orb_hunter), unchanged but for where the world is kept
  * (port: the current room in room[][], the rest in a memory bank, see
- * world.c) and const tables. tests/host_diff.c plays it against the
+ * world.c), const tables, and the particles in particles.c (this file
+ * runs from a 16K memory bank, see main.c). tests/host_diff.c plays it against the
  * original on the host, step by step.
  */
 #include <string.h>
@@ -21,16 +22,6 @@ const UBYTE tile_props[NUM_TILE_TYPES] = {
     TPROP_SOLID,                /* ITEM_BLOCK */
     0                           /* SAVE_POINT */
 };
-
-/* --- RNG --- */
-
-static ULONG rng_state = 12345;
-
-static WORD rng(void)
-{
-    rng_state = rng_state * 1103515245UL + 12345UL;
-    return (WORD)((rng_state >> 16) & 0x7FFF);
-}
 
 /* --- Collision helpers --- */
 
@@ -937,39 +928,8 @@ static void check_items(GameState *gs)
     }
 }
 
-/* --- Particles --- */
-
-void game_spawn_particles(GameState *gs, Fixed x, Fixed y,
-                          WORD count, WORD color)
-{
-    WORD i, spawned = 0;
-    for (i = 0; i < MAX_PARTICLES && spawned < count; i++) {
-        if (!gs->particles[i].active) {
-            gs->particles[i].x = x;
-            gs->particles[i].y = y;
-            gs->particles[i].dx = (rng() % 512 - 256) * 128;
-            gs->particles[i].dy = (rng() % 512 - 256) * 128;
-            gs->particles[i].life = 10 + (rng() % 20);
-            gs->particles[i].color = color;
-            gs->particles[i].active = 1;
-            spawned++;
-        }
-    }
-}
-
-static void update_particles(GameState *gs)
-{
-    WORD i;
-    for (i = 0; i < MAX_PARTICLES; i++) {
-        Particle *p = &gs->particles[i];
-        if (!p->active) continue;
-        p->x += p->dx;
-        p->y += p->dy;
-        p->dy += FIX(1) / 8;
-        p->life--;
-        if (p->life <= 0) p->active = 0;
-    }
-}
+/* --- Particles: particles.c (port: out of this file, which runs from a
+   memory bank of 16K) --- */
 
 /* --- Main update --- */
 

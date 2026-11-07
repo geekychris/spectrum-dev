@@ -1,11 +1,11 @@
-/* A frame's 4-bit sprites as one list, and depth masking (see nextsprl.h). */
+/* A frame's 4-bit sprites as one list (see nextsprl.h); the depth masking
+   is in nextsprl_z.c, so a game without it doesn't link l2wpoly. */
 #include <stdint.h>
 #include <string.h>
 #include <z80.h>
 #include <arch/zxn.h>
 #include "nextgfx.h"
 #include "nextsprl.h"
-#include "l2wpoly.h"
 
 uint8_t spl_count, spl_first;
 static uint8_t shown;                   /* sprites the last list showed */
@@ -58,34 +58,4 @@ void spl_patterns(uint8_t pat, const uint8_t *src, uint8_t n)
 {
     z80_outp(0x303B, ((pat >> 1) & 63) | ((pat & 1) << 7));
     dma_to_port(0x5B, src, (uint16_t)n << 7);
-}
-
-uint16_t spl_zmask(uint8_t *dst, const uint8_t *src, int16_t x, int16_t y, uint8_t key, uint8_t zpage)
-{
-    uint8_t c, r, page = 0xFF, p, mask;
-    uint16_t left = 0;
-    int16_t sx;
-    uint8_t r0 = 0, r1 = 16;
-    memcpy(dst, src, 128);
-    if (y < 0) r0 = (uint8_t)(-y);
-    if (y > 240) r1 = (uint8_t)(256 - y);
-    for (c = 0, sx = x; c < 16; c++, sx++) {
-        uint8_t *d = dst + (c >> 1), *z;
-        mask = (c & 1) ? 0x0F : 0xF0;
-        if (sx < 0 || sx >= 320) {
-            for (r = 0; r < 16; r++, d += 8) if (*d & mask) left++;
-            continue;
-        }
-        p = (uint8_t)(sx >> 5);
-        if (p != page) { page = p; ZXN_WRITE_REG(0x50 + l2wp_zslot, zpage + p); }
-        z = (uint8_t *)(((uint16_t)l2wp_zslot << 13) + ((uint16_t)(sx & 31) << 8) + (uint8_t)(y + r0));
-        d += r0 * 8;
-        for (r = r0; r < r1; r++, d += 8, z++) {
-            if (!(*d & mask)) continue;
-            if (*z < key) *d &= ~mask;
-            else left++;
-        }
-    }
-    ZXN_WRITE_REG(0x50 + l2wp_zslot, l2wp_zrestore);
-    return left;
 }

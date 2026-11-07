@@ -27,8 +27,11 @@ typedef uint32_t ULONG;
 #define WORLD_W     8     /* rooms across */
 #define WORLD_H     6     /* rooms tall */
 
-/* Fixed-point 16.16 */
+/* Fixed-point 16.16 (zxgame.h's 8.8 FIX and FIX_INT give way: include
+   this after it) */
 typedef LONG Fixed;
+#undef FIX
+#undef FIX_INT
 #define FIX(x)       ((Fixed)((x) * 65536L))
 #define FIX_INT(x)   ((WORD)((x) >> 16))
 
@@ -225,6 +228,7 @@ void game_update(GameState *gs, WORD inp_left, WORD inp_right,
                  WORD inp_jump, WORD inp_fire);
 void game_spawn_particles(GameState *gs, Fixed x, Fixed y,
                           WORD count, WORD color);
+void update_particles(GameState *gs);       /* particles.c */
 
 /* sound for the events (sound.c) */
 void sfx_shoot(void);
