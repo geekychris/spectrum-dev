@@ -239,6 +239,14 @@ Details: docs/emulator-harness.md.
   changes (even only log output, which costs time) breaks the replay.
 - Code that maps Layer 2 pages into a slot must check its data before putting the
   slot back (a list read through slot 2 read 0 after the restore: boards half drawn).
+- An 8K page n is half of 16K bank n / 2 (page 44 = bank 22): check a project's bank list against
+  its pages for overlaps (Harbour Crane's level backdrop and its page-44 code collided).
+- `--bsssegBANK_n` puts a file's uninitialised variables in its bank; the .nex doesn't clear them,
+  so set them at start-up. A variable in a bank reads garbage while another bank is mapped there:
+  copy what other code needs (counters for a log line) while its bank is in.
+- The SDK's `dma_copy_banks` / `l2_copy_to_back` map MMU slots 0-1 and put the ROM back: code
+  running from a bank at 0x0000 must copy screens another way (harbour_crane's `bank_copy` goes
+  through slots 2-3).
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 - `dma_copy_banks` / `l2_copy_to_back` / `l2_clear` map slots 0-1 and give them back to the ROM:
   remap banked code (and its data) after them, before calling into a bank.
