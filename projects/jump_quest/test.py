@@ -187,12 +187,15 @@ with Emulator() as e:
                 e.run(300)
                 shot(e, f"level{lv}.png")
                 log += e.log()
+    if "jq: gameover score" not in e.log_text(0) and "died" not in log:
+        e.run_until("jq: gameover score", 3000)   # (after the state line, the last bonus pause)
+        e.run(5)
     log = e.log_text(0)                     # (all of it: shot() runs past some lines)
     cleared = list(dict.fromkeys(re.findall(r"cleared level=(\d+)", log)))
     check("the demo clears all three levels", cleared == ["1", "2", "3"], str(cleared))
     check("no life lost on the way", "died" not in log)
     m = re.search(r"jq: gameover .*", log)
-    check("the end: CONGRATULATIONS", "won=1" in log, m and m.group(0))
+    check("the end: CONGRATULATIONS", "won=1" in log, (m and m.group(0)) or log[-400:])
     fps = perf(log)
     if fps:
         p = probe(e)
