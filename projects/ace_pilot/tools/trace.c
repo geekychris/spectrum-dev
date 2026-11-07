@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "game.h"
-#include "input.h"
+#include "ace_input.h"
 
 void sfx_gunfire(void) { printf(" gun"); }
 void sfx_explosion(void) { printf(" boom"); }

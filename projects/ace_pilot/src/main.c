@@ -1,75 +1,44 @@
-/*
- * ace_pilot - made from sdk/template (./zx new).
- *
- * Main-loop skeleton for 48K (TARGET := zx) and Next (TARGET := zxn):
- * 50 Hz loop on HALT, keyboard (Q A O P, SPACE) and Kempston joystick input,
- * a block you can move, and zx_log lines the harness and test.py wait for.
- */
-#include <stdio.h>
-#include <input.h>
-#include <intrinsic.h>
-#ifdef __ZXNEXT
-#include <arch/zxn.h>          /* includes everything in arch/zx.h, plus Next registers */
-#else
-#include <arch/zx.h>
-#endif
+/* Ace Pilot (Next) - bring-up: the rules alone, to measure a tick */
+#include <stdint.h>
+#include <arch/zxn.h>
+#include "zxgame.h"
 #include "zxlog.h"
-#include "zxtext.h"
+#include "nextgfx.h"
+#include "game.h"
+#include "ace_input.h"
 
-static unsigned int frames;
-static unsigned char px = 15, py = 12;       /* player cell */
-static unsigned char last_fire;
+void sfx_gunfire(void) {}
+void sfx_explosion(void) {}
+void sfx_hit(void) {}
+void sfx_die(void) {}
 
-static void draw_player(unsigned char attr)
-{
-    zx_attr_at(px, py, 2, attr);
-    zx_attr_at(px, py + 1, 2, attr);
-}
+static GameWorld world;
+WORD angle_to(LONG dx, LONG dz);
+WORD angle_to_scan(LONG dx, LONG dz);
 
 int main(void)
 {
-#ifdef __ZXNEXT
-    ZXN_WRITE_REG(0x07, 0x03);               /* 28 MHz */
-#endif
-    zx_border(INK_BLACK);
-    zx_cls(PAPER_BLACK | INK_WHITE);
-    zx_print_at(1, 1, "ace_pilot");
-    zx_print_at(1, 22, "QAOP/joystick move, SPACE fire");
-    zx_attr_at(1, 1, 30, PAPER_BLACK | INK_YELLOW | BRIGHT);
-    draw_player(PAPER_GREEN | BRIGHT);
-
-    zx_log("ace_pilot: ready\n");
-    intrinsic_ei();                           /* ROM IM1 interrupt: HALT = vsync */
-
+    uint16_t t = 0;
+    next_init();
+    frame_init();
+    {   /* bring-up check: the asm angle_to against the original's scan */
+        uint16_t i, bad = 0;
+        rnd_seed(7);
+        for (i = 0; i < 400; i++) {
+            int16_t x = (int16_t)(rnd16() % 8001) - 4000, z = (int16_t)(rnd16() % 8001) - 4000;
+            WORD f, sc;
+            if (i & 1) x >>= 3;                    /* shorter vectors, pitch-like */
+            f = angle_to(x, z);
+            sc = angle_to_scan(x, z);
+            if (f != sc) { bad++; if (bad < 5) zx_log("ace: angle %d,%d fast=%d scan=%d\n", x, z, f, sc); }
+        }
+        zx_log("ace: angle check bad=%u\n", bad);
+    }
+    game_init(&world);
+    zx_log("ace: ready\n");
     for (;;) {
-        unsigned int stick;
-        unsigned char nx = px, ny = py, fire;
-
-        intrinsic_halt();
-        frames++;
-
-        stick = in_stick_kempston();
-        if ((stick & IN_STICK_LEFT) || in_key_pressed(IN_KEY_SCANCODE_o)) nx--;
-        if ((stick & IN_STICK_RIGHT) || in_key_pressed(IN_KEY_SCANCODE_p)) nx++;
-        if ((stick & IN_STICK_UP) || in_key_pressed(IN_KEY_SCANCODE_q)) ny--;
-        if ((stick & IN_STICK_DOWN) || in_key_pressed(IN_KEY_SCANCODE_a)) ny++;
-        fire = (stick & IN_STICK_FIRE) || in_key_pressed(IN_KEY_SCANCODE_SPACE);
-
-        if (nx > 30) nx = px;                 /* also catches 0 - 1 = 255 */
-        if (ny < 3 || ny > 19) ny = py;
-        if (nx != px || ny != py) {
-            draw_player(PAPER_BLACK | INK_WHITE);
-            px = nx; py = ny;
-            draw_player(PAPER_GREEN | BRIGHT);
-            zx_log("ace_pilot: move x=%u y=%u\n", px, py);
-        }
-        if (fire && !last_fire) {
-            zx_border(INK_RED);
-            zx_log("ace_pilot: fire frame=%u\n", frames);
-        }
-        else if (!fire && last_fire) {
-            zx_border(INK_BLACK);
-        }
-        last_fire = fire;
+        frame_wait();
+        game_update(&world, (t & 64) ? (INPUT_LEFT | INPUT_FIRE) : (INPUT_UP | INPUT_FIRE), 0);
+        if ((++t & 255) == 0) zx_log("ace: t=%u wave=%d alive=%d\n", t, world.wave, world.enemies_alive);
     }
 }

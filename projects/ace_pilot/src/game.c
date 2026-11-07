@@ -6,7 +6,7 @@
  */
 #include <string.h>
 #include "game.h"
-#include "input.h"
+#include "ace_input.h"   /* port: was input.h (z88dk has an <input.h>) */
 #include "zxgame.h"      /* fix_atan2 (port: angle_to) */
 
 /* Default tunables */
@@ -82,6 +82,17 @@ static LONG dist2_3d(const Vec3 *a, const Vec3 *b)
     return dx * dx + dy * dy + dz * dz;
 }
 
+/* port: the hit tests' distances and the bullets' and particles' moves in
+   asm on the Spectrum (move.asm), the C on the host */
+#ifdef __SDCC
+extern uint16_t ap_near(const Vec3 *a, const Vec3 *b);
+extern void ap_move_bullets(Bullet *b, uint8_t n);
+extern void ap_move_particles(Particle *p, uint8_t n);
+#define NEAR(a, b) ((LONG)ap_near((a), (b)))
+#else
+#define NEAR(a, b) dist2_3d((a), (b))
+#endif
+
 /* the dot product the original's angle_to maximises */
 static LONG dot_at(LONG dx, LONG dz, WORD a)
 {
@@ -89,7 +100,7 @@ static LONG dot_at(LONG dx, LONG dz, WORD a)
 }
 
 /* Angle from (0,0) to (dx,dz) as 0-255: the original's search */
-static WORD angle_to_scan(LONG dx, LONG dz)
+WORD angle_to_scan(LONG dx, LONG dz)
 {
     WORD best_a = 0;
     LONG best_dot = -0x7FFFFFFF;
@@ -114,6 +125,10 @@ static WORD angle_to_scan(LONG dx, LONG dz)
     return best_a;
 }
 
+#ifdef __SDCC
+extern uint8_t ap_angle(int16_t dx, int16_t dz, uint8_t lo); /* dot.asm: the fast path below */
+#endif
+
 /* port: the same result with ~1/5 of the dot products. The coarse pass of the
    scan above keeps the first multiple of 4 with the largest dot product; for a
    vector of 256 or more the dot product falls by more than its rounding (1) a
@@ -122,14 +137,17 @@ static WORD angle_to_scan(LONG dx, LONG dz)
    (ascending angle, strict >). Shorter vectors tie over wide ranges of angles:
    the original scan. The refine pass is the original's. Checked against the
    scan on the host (tools/check_angle.c). */
-static WORD angle_to(LONG dx, LONG dz)
+WORD angle_to(LONG dx, LONG dz)
 {
     WORD best_a, a, lo, k;
     LONG best_dot, dot;
     LONG adx = dx < 0 ? -dx : dx, adz = dz < 0 ? -dz : dz;
 
-    if ((adx < 256 && adz < 256) || adx > 32767 || adz > 32767) return angle_to_scan(dx, dz);
+    if ((adx < 256 && adz < 256) || adx > 16383 || adz > 16383) return angle_to_scan(dx, dz);
     lo = ((WORD)fix_atan2((int16_t)dx, (int16_t)dz) & ~3) - 12;   /* 0 = +z, 64 = +x */
+#ifdef __SDCC
+    return ap_angle((int16_t)dx, (int16_t)dz, (uint8_t)lo);
+#else
     best_dot = -0x7FFFFFFF;
     best_a = 0;
     /* the 7 candidates lo, lo+4 .. lo+24 (mod 256), in ascending order from 0 */
@@ -152,6 +170,7 @@ static WORD angle_to(LONG dx, LONG dz)
         }
     }
     return best_a;
+#endif
 }
 
 /* Shortest angle difference (-128 to 127) */
@@ -404,8 +423,8 @@ static void ai_update(GameWorld *w, Enemy *e)
     dy = tp->y - e->pos.y;
     dz = tp->z - e->pos.z;
 
-    target_yaw = angle_to(dx, dz);
-    target_pitch = angle_to(dy, dz);  /* simplified pitch */
+    /* port: the target angles are worked out where they are used (attack and
+       evade; the pitch in attack only): angle_to has no side effects */
 
     turn_rate = 2 + (WORD)(g_tune.difficulty / 3);
     detect_range = (800 + g_tune.difficulty * 200);
@@ -431,6 +450,8 @@ static void ai_update(GameWorld *w, Enemy *e)
         break;
 
     case AI_ATTACK:
+        target_yaw = angle_to(dx, dz);
+        target_pitch = angle_to(dy, dz);  /* simplified pitch */
         /* Turn toward player */
         dyaw = angle_diff(e->yaw, target_yaw);
         if (dyaw > turn_rate)       e->yaw = (e->yaw + turn_rate) & 255;
@@ -490,6 +511,7 @@ static void ai_update(GameWorld *w, Enemy *e)
         break;
 
     case AI_EVADE:
+        target_yaw = angle_to(dx, dz);
         /* Turn away from player */
         dyaw = angle_diff(e->yaw, (target_yaw + 128) & 255);
         if (dyaw > turn_rate)       e->yaw = (e->yaw + turn_rate) & 255;
@@ -707,6 +729,198 @@ static void update_player(GameWorld *w, WORD pidx, UWORD inp)
     }
 }
 
+/* port: game_update's loops as functions of their own (to time them) */
+static void move_bullets_particles(GameWorld *w)
+{
+#ifdef __SDCC
+    ap_move_bullets(w->bullets, MAX_BULLETS);
+    ap_move_particles(w->particles, MAX_PARTICLES);
+#else
+
+    WORD i;
+    /* Update bullets */
+    for (i = 0; i < MAX_BULLETS; i++) {
+        Bullet *b = &w->bullets[i];
+        if (!b->active) continue;
+        b->pos.x += b->vx;
+        b->pos.y += b->vy;
+        b->pos.z += b->vz;
+        b->life--;
+        if (b->life <= 0) b->active = 0;
+        /* Remove if out of world */
+        if (b->pos.y < -10 || b->pos.y > MAX_ALT + 100) b->active = 0;
+    }
+
+    /* Update particles */
+    for (i = 0; i < MAX_PARTICLES; i++) {
+        Particle *p = &w->particles[i];
+        if (!p->active) continue;
+        p->pos.x += p->vx;
+        p->pos.y += p->vy;
+        p->pos.z += p->vz;
+        p->vy--;  /* gravity */
+        if (p->pos.y < GROUND_Y) p->pos.y = GROUND_Y;
+        p->life--;
+        if (p->life <= 0) p->active = 0;
+    }
+#endif
+}
+
+static void hits_on_enemies(GameWorld *w)
+{
+    WORD i, j;
+    /* Player bullets vs enemies */
+    for (i = 0; i < MAX_BULLETS; i++) {
+        Bullet *b = &w->bullets[i];
+        if (!b->active || b->owner == 2) continue;  /* skip enemy bullets */
+        for (j = 0; j < MAX_ENEMIES; j++) {
+            Enemy *e = &w->enemies[j];
+            LONG rad;
+            if (!e->active) continue;
+            rad = models[e->model_id].radius;
+            rad = (rad >> 4) * (rad >> 4);  /* squared, pre-shifted */
+            if (NEAR(&b->pos, &e->pos) < rad) {
+                b->active = 0;
+                e->health--;
+                if (e->health <= 0) {
+                    spawn_particles(w, &e->pos, 12);
+                    sfx_explosion();
+                    /* Score */
+                    {
+                        WORD scorer = b->owner;
+                        if (scorer < 2) {
+                            LONG pts = (e->model_id == MODEL_BLIMP) ? SCORE_BLIMP : SCORE_PLANE;
+                            LONG old_score = w->players[scorer].score;
+                            w->players[scorer].score += pts;
+                            /* Extra life check (zero disables extra lives) */
+                            if (g_tune.extra_life_score > 0 &&
+                                old_score / g_tune.extra_life_score < w->players[scorer].score / g_tune.extra_life_score) {
+                                w->players[scorer].lives++;
+                            }
+                        }
+                    }
+                    e->active = 0;
+                    w->enemies_alive--;
+                } else {
+                    sfx_hit();
+                }
+                break;
+            }
+        }
+    }
+
+}
+
+static void hits_on_ground(GameWorld *w)
+{
+    WORD i, j;
+    /* Player bullets vs ground targets */
+    for (i = 0; i < MAX_BULLETS; i++) {
+        Bullet *b = &w->bullets[i];
+        if (!b->active || b->owner == 2) continue;
+        /* Only hit ground targets if bullet is low */
+        if (b->pos.y > 50) continue;
+        for (j = 0; j < MAX_GROUND; j++) {
+            GroundTarget *g = &w->ground[j];
+            LONG rad;
+            if (!g->active || g->score_value == 0) continue;  /* skip runway */
+            rad = models[g->model_id].radius;
+            rad = (rad >> 4) * (rad >> 4);
+            if (NEAR(&b->pos, &g->pos) < rad) {
+                b->active = 0;
+                spawn_particles(w, &g->pos, 8);
+                sfx_explosion();
+                {
+                    WORD scorer = b->owner;
+                    if (scorer < 2) {
+                        LONG old_score = w->players[scorer].score;
+                        w->players[scorer].score += g->score_value;
+                        if (g_tune.extra_life_score > 0 &&
+                            old_score / g_tune.extra_life_score < w->players[scorer].score / g_tune.extra_life_score) {
+                            w->players[scorer].lives++;
+                        }
+                    }
+                }
+                g->active = 0;
+                break;
+            }
+        }
+    }
+
+}
+
+static void hits_on_players(GameWorld *w)
+{
+    WORD i, j;
+    /* Enemy bullets vs players */
+    for (i = 0; i < MAX_BULLETS; i++) {
+        Bullet *b = &w->bullets[i];
+        if (!b->active || b->owner != 2) continue;
+        for (j = 0; j < 2; j++) {
+            PlayerState *p = &w->players[j];
+            LONG hit_rad;
+            if (!p->alive || p->invuln > 0) continue;
+            if (g_tune.god_mode) continue;
+            hit_rad = (20 >> 4) * (20 >> 4);  /* player hit radius ~20 */
+            if (NEAR(&b->pos, &p->cam.pos) < hit_rad) {
+                b->active = 0;
+                sfx_die();
+                p->alive = 0;
+                p->lives--;
+                p->respawn_timer = 100;
+                spawn_particles(w, &p->cam.pos, 16);
+                if (p->lives <= 0) {
+                    /* Check if all players dead */
+                    if ((g_tune.num_players < 2 || !w->players[1 - j].alive) &&
+                        w->players[1 - j].lives <= 0) {
+                        w->state = STATE_DYING;
+                        w->state_timer = 100;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+}
+
+static void collisions_with_players(GameWorld *w)
+{
+    WORD i, j;
+    /* Enemy planes vs players (collision) */
+    for (i = 0; i < MAX_ENEMIES; i++) {
+        Enemy *e = &w->enemies[i];
+        if (!e->active) continue;
+        for (j = 0; j < 2; j++) {
+            PlayerState *p = &w->players[j];
+            LONG coll_rad;
+            if (!p->alive || p->invuln > 0) continue;
+            if (g_tune.god_mode) continue;
+            coll_rad = (25 >> 4) * (25 >> 4);
+            if (NEAR(&e->pos, &p->cam.pos) < coll_rad) {
+                sfx_die();
+                p->alive = 0;
+                p->lives--;
+                p->respawn_timer = 100;
+                spawn_particles(w, &p->cam.pos, 16);
+                /* Also destroy the enemy */
+                spawn_particles(w, &e->pos, 10);
+                e->active = 0;
+                w->enemies_alive--;
+                if (p->lives <= 0) {
+                    /* Check if all players dead */
+                    if ((g_tune.num_players < 2 || !w->players[1 - j].alive) &&
+                        w->players[1 - j].lives <= 0) {
+                        w->state = STATE_DYING;
+                        w->state_timer = 100;
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+
 /* Main game update */
 void game_update(GameWorld *w, UWORD inp1, UWORD inp2)
 {
@@ -767,167 +981,11 @@ void game_update(GameWorld *w, UWORD inp1, UWORD inp2)
     }
 
 update_motion:
-    /* Update bullets */
-    for (i = 0; i < MAX_BULLETS; i++) {
-        Bullet *b = &w->bullets[i];
-        if (!b->active) continue;
-        b->pos.x += b->vx;
-        b->pos.y += b->vy;
-        b->pos.z += b->vz;
-        b->life--;
-        if (b->life <= 0) b->active = 0;
-        /* Remove if out of world */
-        if (b->pos.y < -10 || b->pos.y > MAX_ALT + 100) b->active = 0;
-    }
-
-    /* Update particles */
-    for (i = 0; i < MAX_PARTICLES; i++) {
-        Particle *p = &w->particles[i];
-        if (!p->active) continue;
-        p->pos.x += p->vx;
-        p->pos.y += p->vy;
-        p->pos.z += p->vz;
-        p->vy--;  /* gravity */
-        if (p->pos.y < GROUND_Y) p->pos.y = GROUND_Y;
-        p->life--;
-        if (p->life <= 0) p->active = 0;
-    }
+    move_bullets_particles(w);
 
     /* --- Collision detection --- */
-
-    /* Player bullets vs enemies */
-    for (i = 0; i < MAX_BULLETS; i++) {
-        Bullet *b = &w->bullets[i];
-        if (!b->active || b->owner == 2) continue;  /* skip enemy bullets */
-        for (j = 0; j < MAX_ENEMIES; j++) {
-            Enemy *e = &w->enemies[j];
-            LONG rad;
-            if (!e->active) continue;
-            rad = models[e->model_id].radius;
-            rad = (rad >> 4) * (rad >> 4);  /* squared, pre-shifted */
-            if (dist2_3d(&b->pos, &e->pos) < rad) {
-                b->active = 0;
-                e->health--;
-                if (e->health <= 0) {
-                    spawn_particles(w, &e->pos, 12);
-                    sfx_explosion();
-                    /* Score */
-                    {
-                        WORD scorer = b->owner;
-                        if (scorer < 2) {
-                            LONG pts = (e->model_id == MODEL_BLIMP) ? SCORE_BLIMP : SCORE_PLANE;
-                            LONG old_score = w->players[scorer].score;
-                            w->players[scorer].score += pts;
-                            /* Extra life check (zero disables extra lives) */
-                            if (g_tune.extra_life_score > 0 &&
-                                old_score / g_tune.extra_life_score < w->players[scorer].score / g_tune.extra_life_score) {
-                                w->players[scorer].lives++;
-                            }
-                        }
-                    }
-                    e->active = 0;
-                    w->enemies_alive--;
-                } else {
-                    sfx_hit();
-                }
-                break;
-            }
-        }
-    }
-
-    /* Player bullets vs ground targets */
-    for (i = 0; i < MAX_BULLETS; i++) {
-        Bullet *b = &w->bullets[i];
-        if (!b->active || b->owner == 2) continue;
-        /* Only hit ground targets if bullet is low */
-        if (b->pos.y > 50) continue;
-        for (j = 0; j < MAX_GROUND; j++) {
-            GroundTarget *g = &w->ground[j];
-            LONG rad;
-            if (!g->active || g->score_value == 0) continue;  /* skip runway */
-            rad = models[g->model_id].radius;
-            rad = (rad >> 4) * (rad >> 4);
-            if (dist2_3d(&b->pos, &g->pos) < rad) {
-                b->active = 0;
-                spawn_particles(w, &g->pos, 8);
-                sfx_explosion();
-                {
-                    WORD scorer = b->owner;
-                    if (scorer < 2) {
-                        LONG old_score = w->players[scorer].score;
-                        w->players[scorer].score += g->score_value;
-                        if (g_tune.extra_life_score > 0 &&
-                            old_score / g_tune.extra_life_score < w->players[scorer].score / g_tune.extra_life_score) {
-                            w->players[scorer].lives++;
-                        }
-                    }
-                }
-                g->active = 0;
-                break;
-            }
-        }
-    }
-
-    /* Enemy bullets vs players */
-    for (i = 0; i < MAX_BULLETS; i++) {
-        Bullet *b = &w->bullets[i];
-        if (!b->active || b->owner != 2) continue;
-        for (j = 0; j < 2; j++) {
-            PlayerState *p = &w->players[j];
-            LONG hit_rad;
-            if (!p->alive || p->invuln > 0) continue;
-            if (g_tune.god_mode) continue;
-            hit_rad = (20 >> 4) * (20 >> 4);  /* player hit radius ~20 */
-            if (dist2_3d(&b->pos, &p->cam.pos) < hit_rad) {
-                b->active = 0;
-                sfx_die();
-                p->alive = 0;
-                p->lives--;
-                p->respawn_timer = 100;
-                spawn_particles(w, &p->cam.pos, 16);
-                if (p->lives <= 0) {
-                    /* Check if all players dead */
-                    if ((g_tune.num_players < 2 || !w->players[1 - j].alive) &&
-                        w->players[1 - j].lives <= 0) {
-                        w->state = STATE_DYING;
-                        w->state_timer = 100;
-                    }
-                }
-                break;
-            }
-        }
-    }
-
-    /* Enemy planes vs players (collision) */
-    for (i = 0; i < MAX_ENEMIES; i++) {
-        Enemy *e = &w->enemies[i];
-        if (!e->active) continue;
-        for (j = 0; j < 2; j++) {
-            PlayerState *p = &w->players[j];
-            LONG coll_rad;
-            if (!p->alive || p->invuln > 0) continue;
-            if (g_tune.god_mode) continue;
-            coll_rad = (25 >> 4) * (25 >> 4);
-            if (dist2_3d(&e->pos, &p->cam.pos) < coll_rad) {
-                sfx_die();
-                p->alive = 0;
-                p->lives--;
-                p->respawn_timer = 100;
-                spawn_particles(w, &p->cam.pos, 16);
-                /* Also destroy the enemy */
-                spawn_particles(w, &e->pos, 10);
-                e->active = 0;
-                w->enemies_alive--;
-                if (p->lives <= 0) {
-                    /* Check if all players dead */
-                    if ((g_tune.num_players < 2 || !w->players[1 - j].alive) &&
-                        w->players[1 - j].lives <= 0) {
-                        w->state = STATE_DYING;
-                        w->state_timer = 100;
-                    }
-                }
-                break;
-            }
-        }
-    }
+    hits_on_enemies(w);
+    hits_on_ground(w);
+    hits_on_players(w);
+    collisions_with_players(w);
 }

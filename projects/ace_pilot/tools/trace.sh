@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.." || exit 1
 O=${ACE_ORIG:-../../../amiga_mcp/examples/ace_pilot}
 SDK=../../sdk
 B=build/trace; mkdir -p $B
-cc -O1 -w -DORIG -I tools/orig_shim -I $O -o $B/orig tools/trace.c -lm $O/game.c $O/engine3d.c $O/models.c || exit 1
+cc -O1 -w -DORIG -I tools/orig_shim -I $O -I src -o $B/orig tools/trace.c -lm $O/game.c $O/engine3d.c $O/models.c || exit 1
 cc -O1 -w -DACE_ORIGINAL_ENEMY_SPEED -I src -I $SDK/include -o $B/port tools/trace.c -lm src/game.c src/trig.c src/models.c $SDK/src/fix88.c $SDK/src/fix88_tab.c || exit 1
 fail=0
 for bot in 0 1; do for p in 1 2; do for s in 1 2 3; do
