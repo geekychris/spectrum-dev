@@ -2,15 +2,15 @@
  * Harbour Crane for the Spectrum Next: memory map, start-up, the main loop.
  *
  *   0x0000-0x3FFF  bank 20: the rules (hc_core.c, the original's), over
- *                  the ROM (the ROM's font is copied first); the SDK's
- *                  whole-bank DMA copies put the ROM back, mem.h's RULES()
- *                  maps the rules in again
+ *                  the ROM (the ROM's font is copied first); while the
+ *                  picture is drawn, bank 21: view.c and its lists (mem.h
+ *                  RULES(), VIEW())
  *   0x4000-0x5FFF  bank 5's first page: the tilemap (map and tiles)
- *   0x6000-0x7FFF  page 44: view.c's tables at 0x6000-0x6A6F, then the game
- *                  shell and the text (game.c, hud.c); l2fill maps Layer 2's
+ *   0x6000-0x7FFF  page 44: the game shell (game.c); l2poly maps Layer 2's
  *                  pages here while it fills and puts page 44 back
- *   0x8000-0xEFFF  the picture (view.c, cv.asm), the sound, the SDK, the
- *                  variables; 0xF000- the IM 2 table, the stack
+ *   0x8000-0xEFFF  the text (hud.c), the projection (cv.asm and its
+ *                  reciprocals), the sound, the SDK, the variables (the
+ *                  game's state); 0xF000- the IM 2 table, the stack
  *   banks 9-14     Layer 2's two screens (256 x 192, double buffered)
  *   banks 16-18    the backdrop (tools/gen_gfx.py), 27-29 the level backdrop
  *                  (view.c), 25 the crane's sprites, 26 the sound

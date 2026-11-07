@@ -5,7 +5,7 @@
  * on the hook (swung with the cable) or on its way down, and the splash.
  *
  * Each frame the back buffer (Layer 2, 256 x 192, double buffered) gets
- * the level backdrop by DMA, then this frame's polygons, filled by l2fill
+ * the level backdrop by DMA, then this frame's polygons, filled by l2poly
  * in the original's order: a3d_draw.c's 512 depth buckets, far to near,
  * in the order they were added within a bucket.
  *
@@ -32,7 +32,7 @@
 #include "view.h"
 #include "gfx_data.h"
 #include "nextgfx.h"
-#include "l2fill.h"
+#include "l2poly.h"
 #include "palfx.h"
 #include "fixmath.h"
 #include "mem.h"
@@ -108,10 +108,10 @@ static void list_draw(void)
 {
     uint16_t b = b_hi + 1;
     uint8_t k;
-    l2f_begin();
+    l2p_begin();
     while (b-- > b_lo)
-        for (k = bhead[b]; k != 0xFF; k = poly_next[k]) l2f_poly(poly_xy[k], poly_n[k], poly_col[k]);
-    l2f_end();
+        for (k = bhead[b]; k != 0xFF; k = poly_next[k]) l2p_poly(poly_xy[k], poly_n[k], poly_col[k]);
+    l2p_end();
     view_polys = npoly;
 }
 

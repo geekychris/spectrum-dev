@@ -107,7 +107,7 @@ What it uses beyond a 48K/128K Spectrum, and why:
 
 | feature | used for | why it's needed |
 |---|---|---|
-| **28 MHz and the Z80N's `MUL`** | the original's 16.16 rules (fix16's 32 x 32 multiplies and divisions from 16 x 16 MULs), the projection of the moving parts (`cv.asm`), l2fill's edge slopes | a tick of the rules is ~175K T-states (the pendulum's four steps alone ~110K); at 3.5 MHz the rules alone would take more than the machine has, and the original's arithmetic must be exact |
+| **28 MHz and the Z80N's `MUL`** | the original's 16.16 rules (fix16's 32 x 32 multiplies and divisions from 16 x 16 MULs), the projection of the moving parts (`cv.asm`), l2poly's edge slopes | a tick of the rules is ~175K T-states (the pendulum's four steps alone ~110K); at 3.5 MHz the rules alone would take more than the machine has, and the original's arithmetic must be exact |
 | **Layer 2, 256 x 192 x 8 bpp, double buffered** | the scene in the original's 32 colours plus a sky gradient and the sea's 180 shades of index | the original's flat-shaded 3D needs a colour per pixel; double buffering hides the redrawing |
 | **zxnDMA** | each frame starts as a copy of the level backdrop (48K: ~17K T-states in ZEsarUX; at the zxnDMA's ~2 T-states a byte at most ~100K on the Next), the sea's palette, the sprite patterns | the scene behind the moving parts is never drawn by the CPU |
 | **palettes** | the sea: each sea pixel holds where it is on the water, and the drifting bands are two runs of palette entries loaded by DMA each tick | the original redraws its sea bands every frame; here no pixel changes |
@@ -140,7 +140,7 @@ tick).
     lattice.
   - `cv.asm` projects with a reciprocal table and MUL.
   - Faces go into the original's depth buckets, then are filled by
-    l2fill.
+    l2poly.
   - What only changes when a container leaves the quay (the queue, the
     crane's far side) is drawn into a level backdrop in banks 27-29.
 - `src/game.c` is the original's game shell (states, input, events and
@@ -152,8 +152,8 @@ tick).
 
 ## SDK
 
-Uses Marble Tilt's `fix16.h` (the amiga3d 16.16 arithmetic) and `l2fill.h`
-(many small polygons on Layer 2). Added: input2's latching
+Uses `fix16.h` (Marble Tilt's: the amiga3d 16.16 arithmetic) and
+`l2poly.h` (ScAIry Fun's: convex polygons on Layer 2). Added: input2's latching
 (`in2_sample` from the frame interrupt, `in2_scan_latched`), so a key
 tapped between two slow frames still counts (input2_latch.c; tested in
 `projects/splittest`).
