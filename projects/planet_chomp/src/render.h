@@ -26,7 +26,10 @@ extern int16_t rd_wall[MAX_WALLS];
 extern int16_t rd_nwalls;
 void rd_walls_build(void);          /* maze.c (needs the grid: logic phase) */
 
-void rd_frame(void);                /* the view of g.cam into the Layer 2 back buffer */
+void rd_frame(void);
+void rd_bg_disc(void);              /* the planet's disc into the background (l2_back), when rd_bg_want != rd_bg_h */
+extern int16_t rd_bg_h, rd_bg_want;
+                /* the view of g.cam into the Layer 2 back buffer */
 /* world Q8 -> screen pixels (256 x 192 frame) and depth (Q8); 0 if behind
    the near plane. Uses the camera of the last rd_frame. */
 uint8_t rd_project(const V3 *p, int16_t *sx, int16_t *sy, int16_t *z);

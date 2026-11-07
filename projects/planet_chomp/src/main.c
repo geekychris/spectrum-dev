@@ -44,6 +44,7 @@
 #define DRAW()  do { ZXN_WRITE_MMU0(36); ZXN_WRITE_MMU1(37); ZXN_WRITE_MMU2(38); } while (0)
 #define HUD()   do { ZXN_WRITE_MMU0(42); ZXN_WRITE_MMU1(43); } while (0)
 #define STARS_BANK 22
+#define BG_BANK 37                                   /* port: the starfield + the planet's disc, 96 rows (pages 74-76) */
 
 extern const uint16_t rd_pal[C_COUNT];
 extern void bench_loop(void);
@@ -76,6 +77,31 @@ static void copper_doubling(void)
     copper_wait(RD_H - 1, 50);
     copper_move(0x17, 0);
     copper_end();
+}
+
+/* n 8K pages by DMA through slots 0 and 1 (DRAW() maps them back) */
+static void copy_pages(uint8_t dst, uint8_t src, uint8_t n)
+{
+    while (n--) {
+        ZXN_WRITE_MMU0(src++);
+        ZXN_WRITE_MMU1(dst++);
+        dma_copy((void *)0x2000, (void *)0x0000, 8192);
+    }
+}
+
+/* the frame's background, the view's 96 rows: the starfield and the disc,
+   kept in BG_BANK and remade when the disc changes (render.c) */
+static void background(void)
+{
+    if (rd_bg_want != rd_bg_h) {
+        uint8_t b = l2_back;
+        copy_pages(BG_BANK * 2, STARS_BANK * 2, 3);
+        DRAW();
+        l2_back = BG_BANK;
+        rd_bg_disc();
+        l2_back = b;
+    }
+    copy_pages(l2_back * 2, BG_BANK * 2, 3);
 }
 
 /* profiling: raster lines spent in each part of the loop (one line is ~1800
@@ -219,7 +245,7 @@ int main(void)
         bot_update();
         game_view();
         lap(0);
-        l2_copy_to_back(STARS_BANK);
+        background();
         lap(1);
         DRAW();
         if (rd_dbg & 16) {                           /* test: quads from rd_test (set by test.py) */

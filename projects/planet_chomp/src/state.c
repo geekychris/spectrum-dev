@@ -19,3 +19,4 @@ uint8_t rd_thin = 1;             /* port: walls this thin on screen are one quad
 #ifndef __SDCC
 PcWork pc_work;                  /* on the Next: bank 17 (mem.asm) */
 #endif
+int16_t rd_bg_h = -4, rd_bg_want = -3;   /* the disc's height in the background, wanted (render.c, main.c) */

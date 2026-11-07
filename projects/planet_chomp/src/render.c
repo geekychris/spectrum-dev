@@ -361,12 +361,31 @@ void rd_frame(void)
     rd_walls();
     rd_lap(3);
     dr_begin();
-    if (disc_h >= 0 && !(rd_dbg & 1)) dr_poly(disc_xy, 24, C_PLANET);
+    {
+        /* port: the disc only changes with the camera's height: it is kept
+           in the background (main.c), drawn here only on the frame it changes */
+        int16_t h = (rd_dbg & 1) ? -3 : disc_h;
+        if (h != rd_bg_h) {
+            if (h >= 0) dr_poly(disc_xy, 24, C_PLANET);
+            rd_bg_want = h;
+        }
+    }
     draw_nest();
     rd_lap(5);
     if (!(rd_dbg & 2)) rd_draw();
     dr_end();
     rd_lap(4);
+}
+
+/* the disc into the background (l2_back pointing at it), for main.c */
+void rd_bg_disc(void)
+{
+    if (rd_bg_want >= 0) {
+        dr_begin();
+        dr_poly(disc_xy, 24, C_PLANET);
+        dr_end();
+    }
+    rd_bg_h = rd_bg_want;
 }
 #else
 void rd_frame(void)
