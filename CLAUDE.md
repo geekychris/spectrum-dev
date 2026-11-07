@@ -247,6 +247,17 @@ Details: docs/emulator-harness.md.
 - The SDK's `dma_copy_banks` / `l2_copy_to_back` map MMU slots 0-1 and put the ROM back: code
   running from a bank at 0x0000 must copy screens another way (harbour_crane's `bank_copy` goes
   through slots 2-3).
+- zsdcc's int is 16 bits: originals written for 32-bit int overflow quietly (Orbital
+  Patrol's `x * 256 / 320` terrain for x >= 128). Build the original's logic on the host
+  too and compare the two on the same input (orbital_patrol/tools/ref.c).
+- zsdcc with --opt-code-size emitted a Z80N `push +nn` that its assembler rejects
+  ("syntax error" at a line of the generated .asm) for an inline constant remainder;
+  a small function instead of the expression avoided it.
+- make doesn't rebuild an object when only a target-specific EXTRA_CFLAGS changes
+  (e.g. a new --constsegPAGE_n): delete build/obj after changing those.
+- A RAM page can sit at 0x0000-0x1FFF for good once IM 2 is on (nothing goes to
+  0x0038 any more): Orbital Patrol keeps its game state there. Copy the ROM font
+  first if the ROM is still needed for text.
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 - `dma_copy_banks` / `l2_copy_to_back` / `l2_clear` map slots 0-1 and give them back to the ROM:
   remap banked code (and its data) after them, before calling into a bank.
