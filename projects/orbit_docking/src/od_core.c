@@ -15,6 +15,7 @@
 #include <string.h>
 #include "od.h"
 
+
 const char *const od_event_names[ODE_COUNT] = {
     "NONE", "DOCK", "CRASH", "DEBRIS", "FUEL_OUT", "LEVEL", "OVER", "WIN", "LOST"
 };
@@ -59,19 +60,29 @@ int od_roll_error(const ODGame *g)
     return d >= 0x4000 ? (int)(d - 0x8000) : (int)d;
 }
 
+/* port: the debris' place across in fix16's multiply and divide (the same
+   values: fdiv(m, period) = (m << 16) / period for m >= 0, fmul(amp << 16,
+   sin) = amp * sin): zsdcc's 32-bit code for the original's expression
+   returned 0 or its low 16 bits */
+static fix debris_at(const Debris *d, int32_t ticks)
+{
+    fix m = ticks % d->period, q = fdiv(m, d->period), s;
+    uint16_t a = (uint16_t)((q + d->phase) & 0xFFFF);
+    s = a3_sin(a);
+    return fmul(FROMI(d->amp), s);
+}
+
 fix od_debris_x(const ODGame *g, int k)
 {
-    const Debris *d = &g->debris[k];
-    /* port: (ticks % period) * 65536 < 2^24: 32 bits are enough */
-    uint16_t a = (uint16_t)((((g->level_ticks % d->period) << 16) / d->period + d->phase) & 0xFFFF);
-    return d->amp * a3_sin(a);                  /* FROMI(amp) / 65536 * sin */
+    return debris_at(&g->debris[k], g->level_ticks);
 }
 
 static void place(ODGame *g)
 {
     int32_t a = (int32_t)(rnd(g) & 0xFFFF), off = lv_offset[g->level - 1];
-    g->x = FROMI((off * a3_cos(a)) >> 16);
-    g->y = FROMI((off * a3_sin(a)) >> 16);
+    fix c = a3_cos(a), s = a3_sin(a);        /* port: the calls outside the products */
+    g->x = FROMI((off * c) >> 16);
+    g->y = FROMI((off * s) >> 16);
     g->z = FROMI(OD_START_Z);
     g->vx = g->vy = g->vz = 0;
     g->roll = (int32_t)(rnd(g) & 0xFFFF) << 8;
@@ -194,17 +205,27 @@ void od_tick(ODGame *g, unsigned in)
     g->x += g->vx;
     g->y += g->vy;
     g->z += g->vz;
-    /* drifted right away: lost in space */
-    if (g->z > FROMI(1600) || fabs_(g->x) > FROMI(900) || fabs_(g->y) > FROMI(900)) { crash(g, 1); return; }
-    /* debris */
-    for (k = 0; k < g->ndebris; k++) {
-        const Debris *d = &g->debris[k];
-        if (fabs_(g->z - FROMI(d->z)) < FROMI(22) && fabs_(g->y - FROMI(d->y)) < FROMI(26) &&
-            fabs_(g->x - od_debris_x(g, k)) < FROMI(26)) { crash(g, 7); return; }
+    /* port: the tests below on locals, each compare on its own (zsdcc got
+       the debris test's chain of 32-bit compares on fields wrong: a crash
+       22.003 units from the debris' slice) */
+    {
+        fix x = g->x, y = g->y, z = g->z;
+        /* drifted right away: lost in space */
+        if (z > FROMI(1600) || fabs_(x) > FROMI(900) || fabs_(y) > FROMI(900)) { crash(g, 1); return; }
+        /* debris */
+        for (k = 0; k < g->ndebris; k++) {
+            const Debris *d = &g->debris[k];
+            fix dz = fabs_(z - FROMI(d->z)), dy, dx;
+            if (dz >= FROMI(22)) continue;
+            dy = fabs_(y - FROMI(d->y));
+            if (dy >= FROMI(26)) continue;
+            dx = fabs_(x - od_debris_x(g, k));
+            if (dx < FROMI(26)) { crash(g, 7); return; }
+        }
+        /* the hub: its face, and its side */
+        if (z <= FROMI(OD_PORT_Z + OD_NOSE) && zprev > FROMI(OD_PORT_Z + OD_NOSE)) contact(g);
+        else if (z < FROMI(OD_PORT_Z + OD_NOSE) && z > -FROMI(300) && fhypot(x, y) < FROMI(OD_HUB_R + 10)) crash(g, 6);
     }
-    /* the hub: its face, and its side */
-    if (g->z <= FROMI(OD_PORT_Z + OD_NOSE) && zprev > FROMI(OD_PORT_Z + OD_NOSE)) contact(g);
-    else if (g->z < FROMI(OD_PORT_Z + OD_NOSE) && g->z > -FROMI(300) && fhypot(g->x, g->y) < FROMI(OD_HUB_R + 10)) crash(g, 6);
 }
 
 /* ---------- the autopilot ---------- */
@@ -225,17 +246,44 @@ static int32_t ticks_to(fix d, fix v0, fix vc)
 
 static fix clampf(fix v, fix lo, fix hi) { return v < lo ? lo : v > hi ? hi : v; }
 
+/* port: the autopilot works on locals (the fields read once): zsdcc's code
+   for 32-bit fields through the pointer, and for the long expressions
+   on them, left a thrust out at one tick of the long autopilot game */
+static unsigned bot_debris(const Debris *d, fix z, fix x, fix vz, int32_t level_ticks, fix *want)
+{
+    fix ahead = z - FROMI(d->z), sp;
+    int32_t t0, t1, t;
+    uint8_t clear = 1;
+    if (ahead <= -FROMI(30) || ahead > FROMI(450)) return 0;
+    if (ahead <= -FROMI(26)) return 0;
+    if (*want > -FX(1.5)) *want = -FX(1.5);              /* through its slice briskly */
+    sp = FX(1.5);
+    t0 = ticks_to(ahead - FROMI(30), -vz, sp);
+    t1 = ticks_to(ahead + FROMI(30), -vz, sp);
+    if (t0 < 0) t0 = 0;
+    for (t = t0 - 6; t <= t1 + 6 && clear; t += 3) {
+        int32_t when = level_ticks + (t > 0 ? t : 0), dx;
+        dx = debris_at(d, when) - x;
+        if (dx < 0) dx = -dx;
+        if (dx < FROMI(70)) clear = 0;
+    }
+    if (!clear) *want = ahead > FROMI(60) ? 0 : FX(0.8);
+    return 0;
+}
+
 unsigned od_bot(const ODGame *g)
 {
     unsigned in = 0;
-    fix want, lat;
-    int32_t err, rate_want;
+    fix want, lat, x, y, z, vx, vy, vz;
+    int32_t err, rate_want, st_spin, roll_rate, spin_err;
     int k, aligned;
     if (g->over || g->won || g->between) return 0;
+    x = g->x; y = g->y; z = g->z; vx = g->vx; vy = g->vy; vz = g->vz;
+    st_spin = g->st_spin; roll_rate = g->roll_rate;
     /* across: towards the axis, gently - the speed wanted, turned into the
      * craft's own right and up */
     {
-        fix wx = clampf(-g->x / 30, -FX(1.0), FX(1.0)) - g->vx, wy = clampf(-g->y / 30, -FX(1.0), FX(1.0)) - g->vy, br, bu;
+        fix wx = clampf(-x / 30, -FX(1.0), FX(1.0)) - vx, wy = clampf(-y / 30, -FX(1.0), FX(1.0)) - vy, br, bu;
         uint16_t a = (uint16_t)((g->roll >> 8) & 0xFFFF);
         fix c = a3_cos(a), sn = a3_sin(a);
         br = FMUL(wx, -c) + FMUL(wy, -sn);
@@ -247,42 +295,27 @@ unsigned od_bot(const ODGame *g)
     }
     /* roll: onto the slot, turning with it */
     err = od_roll_error(g);
-    rate_want = g->st_spin - ((int32_t)err * 256 / 12);          /* port: 32 bits */
-    if (rate_want > g->st_spin + (140L << 8)) rate_want = g->st_spin + (140L << 8);
-    if (rate_want < g->st_spin - (140L << 8)) rate_want = g->st_spin - (140L << 8);
-    if (g->roll_rate < rate_want - (3L << 8)) in |= OD_IN_ROLL_R;
-    else if (g->roll_rate > rate_want + (3L << 8)) in |= OD_IN_ROLL_L;
+    rate_want = st_spin - (err * 256 / 12);                       /* port: 32 bits */
+    if (rate_want > st_spin + (140L << 8)) rate_want = st_spin + (140L << 8);
+    if (rate_want < st_spin - (140L << 8)) rate_want = st_spin - (140L << 8);
+    if (roll_rate < rate_want - (3L << 8)) in |= OD_IN_ROLL_R;
+    else if (roll_rate > rate_want + (3L << 8)) in |= OD_IN_ROLL_L;
     /* along: in slowly once lined up; hold off otherwise */
-    lat = fhypot(g->x, g->y);
-    aligned = lat < FROMI(6) && iabs(err) < 700 && iabs(g->roll_rate - g->st_spin) < (8L << 8) &&
-              fabs_(g->vx) < FX(0.3) && fabs_(g->vy) < FX(0.3);
-    if (aligned) want = -clampf((g->z - FROMI(OD_PORT_Z + OD_NOSE)) / 60, FX(0.7), FX(3.0));
-    else if (g->z > FROMI(300)) want = -FX(0.6);
+    lat = fhypot(x, y);
+    spin_err = iabs(roll_rate - st_spin);
+    aligned = lat < FROMI(6) && iabs(err) < 700 && spin_err < (8L << 8) && fabs_(vx) < FX(0.3) && fabs_(vy) < FX(0.3);
+    if (aligned) want = -clampf((z - FROMI(OD_PORT_Z + OD_NOSE)) / 60, FX(0.7), FX(3.0));
+    else if (z > FROMI(300)) want = -FX(0.6);
     else want = 0;
     /* debris ahead: through its slice at 1.5 a tick, and only
      * when it will be clear of us the whole way across; otherwise wait
      * short of it, or back out if already close */
-    for (k = 0; k < g->ndebris; k++) {
-        const Debris *d = &g->debris[k];
-        fix ahead = g->z - FROMI(d->z), sp;
-        int32_t t0, t1, t;
-        int clear = 1;
-        if (ahead <= -FROMI(30) || ahead > FROMI(450)) continue;
-        if (ahead <= -FROMI(26)) continue;
-        if (want > -FX(1.5)) want = -FX(1.5);            /* through its slice briskly */
-        sp = FX(1.5);
-        t0 = ticks_to(ahead - FROMI(30), -g->vz, sp);
-        t1 = ticks_to(ahead + FROMI(30), -g->vz, sp);
-        if (t0 < 0) t0 = 0;
-        for (t = t0 - 6; t <= t1 + 6 && clear; t += 3) {
-            int32_t when = g->level_ticks + (t > 0 ? t : 0);
-            uint16_t a = (uint16_t)((((when % d->period) << 16) / d->period + d->phase) & 0xFFFF);   /* port: 32 bits */
-            if (fabs_(d->amp * a3_sin(a) - g->x) < FROMI(70)) clear = 0;
-        }
-        if (!clear) want = ahead > FROMI(60) ? 0 : FX(0.8);
+    for (k = 0; k < g->ndebris; k++) bot_debris(&g->debris[k], z, x, vz, g->level_ticks, &want);
+    {
+        fix hi = want + FX(0.04), lo = want - FX(0.04);
+        if (vz > hi) in |= OD_IN_FWD;
+        else if (vz < lo) in |= OD_IN_BACK;
     }
-    if (g->vz > want + FX(0.04)) in |= OD_IN_FWD;
-    else if (g->vz < want - FX(0.04)) in |= OD_IN_BACK;
     return in;
 }
 
