@@ -49,6 +49,7 @@ typedef struct {
     int yaw;                            /* 16-bit angle */
     int16_t tan;                        /* tan(yaw) * 256: the road-aligned shear */
     int16_t horizon;                    /* row of Layer 2 (VIEW_ROWS); on screen: twice that */
+    int car_dir;                        /* road_dir at the car (for its sprite's angle) */
 } Cam;
 
 extern Cam cam;

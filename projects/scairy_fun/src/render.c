@@ -120,20 +120,21 @@ void camera_follow(const World *w)
 {
     const Car *car = &w->car;
     int target;
+    cam.car_dir = road_dir(w, car->z);
     if (w->view == CAM_COCKPIT) {
         int32_t z = car->z + (4 * (1 << FBITS));
         cam.x = road_cx(w, z) + (car->d >> FBITS);
         cam.z = z >> FBITS;
         cam.y = road_y(w, z) + 17;
-        cam.yaw = road_dir(w, car->z) + car_yaw_off(car);
+        cam.yaw = cam.car_dir + car_yaw_off(car);
         chase_view = CAM_COCKPIT;
     } else {
         int32_t z = car->z - ((int32_t)CAM_BACK * (1 << FBITS));
         int16_t y0, y1;
         if (z < 0) z = 0;
-        if (chase_view != CAM_CHASE) { cam_d = car->d; cam_yaw = road_dir(w, car->z); }
+        if (chase_view != CAM_CHASE) { cam_d = car->d; cam_yaw = cam.car_dir; }
         cam_d += (car->d - cam_d) / 4;
-        target = road_dir(w, car->z) + car_yaw_off(car) / 3;
+        target = cam.car_dir + car_yaw_off(car) / 3;
         cam_yaw += (int16_t)(target - cam_yaw) / 3;
         cam.x = road_cx(w, z) + (cam_d >> FBITS);
         cam.z = z >> FBITS;
@@ -639,24 +640,20 @@ done:
 }
 
 /* ---------- the sky ---------- */
-static uint8_t skyline[NUM_ROUTES][64];
 static int sun_yaw, sun_route = -1, sky_route = -1;
 
-static void make_skylines(void)
+/* the original's skyline: column j's height (port: in rows of the 80) */
+static uint8_t skyline_h(int r, int j)
 {
-    int r, j;
-    for (r = 0; r < NUM_ROUTES; r++)
-        for (j = 0; j < 64; j++) {
-            uint32_t h = sc_hash((uint32_t)(r * 64 + j));
-            int v;
-            switch (r) {
-            case 0: v = 4 + (int)(h % 5); break;                        /* trees across the river */
-            case 1: v = (j & 3) ? 3 + (int)(h % 4) : 8 + (int)(h % 14); break;  /* distant towers */
-            case 2: v = 10 + (int)(h % 30); break;                      /* mountains */
-            default: v = 6 + (int)(h % 12); break;                      /* rooftops */
-            }
-            skyline[r][j] = (uint8_t)((v * 3) / 8);                     /* port: 80 rows */
-        }
+    uint32_t h = sc_hash((uint32_t)(r * 64 + j));
+    int v;
+    switch (r) {
+    case 0: v = 4 + (int)(h % 5); break;                        /* trees across the river */
+    case 1: v = (j & 3) ? 3 + (int)(h % 4) : 8 + (int)(h % 14); break;  /* distant towers */
+    case 2: v = 10 + (int)(h % 30); break;                      /* mountains */
+    default: v = 6 + (int)(h % 12); break;                      /* rooftops */
+    }
+    return (uint8_t)((v * 3) / 8);
 }
 
 /* screen x of a yaw (16-bit) relative to the camera: FOV * angle (radians) */
@@ -683,7 +680,8 @@ static void sky_put(uint16_t o, uint16_t n, uint8_t v)
    rows above the horizon */
 static void sky_build(int r)
 {
-    uint8_t rr, j, blocky = r == 1 || r == 3;
+    uint8_t rr, j, blocky = r == 1 || r == 3, sh[64];      /* (on the stack: page 38 is full) */
+    for (j = 0; j < 64; j++) sh[j] = skyline_h(r, j);
     for (rr = 0; rr < SKY_PH; rr++) {
         uint16_t base = rr * SKY_W;
         int16_t lv = SKY_PH - rr;
@@ -691,7 +689,7 @@ static void sky_build(int r)
         for (j = 0; j < 64; j++) {
             int16_t x0 = (int16_t)(((uint32_t)j * 1024 * FOV) / 10430);
             int16_t x1 = j == 63 ? SKY_W : (int16_t)(((uint32_t)(j + 1) * 1024 * FOV) / 10430);
-            int16_t h0 = skyline[r][j], h1 = blocky ? h0 : skyline[r][(j + 1) & 63], a = x0, b = x1;
+            int16_t h0 = sh[j], h1 = blocky ? h0 : sh[(j + 1) & 63], a = x0, b = x1;
             if (h0 < lv && h1 < lv) continue;
             if (h0 >= lv && h1 < lv) b = x0 + (x1 - x0) * (h0 - lv + 1) / (h0 - h1);
             else if (h0 < lv) a = x1 - (x1 - x0) * (h1 - lv + 1) / (h1 - h0);
@@ -731,7 +729,6 @@ void render_init(void)
     uint8_t k;
     for (k = 0; k < 32; k++) scache[k].seg = -1;
     persp_fov(FOV);
-    make_skylines();
 }
 
 #define LOD_SEGS 6                      /* port: segments in pairs from here */

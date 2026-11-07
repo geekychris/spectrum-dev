@@ -82,25 +82,38 @@ void spr_frame_begin(const World *w, int s0, int s1)
 static void add(const World *w, uint8_t view, int32_t z, int16_t d, int16_t y, uint8_t pal, uint8_t flags)
 {
     Obj2 *o;
-    int16_t zr;
-    int32_t bx, zu = z >> FBITS;
+    int16_t zr, f, ry;
+    int32_t bx, zu = z >> FBITS, cx;
     uint16_t s;
+    int i, j;
     if (nlist >= MAX_SPR) return;
     zr = (int16_t)(zu - cam.z);
     if (zr < 24 || zr > DRAW_DIST_UNITS) return;
-    bx = road_cx(w, z) + (d >> FBITS) - cam.x - (((int32_t)zr * cam.tan) >> 8);
+    /* road_cx and road_y with one seg_of (port: they cost 3000 T-states each) */
+    i = seg_of(z);
+    j = i < 0 ? 0 : i > w->nseg - 2 ? w->nseg - 2 : i;
+    f = (int16_t)(zu - ((int32_t)j << SEG_BITS));
+    if (f >= 0 && f < SEG_LEN) {
+        const Seg *g = &w->seg[j];
+        cx = g->cx + ((g->dir * f) >> SEG_BITS);
+        ry = g->y + (int16_t)(((int32_t)(g[1].y - g->y) * f) >> SEG_BITS);
+    } else {
+        cx = road_cx(w, z);
+        ry = road_y(w, z);
+    }
+    bx = cx + (d >> FBITS) - cam.x - (((int32_t)zr * cam.tan) >> 8);
     if (bx > 8000 || bx < -8000) return;
     s = persp_scale(zr);
     o = &list[nlist];
     o->x = persp_x1((int16_t)bx, 0, s, VIEW_CX);
     if (o->x < -64 || o->x > VIEW_W + 64) return;
-    o->y = persp_y1(road_y(w, z) + y, -cam.y, s, cam.horizon * 2);     /* (on screen: full height) */
+    o->y = persp_y1(ry + y, -cam.y, s, cam.horizon * 2);       /* (on screen: full height) */
     o->view = view;
     o->size = size_of(s);
     o->pal = pal;
     o->flags = flags;
     o->zr = zr;
-    o->seg = seg_of(z);
+    o->seg = i;
     nlist++;
 }
 
@@ -115,8 +128,11 @@ static void add_objects(const World *w)
 {
     uint8_t i;
     const Obj *o = w->obj;
+    /* in front and within the draw distance (add's test, before the work) */
+    int32_t zlo = (int32_t)(cam.z + 24) << FBITS, zhi = (int32_t)(cam.z + DRAW_DIST_UNITS + 1) << FBITS;
     for (i = 0; i < MAX_OBJS; i++, o++) {
         uint8_t v, pal = o->colour & 3, fl = 0;
+        if (o->type == OBJ_NONE || o->z < zlo || o->z >= zhi) continue;
         int16_t y = (o->flags & OF_KNOCKED) ? -4 : 0;
         int crossing = o->v == 0 && o->vd != 0;
         switch (o->type) {
@@ -142,7 +158,7 @@ static void add_objects(const World *w)
         int32_t v = c->v > 8 ? c->v : 8;
         if (c->state == CS_SPLASH || c->state == CS_ROLL)
             y = -(50 - c->timer) * (c->state == CS_SPLASH ? 3 : 6);
-        yaw = sc_atan_ratio(c->lat, v) - (int16_t)(cam.yaw - road_dir(w, c->z));
+        yaw = sc_atan_ratio(c->lat, v) - (int16_t)(cam.yaw - cam.car_dir);
         add(w, yaw > 900 || yaw < -900 ? SV_PLAYER_L : SV_PLAYER, c->z, c->d, y, 4,
             yaw > 900 ? SPR_MIRROR_X : 0);
     }
