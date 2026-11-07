@@ -7,6 +7,8 @@ steps up to the last one at 6,3: the room won, 300 + the time bonus; the
 initials ACE go in the table.
 Game 2: one jewel, then nothing: the clock runs out (time up, game over);
 the initials BOB, back to the title.
+Game 3: R picks the relaxed game (the original's, no clock): 64 seconds
+pass with no time up; BREAK goes back to the title.
 Also: the music on two TurboSound chips, the frame rate, the replay of the
 whole session twice (every frame hash must match). Screenshots go to
 screenshots/.
@@ -123,6 +125,20 @@ with Emulator(machine="next") as e:
         e.press(k)
     check("initials BOB in the table", until(e, "wk: hiscore BOB 100", 40))
     check("back to the title again", "wk: state TITLE" in e.log(0)[-200:])
+
+    # game 3: relaxed, the original's untimed game
+    e.run(20)
+    e.press("R")
+    check("R: the relaxed game (the original, no clock)", until(e, "wk: mode relaxed", 20))
+    e.press("SPACE")
+    check("a relaxed room", until(e, "wk: state PLAYING score=0 jewels=3 time=60 relaxed=1", 30))
+    steps(e, ["O"])
+    mark = len(e.log(0))
+    e.run(3200)                          # past the timed game's 60 s
+    e.screenshot(SHOTS / "relaxed.png")
+    check("no clock: still playing after 64 s", "wk: state" not in e.log(0)[mark:], e.log(0)[mark:][-200:])
+    e.press("CAPS+SPACE")
+    check("BREAK: back to the title", until(e, "wk: state TITLE", 20))
     rec = e.record_input("save", REC)
     print(f"  recorded {rec['frames']} frames, {rec['events']} input changes")
     loops = sum(x[0] for x in pp)

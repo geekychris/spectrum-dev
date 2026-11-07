@@ -31,10 +31,36 @@ first title had the same symptom for its own reason (black letters as
 tilemap cells over a bar, whose background was transparent); its big
 letters carry the bar's colour.
 
+## A barrel over a jewel can be frozen there: the room can't be won
+
+`blocked()` refuses walls and barrels only, so a barrel can be pushed
+onto a jewel, and `object_at()` returns the barrel (the barrels come
+before the jewels in the list), so the jewel can't be taken while it is
+covered. Four barrels in a 2 x 2 block can never move again: along each
+axis every barrel has another barrel either where the player would have
+to stand or where it would have to go. So if the block covers a jewel the
+room is lost, and the original (no clock, no restart key: only Esc
+quits) can only be left by quitting.
+
+Evidence: `tools/softlock.c` plays a 37-step route with the port's rules
+(`src/wk_core.c`, which is `game.cpp`). The route takes the jewels at 2,6
+and 6,3 and pushes the barrels to 5,5 6,5 5,6 6,6, over the jewel at 6,6.
+It then searches every state reachable from there (45, the player's free
+cells) and finds none that takes the last jewel:
+
+```
+cc -O2 -Isrc tools/softlock.c src/wk_core.c -o build/softlock && build/softlock
+after the route (37 steps): player 6,4, jewels left 1, mode 1, barrels 6,6 6,5 5,6 5,5; jewel at 6,6
+states reachable from there: 45; any with the last jewel taken: no
+```
+
+Route (cursor keys): `LUUULUURDDDD LDRRRR LUULDLDRR UUUURURDDD`.
+
+port: the rules are kept. The game stays playable: in the timed game
+(port:) the clock ends it, and in either mode BREAK goes back to the title
+for a new room.
+
 ## Not bugs, but worth knowing
 
-- A barrel can be pushed onto a jewel (`blocked()` only refuses walls and
-  barrels). `object_at()` returns the first object in the list, and the
-  barrels come before the jewels, so the jewel can't be taken until the
-  barrel is pushed off again; both are drawn, the jewel over the barrel
-  (same depth key, later in the list). The port keeps this.
+- A jewel under a barrel that can still move is drawn over the barrel
+  (same depth key, later in the list), as in the original.

@@ -1,8 +1,8 @@
 /*
  * wk_core.c - Warden Keep's rules: the original's game.cpp (WardenGame's
  * methods as wk_* functions over the same state), unchanged but for the
- * port's clock and time bonus (marked port:) and the events the Next's
- * sound and test read.
+ * port's clock and time bonus (marked port:; off when relaxed, which is
+ * the original game) and the events the Next's sound and test read.
  */
 #include <string.h>
 #include "wk.h"
@@ -84,7 +84,7 @@ static void pickup_at(GameState *g, int8_t wx, int8_t wy)
         if (g->jewels_left == 0) {
             g->mode = GM_WIN;
             g->state_timer = 200;
-            g->bonus = (int16_t)((g->time_left / 50) * WK_BONUS);   /* port: the time bonus */
+            if (!g->relaxed) g->bonus = (int16_t)((g->time_left / 50) * WK_BONUS);   /* port: the time bonus */
             g->score += g->bonus;
             g->events |= EV_WIN;
         }
@@ -145,7 +145,7 @@ void wk_tick(GameState *g, uint8_t input)
     else if (input & INPUT_LEFT) try_move(g, -1, 0);
     else if (input & INPUT_RIGHT) try_move(g, 1, 0);
     /* port: the clock */
-    if (g->mode == GM_PLAYING && --g->time_left <= 0) {
+    if (g->mode == GM_PLAYING && !g->relaxed && --g->time_left <= 0) {
         g->time_left = 0;
         g->mode = GM_OVER;
         g->state_timer = 200;

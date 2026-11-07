@@ -15,6 +15,7 @@ out of the way and take the three jewels.
 |---|---|
 | step | Q A O P, cursor keys, Sinclair or Kempston joystick: up is north (up-right on the screen), down south, left west, right east. One tile a press; held, it repeats after 12 frames and then every 6 (the original's) |
 | start / return | SPACE, ENTER or fire |
+| mode (title) | R: the timed game (the port's clock and bonus) or the relaxed one (the original: no clock) |
 | back to the title | BREAK (CAPS SHIFT + SPACE) |
 
 port: the original's Esc quits; on the Spectrum BREAK goes back to the title.
@@ -46,12 +47,14 @@ Kept from the original:
 Changed (marked `port:` in the code):
 
 - **A clock and a time bonus.** The original has no way to lose and
-  every win scores 300. Here a room has 60 seconds. Running out ends the
-  game (TIME UP, red bar), and a won room adds 10 points for each second
-  left (a best of 890). The clock is in the HUD, red in its last 10
-  seconds.
-- **High scores**: the SDK's five-entry table with initials, shown on
-  the title in turn with the instructions.
+  every win scores 300. In the timed game (the default) a room has 60
+  seconds. Running out ends the game (TIME UP, red bar), and a won room
+  adds 10 points for each second left (a best of 890). The clock is in the
+  HUD, red in its last 10 seconds. R on the title switches to the
+  **relaxed** game: the original as it was, with no clock and no bonus.
+  Relaxed games don't go in the high-score table.
+- **High scores**: the SDK's five-entry table with initials (timed games),
+  shown on the title in turn with the instructions.
 - **Sound**: the original has none (its README lists "Real audio" as
   follow-up work). There is a slow tune in A minor on two AY chips
   (title, and quieter in play), and effects on the third: step, push,
@@ -121,16 +124,22 @@ The generated files are checked in. Remake them with
   - The initials ACE go in the table, and it's back to the title.
 - Game 2: one jewel, then nothing. The clock runs out (time up), the
   initials BOB go in, and it's back to the title.
+- Game 3: R picks the relaxed game. 64 seconds pass with no time up, and
+  BREAK goes back to the title.
 - 50 frames a second while playing.
 - The session is replayed twice: every frame hash matches, and the two
   replays are identical.
 
 Screenshots: `screenshots/` (title, play, win, initials, hiscores, clock,
-gameover).
+gameover, relaxed).
+
+`tools/softlock.c` shows the original's softlock on the host (below).
 
 ## Known issues
 
 - One room, as in the original (its README lists more rooms, stairs,
   guards and sprite art as follow-up work).
-- A barrel can be pushed onto a jewel, which can't be taken until the
-  barrel is moved off again (the original's rules; `ORIGINAL_BUGS.md`).
+- The original's softlock is kept (`ORIGINAL_BUGS.md`, shown by
+  `tools/softlock.c`). Four barrels pushed into a 2 x 2 block can never
+  move again, and if the block covers a jewel the room can't be won. The
+  timed game's clock ends it; in the relaxed game, BREAK.

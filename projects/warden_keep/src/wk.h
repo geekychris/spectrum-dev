@@ -7,7 +7,8 @@
  *
  * port: a clock (WK_TIME ticks for the room; running out ends the game),
  * and a time bonus when the room is won, so the high-score table means
- * something. The original has neither.
+ * something. The original has neither: `relaxed` plays it as it was
+ * (no clock, no bonus).
  */
 #ifndef WK_H
 #define WK_H
@@ -46,6 +47,7 @@ typedef struct {
     uint8_t num_objects;
     uint16_t tick;
     int16_t time_left;                 /* port */
+    uint8_t relaxed;                   /* port: 1 = the original's untimed game (kept across rooms) */
     int16_t bonus;                     /* port: the time bonus of a won room */
     uint8_t events;                    /* EV_* this tick */
     uint8_t moved;                     /* something to redraw */

@@ -16,6 +16,9 @@
  * the original's cursor up: north, up-right on the screen); SPACE, ENTER
  * or fire start; BREAK goes back to the title (the original's Esc quits).
  * port: the high-score table and its initials, and the title showing it.
+ * port: R on the title switches between the timed game (the port's clock
+ * and bonus) and the relaxed one (the original: no clock; such games
+ * don't go in the table, which is for timed ones).
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -45,7 +48,7 @@ enum { PEN_WHITE, PEN_GOLD, PEN_PALE, PEN_RED, PEN_GREEN, PEN_BLACK, PEN_ON_RED 
 static GameState g;
 static hs_editor ed;
 static int8_t ed_place = -1;
-static uint8_t entering, shown_mode = 0xFF, title_page;
+static uint8_t entering, shown_mode = 0xFF, title_page, mode_key;
 static uint16_t title_timer;
 static char tmp[40];
 
@@ -166,7 +169,7 @@ static int8_t hud_jewels = -1;
 
 static void hud(void)
 {
-    int16_t secs = (g.time_left + 49) / 50;
+    int16_t secs = g.relaxed ? 0 : (g.time_left + 49) / 50;
     if (g.score != hud_score) {
         hud_score = g.score;
         sprintf(tmp, "SCORE %06d", g.score);
@@ -179,8 +182,11 @@ static void hud(void)
     }
     if (secs != hud_secs) {
         hud_secs = secs;
-        sprintf(tmp, "TIME %2d", secs);
-        text(16, 30, tmp, secs <= 10 ? PEN_RED : PEN_GOLD);
+        if (g.relaxed) text(15, 30, "RELAXED", PEN_GOLD);
+        else {
+            sprintf(tmp, "TIME %2d", secs);
+            text(16, 30, tmp, secs <= 10 ? PEN_RED : PEN_GOLD);
+        }
     }
 }
 
@@ -209,8 +215,10 @@ static void draw_title(void)
         text(6, 20, "QAOP/CURSOR/JOY : MOVE", PEN_PALE);
         text(6, 21, "SPACE           : BEGIN", PEN_PALE);
         text(6, 22, "BREAK           : TITLE", PEN_PALE);
-        sprintf(tmp, "BEST %06lu  60 SECONDS A ROOM", hs_table[0].score);
-        ctext(25, tmp, PEN_GOLD);
+        text(6, 23, "R               : MODE", PEN_PALE);
+        ctext(25, g.relaxed ? "RELAXED: NO CLOCK (THE ORIGINAL)" : "  TIMED: 60 SECONDS, A BONUS   ", PEN_GOLD);
+        sprintf(tmp, "BEST %06lu", hs_table[0].score);
+        ctext(26, tmp, PEN_GOLD);
     }
 }
 
@@ -226,8 +234,10 @@ static void draw_end(void)
     if (g.mode == GM_WIN) {
         bar(10, 4, PEN_GOLD);
         big(1, 11, "EVERY JEWEL CLAIMED", PEN_BLACK);
-        sprintf(tmp, "TIME BONUS  %d", g.bonus);
-        ctext(17, tmp, PEN_PALE);
+        if (!g.relaxed) {
+            sprintf(tmp, "TIME BONUS  %d", g.bonus);
+            ctext(17, tmp, PEN_PALE);
+        }
     } else {
         bar(10, 4, PEN_RED);
         big(13, 11, "TIME UP", PEN_ON_RED);
@@ -262,8 +272,8 @@ static const char *const mode_names[] = { "TITLE", "PLAYING", "WIN", "OVER" };
 static void enter_mode(void)
 {
     shown_mode = g.mode;
-    zx_log("wk: state %s score=%d jewels=%u time=%d\n", mode_names[g.mode], g.score, g.jewels_left,
-           (g.time_left + 49) / 50);
+    zx_log("wk: state %s score=%d jewels=%u time=%d relaxed=%u\n", mode_names[g.mode], g.score, g.jewels_left,
+           (g.time_left + 49) / 50, g.relaxed);
     if (g.mode == GM_PLAYING) {
         tm_clear();
         hud_score = hud_secs = -1;
@@ -394,7 +404,7 @@ int main(void)
                 continue;
             }
             /* port: from an end screen, a score that makes the table goes to the initials first */
-            if ((was == GM_WIN || was == GM_OVER) && (in & INPUT_START) && g.state_timer == 0 &&
+            if ((was == GM_WIN || was == GM_OVER) && (in & INPUT_START) && g.state_timer == 0 && !g.relaxed &&
                 (ed_place = hs_rank((uint32_t)g.score)) >= 0) {
                 hs_edit_begin(&ed);
                 entering = 1;
@@ -412,6 +422,15 @@ int main(void)
             }
             hud();
         } else if (g.mode == GM_TITLE) {
+            uint8_t r = key_down(IN_KEY_SCANCODE_r);
+            if (r && !mode_key) {              /* port: R, timed or relaxed */
+                g.relaxed ^= 1;
+                zx_log("wk: mode %s\n", g.relaxed ? "relaxed" : "timed");
+                title_page = 0;
+                title_timer = 0;
+                draw_title();
+            }
+            mode_key = r;
             if (++title_timer == 300) {  /* port: the title and the high scores in turn */
                 title_timer = 0;
                 title_page ^= 1;
