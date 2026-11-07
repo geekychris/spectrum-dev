@@ -119,6 +119,8 @@ int main(void)
         persp_xy(pts, 3, 20, -92, s, 128, 59, out);
         zx_log("geo: persp s=%u m=%d,%d %d,%d %d,%d %d,%d\n", s, persp_mul(1000, s), persp_mul(-1000, s),
                out[0], out[1], out[2], out[3], out[4], out[5]);
+        persp_k = 0x12345UL;                     /* low bits set: both division paths */
+        zx_log("geo: scale %u %u %u\n", persp_scale(7), persp_scale(300), persp_scale(1));
     }
     /* timings: interrupts (1/50 s = 560000 T-states at 28 MHz) over many calls,
        logged as T-states per call */

@@ -27,3 +27,5 @@ $(OBJDIR)/main.c.o $(OBJDIR)/world.c.o $(OBJDIR)/track.c.o $(OBJDIR)/sc_math.c.o
 $(OBJDIR)/sdk/next/nextl2.c.o $(OBJDIR)/sdk/next/nextgfx.c.o $(OBJDIR)/sdk/sound.c.o \
 $(OBJDIR)/sdk/modplay.c.o $(OBJDIR)/sdk/input.c.o $(OBJDIR)/sdk/next/dma.c.o \
 $(OBJDIR)/sdk/zxlog.c.o $(OBJDIR)/sdk/next/persp.c.o: EXTRA_CFLAGS += --opt-code-size
+# the copper list's code: page 42, at 0x6000 while main.c calls it
+$(OBJDIR)/copper.c.o: EXTRA_CFLAGS += --opt-code-size --codesegPAGE_42 --constsegPAGE_42 --datasegPAGE_42 --bsssegPAGE_42

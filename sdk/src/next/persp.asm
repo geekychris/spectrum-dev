@@ -191,6 +191,42 @@ ps_nz:
     ld de,0
     push ix
     ld ixl,24
+    ; the top byte below z (z > 255, or a small fov): it is the first remainder,
+    ; and only the low 16 bits need shifting through (16 rounds, not 24)
+    ld e,a
+    ld a,b
+    or a
+    jr nz,ps_short
+    ld a,e
+    cp c
+    jr nc,ps_long
+ps_short:
+    ld ixl,16                   ; DE = remainder (the top byte), HL = the rest
+ps_s16:
+    add hl,hl
+    ex de,hl
+    adc hl,hl
+    jr c,ps_s_sub
+    or a
+    sbc hl,bc
+    jr nc,ps_s_one
+    add hl,bc
+    ex de,hl
+    jr ps_s_next
+ps_s_sub:
+    or a
+    sbc hl,bc
+ps_s_one:
+    ex de,hl
+    inc l
+ps_s_next:
+    dec ixl
+    jr nz,ps_s16
+    pop ix
+    ret                         ; HL = the quotient (< 65536: the top byte was below z)
+ps_long:
+    ld a,e
+    ld e,0
 ps_loop:
     add hl,hl
     rla

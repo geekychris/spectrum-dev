@@ -9,7 +9,8 @@
 #include "sc.h"
 
 #define VIEW_W   256
-#define VIEW_H   160                    /* 3D area; the HUD below (port: 212 of 256 rows) */
+#define VIEW_H   160                    /* 3D area on screen; the HUD below (port: 212 of 256 rows) */
+#define VIEW_ROWS 80                    /* port: drawn at half height, each row shown twice (copper) */
 #define VIEW_CX  128
 #define VIEW_CY  75
 #define FOV      144                    /* port: 180 at 320 wide */
@@ -47,7 +48,7 @@ typedef struct {
     int16_t y;
     int yaw;                            /* 16-bit angle */
     int16_t tan;                        /* tan(yaw) * 256: the road-aligned shear */
-    int16_t horizon;                    /* screen row */
+    int16_t horizon;                    /* row of Layer 2 (VIEW_ROWS); on screen: twice that */
 } Cam;
 
 extern Cam cam;
@@ -59,5 +60,6 @@ void render_init(void);
 void camera_follow(const World *w);
 void render_world(const World *w);      /* the 3D view into the Layer 2 back buffer */
 int16_t render_horizon(int view);
+void render_copper(int route, int view);/* the line doubling and the sky's gradient */
 
 #endif

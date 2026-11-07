@@ -85,7 +85,7 @@ void set_palette(int route, int glare)
             uint16_t c = p[i];
             if (f && i != PEN_SKY) c = mix12(c, p[PEN_HAZE], f * 2, 8);
             if (i >= 2) c = glared(c, glare);
-            pal_set(1, f * 32 + i, rgb9(c));
+            pal_set(1, f * 32 + i, i == PEN_SKY ? 0xE3 << 1 | 1 : rgb9(c));    /* the sky: see render_copper */
         }
     for (f = 0; f < 8; f++) {
         pal_set(2, f * 16 + 1, rgb9(glared(p[spr_body[f][0]], glare)));
@@ -168,15 +168,22 @@ int main(void)
     zx_log("scairy: ready\n");
     tstart = frames50;
     for (;;) {
-        static uint8_t pal_route = 0xFF, pal_glare = 0xFF;
+        static uint8_t pal_route = 0xFF, pal_glare = 0xFF, pal_view = 0xFF;
         t = frame_wait();
         l2_flip();
         map_render();
         spr_show_frame();
         if (world.route != pal_route || world.glare != pal_glare) {
             set_palette(world.route, world.glare);  /* (in the vertical blank) */
+            if (world.route != pal_route) pal_view = 0xFF;
             pal_route = world.route;
             pal_glare = world.glare;
+        }
+        if (world.view != pal_view) {
+            ZXN_WRITE_MMU3(42);                     /* copper.c */
+            render_copper(world.route, world.view);
+            ZXN_WRITE_MMU3(11);
+            pal_view = world.view;
         }
         map_front();
         fr = game_input();

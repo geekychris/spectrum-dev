@@ -94,7 +94,7 @@ static void add(const World *w, uint8_t view, int32_t z, int16_t d, int16_t y, u
     o = &list[nlist];
     o->x = persp_x1((int16_t)bx, 0, s, VIEW_CX);
     if (o->x < -64 || o->x > VIEW_W + 64) return;
-    o->y = persp_y1(road_y(w, z) + y, -cam.y, s, cam.horizon);
+    o->y = persp_y1(road_y(w, z) + y, -cam.y, s, cam.horizon * 2);     /* (on screen: full height) */
     o->view = view;
     o->size = size_of(s);
     o->pal = pal;
@@ -151,7 +151,7 @@ static void add_objects(const World *w)
 void spr_segment_done(int seg, int16_t road_top)
 {
     int k = seg - s0_frame;
-    if (k >= 0 && k < 48) seg_top[k] = road_top;
+    if (k >= 0 && k < 48) seg_top[k] = road_top * 2;      /* (a Layer 2 row: twice on screen) */
 }
 
 /* send n patterns from pattern `first` of the banked data into pattern memory

@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdint.h>
 
+#include <arch/zxn.h>
 #include "sc.h"
 #include "render.h"
 #include "sprites.h"
@@ -34,7 +35,7 @@
 #define CAM_UP     92
 #define LINE_SEGS  24                   /* lane lines this far out */
 #define SCENE_SEGS 30
-#define DRAW_SEGS  32
+#define DRAW_SEGS  24
 #define NEAR       20                   /* units: the near plane */
 
 Cam cam;
@@ -111,8 +112,8 @@ static int car_yaw_off(const Car *c)
 
 int16_t render_horizon(int view)
 {
-    /* VIEW_CY - FOV * tan(pitch): pitch 1150 (chase), 260 (cockpit) */
-    return view == CAM_COCKPIT ? VIEW_CY - 4 : VIEW_CY - 16;
+    /* VIEW_CY - FOV * tan(pitch): pitch 1150 (chase), 260 (cockpit); in Layer 2 rows */
+    return view == CAM_COCKPIT ? (VIEW_CY - 4) / 2 : (VIEW_CY - 15) / 2;
 }
 
 void camera_follow(const World *w)
@@ -174,7 +175,7 @@ static uint8_t spans[3 * 24];
 static uint8_t nspans;
 
 #define ex(e, x)    persp_x1((x), (e)->bx, (e)->s, VIEW_CX)
-#define ey(e, lift) persp_y1((lift), (e)->by, (e)->s, cam.horizon)
+#define ey(e, lift) persp_y1((lift), (e)->by, (e)->s >> 1, cam.horizon)    /* (half height) */
 
 /* the edge of a segment at world (cx, y) and depth zr (>= NEAR) */
 static void edge_at(Edge *e, int32_t cx, int16_t y, int16_t zr)
@@ -196,14 +197,13 @@ static void poly4(uint8_t col)
 }
 
 /* a quad between the edges: offsets x0, x1 at heights h0, h1 */
-static int16_t qp[4];
 
 static void quad(int16_t x0, int16_t h0, int16_t x1, int16_t h1, uint8_t col)
 {
-    qp[0] = x0; qp[1] = h0; qp[2] = x1; qp[3] = h1;
-    persp_xy(qp, 2, ea.bx, ea.by, ea.s, VIEW_CX, cam.horizon, q);          /* near: q0, q1 */
-    qp[0] = x1; qp[1] = h1; qp[2] = x0; qp[3] = h0;
-    persp_xy(qp, 2, eb.bx, eb.by, eb.s, VIEW_CX, cam.horizon, q + 4);      /* far: q2, q3 */
+    q[0] = ex(&ea, x0); q[1] = ey(&ea, h0);
+    q[2] = ex(&ea, x1); q[3] = ey(&ea, h1);
+    q[4] = ex(&eb, x1); q[5] = ey(&eb, h1);
+    q[6] = ex(&eb, x0); q[7] = ey(&eb, h0);
     /* off to one side entirely: nothing to fill */
     if ((q[0] < 0 && q[2] < 0 && q[4] < 0 && q[6] < 0) ||
         (q[0] > 255 && q[2] > 255 && q[4] > 255 && q[6] > 255)) return;
@@ -394,10 +394,8 @@ static void box(int32_t wx, int16_t wy, int16_t zr, int16_t x0, int16_t x1, int1
     front(x0, x1, y0, y1, col);
 }
 
-static void pyramid(int32_t wx, int16_t wy, int16_t zr, int16_t x0, int16_t x1, int16_t y0, int16_t ya,
-                    uint8_t col)
+static void tri(int16_t x0, int16_t x1, int16_t y0, int16_t ya, uint8_t col)   /* at sf's depth */
 {
-    if (!scene_at(wx, wy, zr)) return;
     q[0] = ex(&sf, x0); q[1] = ey(&sf, y0);
     q[2] = ex(&sf, x1); q[3] = q[1];
     q[4] = ex(&sf, (x0 + x1) / 2); q[5] = ey(&sf, ya);
@@ -405,18 +403,26 @@ static void pyramid(int32_t wx, int16_t wy, int16_t zr, int16_t x0, int16_t x1, 
     render_polys++;
 }
 
+static void pyramid(int32_t wx, int16_t wy, int16_t zr, int16_t x0, int16_t x1, int16_t y0, int16_t ya,
+                    uint8_t col)
+{
+    if (scene_at(wx, wy, zr)) tri(x0, x1, y0, ya, col);
+}
+
 enum { SC_NONE, SC_TREE, SC_PINE, SC_POLE, SC_BOULDER, SC_LAMP, SC_HOUSE, SC_BLOCK };
 
 static void scenery_model(int t, int32_t x, int16_t y, int16_t zr, int side)
 {
     switch (t) {
-    case SC_TREE:
-        box(x, y, zr, -3, 3, 0, 30, 6, PEN_BROWN + fog, 0);
-        pyramid(x, y, zr - 28, -28, 28, 28, 110, PEN_TREE + fog);
+    case SC_TREE:                       /* (port: the canopy at the trunk's depth: one scale) */
+        if (!scene_at(x, y, zr)) break;
+        front(-3, 3, 0, 30, PEN_BROWN + fog);
+        tri(-28, 28, 28, 110, PEN_TREE + fog);
         break;
     case SC_PINE:
-        box(x, y, zr, -3, 3, 0, 16, 6, PEN_BROWN + fog, 0);
-        pyramid(x, y, zr - 20, -20, 20, 14, 140, PEN_TREE + fog);
+        if (!scene_at(x, y, zr)) break;
+        front(-3, 3, 0, 16, PEN_BROWN + fog);
+        tri(-20, 20, 14, 140, PEN_TREE + fog);
         break;
     case SC_POLE:
         if (!scene_at(x, y, zr)) break;
@@ -662,7 +668,7 @@ static void make_skylines(void)
             case 2: v = 10 + (int)(h % 30); break;                      /* mountains */
             default: v = 6 + (int)(h % 12); break;                      /* rooftops */
             }
-            skyline[r][j] = (uint8_t)((v * 3) / 4);                     /* port: 160-row view */
+            skyline[r][j] = (uint8_t)((v * 3) / 8);                     /* port: 80 rows */
         }
 }
 
@@ -693,13 +699,13 @@ static void draw_skyline(const World *w, int16_t hz)
 
 static int16_t oct[16];
 
-static void octagon(int16_t cx, int16_t cy, int16_t r, uint8_t col)
+static void octagon(int16_t cx, int16_t cy, int16_t r, uint8_t col)    /* (half height) */
 {
-    int16_t h = (r * 5) / 12;
-    oct[0] = cx - h; oct[1] = cy - r;  oct[2] = cx + h;  oct[3] = cy - r;
-    oct[4] = cx + r; oct[5] = cy - h;  oct[6] = cx + r;  oct[7] = cy + h;
-    oct[8] = cx + h; oct[9] = cy + r;  oct[10] = cx - h; oct[11] = cy + r;
-    oct[12] = cx - r; oct[13] = cy + h; oct[14] = cx - r; oct[15] = cy - h;
+    int16_t h = (r * 5) / 12, ry = r / 2, hy = h / 2;
+    oct[0] = cx - h; oct[1] = cy - ry;  oct[2] = cx + h;  oct[3] = cy - ry;
+    oct[4] = cx + r; oct[5] = cy - hy;  oct[6] = cx + r;  oct[7] = cy + hy;
+    oct[8] = cx + h; oct[9] = cy + ry;  oct[10] = cx - h; oct[11] = cy + ry;
+    oct[12] = cx - r; oct[13] = cy + hy; oct[14] = cx - r; oct[15] = cy - hy;
     l2p_poly(oct, 8, col);
 }
 
@@ -711,9 +717,9 @@ static void draw_sun(const World *w, int16_t hz)
     if (d > 9000 || d < -9000) return;
     x = yaw_x(d);
     r = 7 + w->glare / 2;                        /* port: 9 + glare / 2 at 212 rows */
-    octagon(x, hz - 11, r + 3, PEN_ORANGE);
-    octagon(x, hz - 11, r, PEN_YELLOW);
-    octagon(x, hz - 11, r / 2, PEN_WHITE);
+    octagon(x, hz - 5, r + 3, PEN_ORANGE);
+    octagon(x, hz - 5, r, PEN_YELLOW);
+    octagon(x, hz - 5, r / 2, PEN_WHITE);
 }
 
 void render_init(void)
@@ -762,20 +768,20 @@ void render_world(const World *w)
         int32_t bx = w->seg[s1].cx + (road_left(w) + road_right(w)) / 2 - cam.x - ((zr * cam.tan) >> 8);
         uint16_t sc = persp_scale((uint16_t)zr);
         vanish_x = zr > NEAR && bx > -30000 && bx < 30000 ? VIEW_CX + persp_mul((int16_t)bx, sc) : VIEW_CX;
-        if (zr > NEAR) yfar = hz - persp_mul(w->seg[s1].y - cam.y, sc) + 1;
+        if (zr > NEAR) yfar = hz - persp_mul(w->seg[s1].y - cam.y, sc >> 1) + 1;
     }
     if (vanish_x < 0) vanish_x = 0;
     if (vanish_x > VIEW_W - 1) vanish_x = VIEW_W - 1;
 
     l2p_begin();
     l2p_top = 0;
-    l2p_bot = VIEW_H;
+    l2p_bot = VIEW_ROWS;
     if (!(render_skip & 8)) l2p_rect(0, hz, 0, VIEW_W - 1, PEN_SKY);
     /* the ground: the right side's colour across (one DMA a page), then the left */
     if (!(render_skip & 8)) {
         uint8_t gl = far_pen(w->seg[s1].side[0]), gr = far_pen(w->seg[s1].side[1]);
-        l2p_rect(hz, VIEW_H, 0, VIEW_W - 1, gr);
-        if (gl != gr) l2p_rect(hz, VIEW_H, 0, vanish_x, gl);
+        l2p_rect(hz, VIEW_ROWS, 0, VIEW_W - 1, gr);
+        if (gl != gr) l2p_rect(hz, VIEW_ROWS, 0, vanish_x, gl);
     }
     if (!(render_skip & 16)) {
         draw_skyline(w, hz);

@@ -41,6 +41,7 @@ with Emulator(machine="next") as e:
     has("rect 6 6 -1")                                        # clipped rectangle
     # persp: scale = fov * 4096 / z, (v * s) >> 12 floored, points offset, clamped to +-16000
     has("persp s=589 m=143,-144 130,73 145,80 -4184,-2803")
+    has("scale %d %d %d" % (0x12345 // 7, 0x12345 // 300, 65535))   # 16- and 24-round divisions
 
 print(f"{'FAIL' if failures else 'PASS'}: geomtest")
 sys.exit(1 if failures else 0)

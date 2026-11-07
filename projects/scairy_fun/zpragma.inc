@@ -5,3 +5,4 @@
 #pragma output CRT_ORG_PAGE_38 = 0x264000
 #pragma output CRT_ORG_BANK_20 = 0x280000
 #pragma output CRT_ORG_PAGE_39 = 0x27F200
+#pragma output CRT_ORG_PAGE_42 = 0x2A6000
