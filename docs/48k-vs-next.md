@@ -58,7 +58,7 @@ the CPU is slow, so the work goes into drawing less:
   leaves no room for the variables above 0x8000, so they go below (in
   contended memory: hot loops are in assembly)
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -86,6 +86,12 @@ the 48K:
   each half of the split screen its own sprite clip window. The CPU draws
   no pixels; ball, skimmer and posts are sprites in many sizes, zoomed by
   the hardware when big
+- ScAIry Fun redraws a whole 3D road every frame, which the hardware can't do
+  for it: a Z80N asm filler draws the original's road segments as bands and
+  polygons, and the copper halves the work by showing each Layer 2 row twice.
+  Even so it runs at ~5 frames a second (the original's 32-bit simulation,
+  banked across three memory maps a frame, keeps its 25 steps). Vehicles are
+  sprites streamed into pattern memory by DMA
 
 ## Things to know
 
