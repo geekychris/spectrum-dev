@@ -141,7 +141,9 @@ static void colours(uint8_t variant)
 
 static uint16_t key_cells[8];
 static uint8_t key_c[8], key_r[8], key_n;          /* animated cells (colour cycling, belts) */
-static uint8_t conv_c[GRID_W * 3], conv_r[GRID_W * 3], conv_n;
+/* belt cells in 4 groups: one group's moving lines are redrawn a frame */
+#define BELT_MAX (GRID_W * 3)
+static uint8_t conv_c[4][BELT_MAX / 2], conv_r[4][BELT_MAX / 2], conv_n[4];
 static uint8_t exit_c, exit_r, have_exit;
 
 static uint8_t display_id(uint16_t cell)
@@ -173,14 +175,19 @@ static void room_build(void)
 {
     uint16_t cell;
     uint8_t c = 0, r = 0;
-    key_n = conv_n = 0;
+    key_n = 0;
+    memset(conv_n, 0, sizeof(conv_n));
     have_exit = 0;
     colours(level_palette[gs.level_index]);
     for (cell = 0; cell < GRID_W * GRID_H; cell++) {
         uint8_t id = display_id(cell);
         room[cell] = id;
         if (id == D_KEY && key_n < sizeof(key_c)) { key_cells[key_n] = cell; key_c[key_n] = c; key_r[key_n++] = r; }
-        if (id == D_CONV_L || id == D_CONV_R) { conv_c[conv_n] = c; conv_r[conv_n] = r; conv_n++; }
+        if (id == D_CONV_L || id == D_CONV_R) {
+            uint8_t g = c & 3, n = conv_n[g]++;
+            conv_c[g][n] = c;
+            conv_r[g][n] = r;
+        }
         if (id == D_EXIT || id == D_EXIT_OPEN) { exit_c = c; exit_r = r; have_exit = 1; }
         if (++c == GRID_W) { c = 0; r++; }
     }
@@ -213,10 +220,13 @@ static void rotate_belt(uint8_t *t, uint8_t left)
 static void animate(uint8_t frame)
 {
     uint8_t i;
-    if ((frame & 3) == 0 && conv_n) {
+    if ((frame & 3) == 0) {                   /* the belts move a pixel every 4 frames */
         rotate_belt(tiles + D_CONV_L * 8, 1);
         rotate_belt(tiles + D_CONV_R * 8, 0);
-        for (i = 0; i < conv_n; i++) cs_mark(conv_c[i], conv_r[i]);
+    }
+    {   /* and their moving lines are redrawn a quarter of the cells a frame */
+        uint8_t g = frame & 3;
+        if (conv_n[g]) cs_refresh(conv_c[g], conv_r[g], conv_n[g], 1, 3);
     }
     if ((frame & 7) == 2) {
         tile_attr[D_KEY] = key_inks[(frame >> 3) & 3];
@@ -233,34 +243,35 @@ static void animate(uint8_t frame)
 static void sprites_from_game(void)
 {
     uint8_t i;
-    const Player *p = &gs.player;
-    for (i = 0; i < 3; i++) {
-        cs_sprite *s = &cs_spr[i];
-        const Guardian *G = &gs.guards[i];
+    cs_sprite *s = cs_spr;
+    const Guardian *G = gs.guards;
+    for (i = 0; i < 3; i++, s++, G++) {
+        uint8_t k;
         s->on = i < gs.num_guards && G->alive;
         if (!s->on) continue;
-        {
-            uint8_t k = G->colour >= 4 && G->colour <= 6 ? G->colour - 4 : 0;
-            s->x = (uint8_t)(G->x >> 1);
-            s->y = (uint8_t)(G->y >> 1);
-            s->gfx = pre_guard[k][(G->frame >> 3) & 1];
-            s->w = 1;
-            s->h = 8;
-            s->ink = guard_ink[k];
-            s->keep = 0x38;
-        }
+        k = G->colour - 4;                    /* the original's colours 4, 5, 6 */
+        if (k > 2) k = 0;
+        s->x = (uint8_t)(G->x >> 1);
+        s->y = (uint8_t)(G->y >> 1);
+        s->gfx = pre_guard[k][(G->frame >> 3) & 1];
+        s->ink = guard_ink[k];
     }
-    {
-        cs_sprite *s = &cs_spr[3];
-        s->on = 1;
-        s->x = (uint8_t)(p->b.x >> 1);
-        s->y = (uint8_t)(p->b.y >> 1);
-        s->gfx = pre_miner[p->facing][p->frame];
-        s->w = 1;
-        s->h = 8;
-        s->ink = INK_WHITE | BRIGHT;
-        s->keep = 0x38;
+    s->x = (uint8_t)(gs.player.b.x >> 1);
+    s->y = (uint8_t)(gs.player.b.y >> 1);
+    s->gfx = pre_miner[gs.player.facing][gs.player.frame];
+}
+
+/* the parts of the sprites that never change */
+static void sprites_init(void)
+{
+    uint8_t i;
+    for (i = 0; i < 4; i++) {
+        cs_spr[i].w = 1;
+        cs_spr[i].h = 8;
+        cs_spr[i].keep = 0x38;               /* the cell keeps its paper */
     }
+    cs_spr[3].on = 1;
+    cs_spr[3].ink = INK_WHITE | BRIGHT;
 }
 
 /* ------------------------------------------------------------ HUD */
@@ -585,7 +596,7 @@ static void end_screen(uint8_t won)
     attr_fill(ROOM_COL, 6, 20, 4, won ? (PAPER_BLUE | INK_YELLOW | BRIGHT) : (PAPER_RED | INK_WHITE | BRIGHT));
     gfx_clear_rect(ROOM_COL, 6 * 8, 20, 32);
     text_big(won ? 8 : 7, 6, won ? "YOU WIN" : "GAME OVER");
-    text_center(9, won ? "ALL SIX CAVERNS CLEARED" : "THE MINE CLAIMS ANOTHER");
+    text_center(9, won ? "ALL CAVERNS CLEARED" : "THE MINE WINS");
     sound(won ? S_WIN : S_OVER);
 }
 
@@ -595,10 +606,13 @@ int main(void)
     art_init();
     tune_init();
     input_init();
+    input_fast();                             /* table key decode (sdk input_fast.c) */
     ay_init();
     hs_init(1000);                            /* table 5000 4000 3000 2000 1000 */
     game_init();
     cs_init(room, GRID_W, GRID_H, ROOM_COL, ROOM_ROW, tiles, tile_attr);
+    cs_nspr = 4;                              /* three guardians and the miner */
+    sprites_init();
     colours(0);
     frame_init();
     input_latch(1);
@@ -644,7 +658,7 @@ int main(void)
             uint8_t a = (death_frames & 4) ? (PAPER_WHITE | INK_BLACK) : (PAPER_BLACK | INK_WHITE);
             attr_fill(ROOM_COL, ROOM_ROW, GRID_W, GRID_H, a);
             if (--death_frames == 0) {
-                if (gs.mode == GM_LOSE) end_screen(0);
+                if (gs.mode == GM_LOSE) { room_build(); hud(); end_screen(0); }
                 else { room_build(); hud_frame(); hud(); resync = 1; update_probe(); }
             }
             continue;

@@ -16,10 +16,17 @@
  *   cs_set(c, r, id)       change a cell's tile (redrawn at the next update)
  *   cs_mark(c, r)          redraw a cell at the next update
  *   cs_mark_id(id)         redraw every cell with this tile id (animated tiles)
+ *   cs_refresh(cols, rows, n, first, lines)
+ *                          lines first..first+lines-1 of n cells' tiles straight
+ *                          to the screen (asm, ~150 T-states a cell): animated
+ *                          tiles that change a few lines, like conveyor belts.
+ *                          Cells a sprite covers are marked instead
  *   cs_spr[i]              CS_MAX_SPR sprites: set x, y (pixels in the room),
  *                          gfx (spr_preshift() output), w (bytes), h (lines),
  *                          ink/keep (cell attr = (tile attr & keep) | ink),
  *                          on; the module sees what changed
+ *   cs_nspr                how many of cs_spr[] the game uses (CS_MAX_SPR after
+ *                          cs_init; fewer is faster)
  *   cs_update()            compose and write the cells that changed
  *
  * Sprites are any size; the room is up to 32 x 24 cells. A frame's cost is
@@ -45,6 +52,7 @@ typedef struct {
 } cs_sprite;
 
 extern cs_sprite cs_spr[CS_MAX_SPR];
+extern uint8_t cs_nspr;
 extern uint8_t *cs_map;
 extern uint8_t cs_w, cs_h, cs_col, cs_row;
 extern const uint8_t *cs_tiles;
@@ -59,6 +67,7 @@ extern void cs_mark_rc(uint16_t rc) __z88dk_fastcall;
 #define cs_mark(c, r) cs_mark_rc(((uint16_t)(r) << 8) | (uint8_t)(c))
 extern void cs_mark_id(uint8_t id);
 extern void cs_update(void);
+extern void cs_refresh(const uint8_t *cols, const uint8_t *rows, uint8_t n, uint8_t first, uint8_t lines);
 extern uint8_t cs_last_cells;   /* cells written by the last cs_update (profiling) */
 
 #endif
