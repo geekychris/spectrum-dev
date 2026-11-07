@@ -26,6 +26,7 @@
 #include "spr_views.h"
 #include "persp.h"
 #include "nextgfx.h"
+#include "fastdma.h"
 
 #define SEGF       ((int32_t)SEG_LEN * (1 << FBITS))
 #define MAX_SPR    24                   /* objects a frame */
@@ -180,7 +181,7 @@ static void upload(uint8_t slot, uint16_t first, uint8_t n)
     while (len) {
         uint16_t in_page = 8192 - ((uint16_t)off & 8191), part = len < in_page ? len : in_page;
         ZXN_WRITE_REG(0x53, SPR_BANK * 2 + (uint8_t)(off >> 13));
-        dma_to_port(0x5B, (const void *)(0x6000 + ((uint16_t)off & 8191)), part);
+        fdma_to_port(0x5B, (const void *)(0x6000 + ((uint16_t)off & 8191)), part);
         off += part;
         len -= part;
     }
@@ -249,7 +250,7 @@ void spr_show_frame(void)
 {
     uint8_t i;
     z80_outp(0x303B, 0);
-    if (nattr) dma_to_port(0x57, attrs, (uint16_t)nattr * 5);
+    if (nattr) fdma_to_port(0x57, attrs, (uint16_t)nattr * 5);
     for (i = nattr; i < nattr_shown; i++) {
         z80_outp(0x303B, i);
         z80_outp(0x57, 0);

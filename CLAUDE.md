@@ -84,8 +84,9 @@ Details: docs/emulator-harness.md.
   modules can be banked the same way from a project Makefile (target-specific EXTRA_CFLAGS on
   `$(OBJDIR)/sdk/...c.o`). A banked file's variables are only visible while it is mapped:
   copy what resident code needs (scairy_fun's main.c reads game.c's `game_in` before mapping
-  the simulation). Page sections that overflow 8K are not reported by the linker: check the
-  map's `__PAGE_n_size`.
+  the simulation). The linker doesn't report a bank or page section that overflows;
+  `sdk/project.mk` checks every `__BANK_n_size` / `__PAGE_n_size` after the link and fails
+  the build (it used to crash at run time).
 - Game loops: fixed timestep (`ticks = frame_wait()`, logic `ticks` times, draw once),
   so game speed stays the original's when drawing is slow. A tap shorter than a slow
   frame is lost unless input is latched: `frame_hook = input_sample; input_latch(1);`

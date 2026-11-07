@@ -9,35 +9,24 @@
 #include <arch/zxn.h>
 #include "nextgfx.h"
 
-/* the program, sent with one OTIR (16 OUTs from C cost ~2500 T-states a transfer) */
-static uint8_t dma_prog[16] = {
-    0x83,                                       /* WR6: disable */
-    0x7D, 0, 0, 0, 0,                           /* WR0: A -> B, A address + length follow */
-    0x54, 0x02,                                 /* WR1: A memory, fixed (0x64) or incrementing (0x54); 2-cycle timing */
-    0x50, 0x02,                                 /* WR2: B memory incrementing (0x50) or a fixed I/O port (0x68) */
-    0xAD, 0, 0,                                 /* WR4: burst, B address follows */
-    0x82,                                       /* WR5: stop at the end */
-    0xCF,                                       /* WR6: load */
-    0x87                                        /* WR6: enable: runs now */
-};
-
 static void dma(const void *src, void *dst, uint16_t len, uint8_t wr1, uint8_t wr2)
 {
-    dma_prog[2] = (uint16_t)src & 0xFF;
-    dma_prog[3] = (uint16_t)src >> 8;
-    dma_prog[4] = len & 0xFF;
-    dma_prog[5] = len >> 8;
-    dma_prog[6] = wr1;
-    dma_prog[8] = wr2;
-    dma_prog[11] = (uint16_t)dst & 0xFF;
-    dma_prog[12] = (uint16_t)dst >> 8;
-#ifdef __SDCC
-    __asm
-        ld hl,_dma_prog
-        ld bc,0x106B                            ; 16 bytes to port 0x6B
-        otir
-    __endasm;
-#endif
+    z80_outp(0x6B, 0x83);                       /* WR6: disable */
+    z80_outp(0x6B, 0x7D);                       /* WR0: A -> B, A address + length follow */
+    z80_outp(0x6B, (uint16_t)src & 0xFF);
+    z80_outp(0x6B, (uint16_t)src >> 8);
+    z80_outp(0x6B, len & 0xFF);
+    z80_outp(0x6B, len >> 8);
+    z80_outp(0x6B, wr1);                        /* WR1: A memory, fixed (0x64) or incrementing (0x54), timing follows */
+    z80_outp(0x6B, 0x02);                       /* 2-cycle timing */
+    z80_outp(0x6B, wr2);                        /* WR2: B memory incrementing (0x50) or a fixed I/O port (0x68), timing follows */
+    z80_outp(0x6B, 0x02);
+    z80_outp(0x6B, 0xAD);                       /* WR4: burst, B address follows */
+    z80_outp(0x6B, (uint16_t)dst & 0xFF);
+    z80_outp(0x6B, (uint16_t)dst >> 8);
+    z80_outp(0x6B, 0x82);                       /* WR5: stop at the end */
+    z80_outp(0x6B, 0xCF);                       /* WR6: load */
+    z80_outp(0x6B, 0x87);                       /* WR6: enable: runs now */
 }
 
 void dma_copy(void *dst, const void *src, uint16_t len)

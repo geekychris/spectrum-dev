@@ -68,16 +68,22 @@ autopilot's planned path, the scenery hashed from the segment number, the
 skyline and the low sun. What changed for the Z80 (`port:` comments):
 
 - the camera is road-aligned pseudo-3D: each cross-section shares its depth,
-  so an edge costs one division and a MUL per point (sdk `persp`); the turn
-  is a shear, the pitch a fixed horizon;
+  so an edge costs one division and a MUL per point (sdk `persp`), all eight
+  points and the lines' edges projected in one batch (`persp_xs`,
+  `persp_ys`), shared with the next segment; the turn is a shear, the pitch
+  a fixed horizon;
 - the flat strips of a segment (shoulders, road, lines, the path, flat sides)
   are one *band*: one row loop for all of them (sdk `l2poly`); sloping
   sides are quads; the far outer strips reach the screen's edge;
 - the 3D view is drawn 80 rows high and shown 160: the copper repeats each
   row (Layer 2's Y scroll every other line); text and sprites stay full
   resolution;
-- far away two segments are drawn as one, the draw distance is 24 segments
-  (the original's tunable `draw_dist`, 32 there), scenery is drawn flat on;
+- from 6 segments out two segments are drawn as one, from 14 four; lane
+  lines stop at 16 segments (under half a pixel wide there); the draw
+  distance is 24 segments (the original's tunable `draw_dist`, 32 there);
+  scenery is drawn flat on;
+- the skyline is drawn once per route into a panorama of the whole horizon
+  (pages 44-45, 905 x 16) and copied into the view by DMA, 16 rows a frame;
 - vehicles, animals, people, debris and cones are hardware sprites
   (`sprites.c`), the original's models drawn on the host at 16 sizes
   (`tools/gen_sprites.py`) and streamed into the pattern memory each frame;
@@ -108,7 +114,8 @@ title's cycle.
 | 0xF000-0xFFFF | the IM 2 table, the music (copied to 0xF200 at start), the stack | | |
 
 Banks 40-44 hold the sprites' patterns, page 39 the music and the ROM's
-font at start-up, page 42 the palettes' and the copper list's code.
+font at start-up, page 42 the palettes' and the copper list's code, pages
+44-45 the skyline's panorama.
 
 ## Next features used
 
@@ -122,7 +129,7 @@ What it uses beyond a 48K/128K Spectrum, and why:
 | **256-colour palettes** (9-bit) | each route's 32 pens, three copies fading into the haze for far segments, the low sun washing them out | the original's palettes and its glare; the fog is new |
 | **copper** | the 3D view's line doubling (Layer 2's Y scroll every other line) and the sky's gradient (the fallback colour line by line), no CPU time | drawing 80 rows instead of 160 roughly halves the filling; the original's sky was a copper gradient too |
 | **hardware sprites** (4-bit patterns, palette offsets, 2x-8x scaling) | the cars, trucks, the tractor, the ambulance, cyclists, deer, goats, people, debris, cones, the player's car | drawing them into Layer 2 would cost as much as the road; one model in six body colours by palette offset |
-| **zxnDMA** | long spans (sky, ground, road), pattern streaming to port 0x5B, sprite attributes | about 2 T-states a byte against 11-21 for the CPU |
+| **zxnDMA** | long spans (sky, ground, road), the skyline's panorama into the view, pattern streaming to port 0x5B, sprite attributes | about 2 T-states a byte against 11-21 for the CPU |
 | **tilemap** (40 x 32, 4-bit tiles, over everything) | the HUD, messages, the boxes, title, rules, the update screen, the initials | text never has to be redrawn with the 3D view |
 | **TurboSound** (3 AY chips) | the MOD on chips 1 and 2 (four channels), the effects on chip 0 | one AY has three channels |
 | **Z80N instructions** | `MUL` (projection, slopes, the simulation's 32-bit products), `NEXTREG`, `ADD rr,A` | the projection is a multiply per point |
@@ -131,33 +138,51 @@ What it uses beyond a 48K/128K Spectrum, and why:
 
 `./zx test scairy_fun` (`test.py`): a bot reads the world from memory and
 plays like the original's test drivers: on the Levee Road it takes over
-before the first flood, crosses it slowly and hands back (a good catch); it
-leaves the old lane lines and the second flood to the autopilot (over the
-embankment, into the river, the tow truck) and hands back; it looks through
-the cockpit; at the marina it gets the arrival and the software update;
-on Rush Hour the autopilot's blind spots take the rest of the cover: game
-over, the initials (BOT), the title. It also turns the rules pages and
-pauses. The game is recorded from reset and replayed twice with every frame
-hash checked. Also: `tools/check_trace.sh` (the simulation against the
-original), `projects/geomtest` (l2poly, persp).
+before each flood, crosses it slowly and hands back (good catches); it
+leaves the old lane lines to the autopilot (over the embankment, the tow
+truck) and hands back; it looks through the cockpit; at the marina it gets
+the arrival and the software update; on Rush Hour the autopilot's blind
+spots take the rest of the cover: game over, the initials (BOT), the title.
+It also turns the rules pages and pauses. The game is recorded from reset
+and replayed twice with every frame hash checked. On a failure the game's
+log is written to `build/test-log.txt`; `SCAIRY_NEX=path` tests another
+build. Also: `tools/check_trace.sh` (the simulation against the original),
+`projects/geomtest` (l2poly, persp).
 
-Result (2026-11-06): every check passes, both replays match the recording
-frame for frame (18,000 frames).
+Result (2026-11-07): every check passes, both replays match the recording
+frame for frame (over 20,000 frames).
 
 ## Frame rate
 
-**About 5 frames a second** while driving (the test measures it: 5.1 on the
-Levee Road and Rush Hour; the title and rules screens are faster). The
-simulation always runs at the original's 25 steps a second (fixed timestep,
-up to 4 steps a frame), so the game plays at the original's speed; the
-picture is what is slow. Where a frame goes (`tools/ablate.py`, which
-switches parts off): sloping sides ~45 ms, the simulation ~35 ms, the bands
-(road, shoulders, lines) ~25 ms, scenery ~20 ms, projection and the C around
-it ~45 ms. What was done: the band filler, edges shared between segments,
-far segments in pairs, half-height drawing with copper doubling, scenery
-decisions cached, asm for the simulation's scans. The original is heavy too:
-its README gives 3 frames a second on a stock 16 MHz Falcon030 and 25 on a
-68060.
+**About 6-7 frames a second** while driving (the test measures it over
+the Levee Road and Rush Hour; the title's demo runs 7-8). The simulation
+always runs at the original's 25 steps a second (fixed timestep, up to 4
+steps a frame), so the game plays at the original's speed; the picture is
+what is slow.
+
+Where a frame goes (T-states measured between breakpoints, the title's
+demo, route 1):
+
+| | per frame | |
+|---|---|---|
+| the 3D view (`render_world`) | ~2.4M T, 86 ms | ~17 segment draws of ~120K T: the projection and its C ~25%, the bands and polygons ~40%, the sides, scenery, sprites |
+| the simulation | 8.4 ms a step x 25 a second | 21% of the CPU whatever the frame rate |
+| the front end (HUD, AI view) | ~8 ms | |
+| the music and effects (interrupt) | ~3% | |
+
+The speed pass took the view from 3.66M to ~2.4M T-states (5.1 to
+6.2-6.7 frames a second in play): the cross-section projected per edge in
+one batch, the skyline as a panorama copied by DMA (it was 22 polygons),
+segments in pairs from 6 out and fours from 14, lane lines to 16 segments,
+the AI view without divisions, cheaper sprite and scenery positions, a
+faster `pmul` in the SDK, the DMA's program sent by one OTIR (`fastdma.c`),
+one more of the simulation's scans in asm. What limits it now is spread out: each far segment, one or two rows
+high, still pays a band's set-up (a slope per rail) and a polygon's for each
+sloping side, and the simulation's C (`objects_update`, `ai_think`) is a
+fifth of the CPU. 12.5 frames a second would need the view near 1.2M
+T-states: a different renderer (rows front to back, everything in asm). The
+original is heavy too: its README gives 3 frames a second on a stock 16 MHz
+Falcon030 and 25 on a 68060.
 
 ## Kept, changed, not ported
 
@@ -169,7 +194,8 @@ autopilot demo, the original's colours and music.
 
 Changed (`port:` in the code): integer widths, file split and banking, the
 pseudo-3D camera, half-height drawing, draw distance 24, far segments in
-pairs, scenery flat on, vehicles as sprites, text on the tilemap, keys for
+pairs and fours, lane lines to 16 segments, the skyline as a panorama,
+scenery flat on, vehicles as sprites, text on the tilemap, keys for
 the Spectrum (QAOP, S pause, BREAK to the title), the AI's voice as text,
 high scores added, fog on far segments added.
 
@@ -183,5 +209,5 @@ reads memory instead).
 - The frame rate (above). A hill crest hides a sprite only when its foot is
   behind it: one partly behind a crest shows whole.
 - The 3D view's vertical resolution is 80 rows (shown 160).
-- Memory is tight: about 0.9K free in the resident area, 8 bytes in bank 20.
+- Memory is tight: ~120 bytes free in the resident area, ~180 in page 38.
 

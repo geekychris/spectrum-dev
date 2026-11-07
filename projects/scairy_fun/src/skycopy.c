@@ -7,6 +7,7 @@
 #include "nextgfx.h"
 #include "sc.h"
 #include "render.h"
+#include "fastdma.h"
 
 /* the skyline's panorama (render.h) into back buffer rows ytop.., from its
    column p0 (wrapping); the renderer's pages are mapped back afterwards */
@@ -26,8 +27,8 @@ void sky_copy(uint16_t p0, int16_t ytop)
             ZXN_WRITE_REG(0x53, l2_back * 2 + page);
         }
         dst = (uint8_t *)0x6000 + ((y & 31) << 8);
-        dma_copy(dst, src + p0, n1);
-        if (n1 < 256) dma_copy(dst + n1, src, 256 - n1);
+        fdma_copy(dst, src + p0, n1);
+        if (n1 < 256) fdma_copy(dst + n1, src, 256 - n1);
     }
     ZXN_WRITE_MMU0(36); ZXN_WRITE_MMU1(37); ZXN_WRITE_MMU3(11);
 }

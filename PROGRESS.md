@@ -333,9 +333,15 @@ READMEs; docs/48k-vs-next.md.
       `l2poly` bands/polygons, `persp`), drawn 80 rows high and doubled by the copper, copper
       sky; vehicles as sprites pre-drawn from the original's models; tilemap HUD and screens;
       the MOD on TurboSound; high scores.
-- [x] test.py: a bot plays route 1 (a save, the embankment, the river, the tow truck, the
+- [x] test.py: a bot plays route 1 (two saves, the embankment, the tow truck, the
       cockpit view), arrives, Rush Hour to game over, initials; replays x2.
-- [ ] ~5 fps in the 3D view (the simulation keeps 25 Hz); memory is full.
+- [x] Speed pass (2026-11-07): 5.1 to 6.2-6.7 fps in play (the view 3.66M to ~2.4M T-states):
+      the cross-section projected per edge in one batch (`persp_xs`/`persp_ys`), the skyline
+      as a DMA-copied panorama, segments in pairs from 6 and fours from 14, lines to 16,
+      sprites/scenery/AI view cheaper, DMA set-up by one OTIR (`fastdma.c`). SDK: faster
+      `pmul`, `persp_ys`; the link fails on a BANK_n/PAGE_n overflow.
+- [ ] 12.5 fps would need the view at ~1.2M T-states: a different renderer (rows front to
+      back, all asm); the simulation alone is 21% of the CPU at 25 Hz.
 
 ## Game candidates (survey)
 
@@ -355,7 +361,7 @@ graphics on 48K, no FPU, 16.16 fixed point is slow on a Z80):
 - **Next**: Rolling Steel, Planet Chomp, Rotoball, Canyon Rescue, Block
   Breaker 3D, Marble Tilt, Harbour Crane, Orbit Docking, Stack Tower, Boing
   Pinball, Terra Strike, Ridge Runner, Drone Courier, Canyon Rail, Ace Pilot 2.
-- **Poor fit**: Lander 3D, ScAIry Fun (done anyway: ~5 fps), Boing Twist, Sphere Siege.
+- **Poor fit**: Lander 3D, ScAIry Fun (done anyway: ~6.5 fps), Boing Twist, Sphere Siege.
 
 Suggested first steps: a small `sdk/` game layer (frame loop, input,
 attribute/pixel sprite blitter for 48K; Layer 2 + hardware sprites for Next;

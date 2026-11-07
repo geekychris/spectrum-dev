@@ -106,7 +106,7 @@ the 48K:
 - ScAIry Fun redraws a whole 3D road every frame, which the hardware can't do
   for it: a Z80N asm filler draws the original's road segments as bands and
   polygons, and the copper halves the work by showing each Layer 2 row twice.
-  Even so it runs at ~5 frames a second (the original's 32-bit simulation,
+  Even so it runs at ~6.5 frames a second (the original's 32-bit simulation,
   banked across three memory maps a frame, keeps its 25 steps). Vehicles are
   sprites streamed into pattern memory by DMA
 - Block Breaker 3D keeps the original's 3D: its tunnel is a Layer 2 picture
