@@ -172,8 +172,8 @@ with Emulator(machine="next") as e:
     log += play_route(e, jumps1, shots=gif)
     if gif:
         GIF.parent.mkdir(parents=True, exist_ok=True)
-        small = [im.resize((im.width // 2, im.height // 2)) for im in gif[40:]]
-        small[0].save(GIF, save_all=True, append_images=small[1:], duration=40, loop=0, optimize=True)
+        small = [im.resize((im.width // 2, im.height // 2)).quantize(64) for im in gif[40::2]]
+        small[0].save(GIF, save_all=True, append_images=small[1:], duration=80, loop=0, optimize=True)
         print(f"  wrote {GIF.relative_to(ROOT)} ({len(small)} frames)")
     p = probe(e)
     check("the bot shoots enemies and scores", p["score"] >= 300, str(p["score"]))
