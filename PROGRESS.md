@@ -238,6 +238,14 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   build tick by tick. SDK: cellspr48 `cs_scroll` / `cs_put_tile` /
   `cs_wipe_sprites`, 16 sprite slots; `spr16_shift`.
 
+- **Warden Keep** (Next): the original's rules (`game.cpp` in C) in its one
+  8x8 room; the room on 320x256 Layer 2 drawn on the host from the
+  original's iso geometry, shaded for 256 colours (its hourglass-shaped
+  diamonds drawn as diamonds: ORIGINAL_BUGS.md); barrels, jewels and the
+  player as sprite groups numbered in its painter's order; the original's
+  auto-repeat; port: a 60 s clock (the original can't be lost) with a time
+  bonus, high scores, a tune and effects (it has no sound). 50 fps.
+
 ### Cleanup (2026-11-06)
 
 SDK modules pulled out of the games, each with a test (sdktest,
