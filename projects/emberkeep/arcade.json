@@ -1,0 +1,7 @@
+{
+  "title": "Emberkeep",
+  "ready": "ember: ready",
+  "description": "Explore dark caverns by lantern light: take the runes, keep the oil up, reach the portal.",
+  "controls": "QAOP/cursor move, SPACE begin, Kempston",
+  "picture": "screenshots/play.png"
+}
