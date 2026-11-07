@@ -248,6 +248,13 @@ ZEsarUX's own debugger does the work; we add symbols and a simple API.
   (128K: ROM/RAM per slot + screen bank; Next: the eight MMU pages).
 - **Backtrace:** Z80 code has no frame chain, so `backtrace` lists the 16-bit
   words from SP with symbols; return addresses show up as `func+0xNN`.
+- **Banked symbols:** z88dk links code and data in `BANK_n` / `PAGE_n` sections
+  at `bank << 16 | address` (e.g. `PAGE_84` at 0x54C000). Reading or writing
+  such a symbol by name (`read_mem addr=my_table`, `emu_read_mem`) goes to its
+  Next RAM page, decoded from the section in the map, so it returns the
+  variable's real bytes whatever is paged in. Breakpoints and watchpoints on it
+  use the address the code runs at (the watchpoint says which page). A bare
+  number above 0xFFFF is an error.
 
 There is no GDB stub: Z80 gdb is rare and ZEsarUX's native debugger covers
 the same ground. For source-level stepping in VS Code, point

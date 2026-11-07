@@ -27,7 +27,7 @@ if [ -x "$ZESARUX_BIN" ]; then
   have_rev="$(git -C "$ZESARUX_DIR" rev-parse HEAD 2>/dev/null)"
   [ "$have_rev" = "$ZESARUX_COMMIT" ] && ok "ZEsarUX built at the pinned commit" \
     || fail "ZEsarUX checkout is $have_rev, expected $ZESARUX_COMMIT" "scripts/build-emulator.sh"
-  grep -q "zxh_remote_command" "$ZESARUX_DIR/src/zrcp/remote.c" 2>/dev/null && ok "zxh harness patch applied" \
+  grep -qa "zxh-status" "$ZESARUX_BIN" 2>/dev/null && ok "zxh harness patch applied" \
     || fail "zxh patch not applied" "scripts/build-emulator.sh"
   grep -q "Enabled Video output drivers:.*sdl" "$ZESARUX_DIR/build.log" 2>/dev/null && ok "emulator has the SDL window driver" \
     || warn "emulator built without SDL (headless only)"
