@@ -26,7 +26,7 @@
  *
  * Writes go through nexttile (MMU slot 2), so strings can be anywhere but
  * 0x4000-0x5FFF. Overlapping slots erase each other's cells: keep them apart.
- * Test: projects/nextlibtest (tmtext checks).
+ * Test: projects/texttest.
  */
 #ifndef TMTEXT_H
 #define TMTEXT_H

@@ -32,6 +32,7 @@
 #include "sound_data.h"
 #include "state_hash.h"
 #include "memmap.h"
+#include "port_fixes.h"
 
 extern void update_probe(const GameState *gs, uint8_t mode, uint8_t fps);
 
@@ -66,6 +67,7 @@ static void to_title(void)
 static void start_game(void)
 {
     game_init(&gs);
+    port_fixes(&gs);
     mode = MODE_GAME;
     zx_log("psb: START\n");
 }
@@ -118,6 +120,7 @@ static void hash_run(void)
     snd_music(0);
     ZXN_WRITE_MMU3(HASH_PAGE);
     game_init(&gs);
+    port_fixes(&gs);
     for (f = 0; f < SCRIPT_FRAMES && gs.state != STATE_TITLE; f++) {
         uint8_t in = script_input(f);
         game_update(&gs, in & 1, (in >> 1) & 1, (in >> 2) & 1, (in >> 3) & 1, (in >> 4) & 1);
@@ -151,8 +154,9 @@ int main(void)
     frame_init();
     frame_hook = input_sample;
     input_latch(1);
-    hs_init(1000);
+    hs_init(100);                       /* 500 400 300 200 100: a level is worth a few hundred */
     game_init(&gs);                     /* as the original: the levels, then the title */
+    port_fixes(&gs);
     to_title();
     snd_music(1);
     zx_log("psb: ready kempston=%u\n", input_kempston);

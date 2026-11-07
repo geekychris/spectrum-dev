@@ -58,7 +58,7 @@ with Emulator(machine="next") as e:
     check("l2wpoly clipping", "l2wp clip 9 4 4 4" in log, line("l2wp clip"))
     check("l2wpoly depth plane and plane copy", "l2wp depth 50 255 10 copy 51 4" in log, line("l2wp depth"))
     check("nextsprl depth mask (100 pixels behind, none with a nearer key)", "spl zmask 156 0 1 256" in log, line("spl zmask"))
-    check("nextsprl list skips off-screen sprites", "spl count=1" in log, line("spl count"))
+    check("nextsprl list skips off-screen sprites", "spl count=2" in log, line("spl count"))
 
     e.run(3)
     im = e.screenshot(border=True)
@@ -73,6 +73,8 @@ with Emulator(machine="next") as e:
     check("sprite group drawn (grey)", near(at(ox + 220, oy + 110), (146, 146, 146)), str(at(ox + 220, oy + 110)))
     check("sprite group masked corner shows Layer 2", near(at(ox + 200, oy + 101), (36, 73, 109)), str(at(ox + 200, oy + 101)))
     check("nextsprl 4-bit sprite with a palette offset (red)", near(at(ox + 247, oy + 147), (219, 0, 0), 50), str(at(ox + 247, oy + 147)))
+    check("nextsprl spl_scale: a sprite at 2x", near(at(ox + 250 + 28, oy + 180 + 28), (219, 0, 0), 50),
+          str(at(ox + 278, oy + 208)))
     check("tilemap 3x glyph (tm_glyphnx)", any(near(at(ox + 160 + dx, oy + 48 + dy), (219, 0, 0), 50) for dx in range(24) for dy in range(24)))
     check("tilemap glyph in red", any(near(at(ox + 80 + dx, oy + 32 + dy), (219, 0, 0), 50) for dx in range(16) for dy in range(16)))
 
