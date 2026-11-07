@@ -102,21 +102,28 @@ void set_palette(int route, int glare)
 
 /* the effects (game.c sfx(): queued, started here so only the interrupt writes
    to the AY), on chip 0; the music on chips 1 and 2 */
+/* channel, MIDI note (0: noise), volume, decay, sweep; SFX_* order (game.h) */
+static const int8_t sfx_tab[][5] = {
+    { 0, 72, 13, 1, -3 },   /* chime on */
+    { 0, 67, 13, 1, 4 },    /* chime off */
+    { 1, 84, 11, 2, 0 },    /* blip */
+    { 0, 76, 15, 1, -6 },   /* save */
+    { 2, 0, 12, 2, 0 },     /* scrape */
+    { 1, 88, 12, 3, 8 },    /* cone */
+    { 2, 0, 15, 1, 0 },     /* crash */
+    { 2, 0, 14, 1, 0 },     /* splash */
+    { 1, 81, 14, 1, 0 },    /* alert */
+    { 1, 79, 10, 1, 0 },    /* siren (74 every other time) */
+    { 1, 79, 10, 3, 0 },    /* key */
+};
+
 static void start_sfx(uint8_t id)
 {
-    switch (id) {
-    case SFX_CHIME_ON:  ay_sfx(0, AY_NOTE(72), 13, 1, -3); break;
-    case SFX_CHIME_OFF: ay_sfx(0, AY_NOTE(67), 13, 1, 4); break;
-    case SFX_BLIP:      ay_sfx(1, AY_NOTE(84), 11, 2, 0); break;
-    case SFX_SAVE:      ay_sfx(0, AY_NOTE(76), 15, 1, -6); break;
-    case SFX_SCRAPE:    ay_sfx(2, 0, 12, 2, 0); break;
-    case SFX_CONE:      ay_sfx(1, AY_NOTE(88), 12, 3, 8); break;
-    case SFX_CRASH:     ay_sfx(2, 0, 15, 1, 0); ay_sfx(0, AY_NOTE(40), 14, 1, 12); break;
-    case SFX_SPLASH:    ay_sfx(2, 0, 14, 1, 0); break;
-    case SFX_ALERT:     ay_sfx(1, AY_NOTE(81), 14, 1, 0); break;
-    case SFX_SIREN:     ay_sfx(1, AY_NOTE((frames50 >> 3) & 1 ? 79 : 74), 10, 1, 0); break;
-    case SFX_KEY:       ay_sfx(1, AY_NOTE(79), 10, 3, 0); break;
-    }
+    const int8_t *t = sfx_tab[id - 1];
+    uint8_t note = t[1];
+    if (id == SFX_SIREN && (frames50 & 8)) note = 74;
+    ay_sfx(t[0], note ? AY_NOTE(note) : 0, t[2], t[3], t[4]);
+    if (id == SFX_CRASH) ay_sfx(0, AY_NOTE(40), 14, 1, 12);
 }
 
 uint8_t keys_latched;                           /* V, H, S seen since game_input looked */
