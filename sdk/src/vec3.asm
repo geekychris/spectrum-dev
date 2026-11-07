@@ -376,10 +376,20 @@ norm_len:
     ld b,h
     ld c,l                      ; BC = len
     ; inv = 2^28 / len = (0x1000 << 16 | 0) / len: high word, then low
+    ld hl,0x1000
+    or a
+    sbc hl,bc
+    jr nc,norm_div_hi           ; len <= 0x1000: the high word isn't 0
+    ld hl,0                     ; len > 0x1000 (the usual): high word 0,
+    ld (inv+2),hl               ; remainder 0x1000
+    ld h,0x10
+    jr norm_div_lo
+norm_div_hi:
     ld hl,0
     ld de,0x1000
     call div32
     ld (inv+2),de               ; quotient's high word
+norm_div_lo:
     ld de,0
     call div32                  ; HL = remainder < len
     ld (inv),de

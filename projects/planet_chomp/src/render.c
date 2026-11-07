@@ -328,9 +328,10 @@ static void draw_nest(void)
 {
     int16_t i, z;
     if (rd_horizon(&mz_spot[4]) < PLANET_R - Q8(1.25)) return;
-    for (i = 0; i < 8; i++)
+    for (i = 0; i < 8; i++) {
         if (!rd_project(&rd_nest_rim[i], &nest_xy[i * 2], &nest_xy[i * 2 + 1], &z)) return;
         nest_xy[i * 2 + 1] >>= 1;                    /* port: drawn half height */
+    }
     dr_poly(nest_xy, 8, C_NEST);
 }
 
