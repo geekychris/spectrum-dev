@@ -1,7 +1,7 @@
 ; vproj.asm - view.c's corner projection for one plane, in Z80N assembly:
 ;
 ;   for i in 0..n-1:  sx[i] = c + ((e * y[i] - f * x[i]) >> 11)
-;                     sy[i] = d - ((e * x[i] + f * y[i]) >> 11)
+;                     sy[i] = d - ((e * x[i] + f * y[i]) >> 12)   (port: half height)
 ;
 ; e, f the plane's coefficients (k cos, k sin in Q11), c, d its offsets
 ; (the screen's middle included), x, y the corners (|x|, |y| < 512). Each
@@ -180,7 +180,7 @@ vp_loop:
     ld h,a
     ld a,(p0 + 2)
     adc a,e
-    call shr11
+    call shr12                  ; port: rows at half height (main.c's copper shows each twice)
     ex de,hl
     ld hl,(_pj_d)
     or a
@@ -195,6 +195,13 @@ vp_loop:
     jp vp_loop
 vp_done:
     pop ix
+    ret
+
+; HL = (A:H:L signed 24 bits) >> 12
+shr12:
+    call shr11
+    sra h
+    rr l
     ret
 
 ; HL = (A:H:L signed 24 bits) >> 11 (arithmetic): bytes 2, 1 then 3 more bits

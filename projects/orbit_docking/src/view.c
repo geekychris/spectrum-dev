@@ -20,7 +20,8 @@
  *
  * port: the original's 320 x 256 view (fov 230, centre 160, 128) at 0.8 on
  * Layer 2's 256 x 192 (fov 184, centre 128, 96); 6 rows top and bottom are
- * off the screen. The original's painter's order (a3d's 512 depth buckets
+ * off the screen. It is drawn 96 rows high and shown 192 (main.c's copper
+ * shows each row twice): half the rows to fill. The original's painter's order (a3d's 512 depth buckets
  * of a polygon's mean depth plus its bias) is kept; the hub's and the
  * ring's sides that face away (hidden behind the rest in the original) are
  * not drawn. A polygon with a corner nearer than the near plane is left
@@ -37,7 +38,8 @@ int16_t view_debris_x[OD_MAX_DEBRIS];
 
 #define FOV   184
 #define CX    128
-#define CY    96
+#define CY    48                         /* port: drawn 96 rows high, each shown twice (main.c) */
+#define ROWS  96
 #define NEAR  12
 
 /* the planes across the axis: z (world), and whether they turn with the station */
@@ -209,7 +211,7 @@ void view_init(void)
     for (k = 0; k < 60; k++) {
         uint32_t h = a3_hash((uint32_t)k * 2654435761UL);
         star_x[k] = (int16_t)(h % 640) - 320;
-        star_y[k] = (int16_t)((h >> 10) % 640) - 320;
+        star_y[k] = 320 - (int16_t)((h >> 10) % 640);   /* (y negated: see stars()) */
     }
 }
 
@@ -255,7 +257,7 @@ static void project_planes(const ODGame *g, int16_t cz)
         if (pl < P_STATIC) { e = (int16_t)((k * sds) >> 14); f = (int16_t)((k * cds) >> 14); }
         else { e = (int16_t)((k * sdr) >> 14); f = (int16_t)((k * cdr) >> 14); }
         c = (int16_t)(((int32_t)tx * k) >> 11);
-        d = (int16_t)(((int32_t)ty * k) >> 11);
+        d = (int16_t)(((int32_t)ty * k) >> 12);
         /* vproj keeps products in 24 bits: a plane too near for that is left out */
         if ((int32_t)((e < 0 ? -e : e) + (f < 0 ? -f : f)) * plane_max[pl] >= (1L << 22)) { zc[pl] = 0; continue; }
         i = pl ? plane_end[pl - 1] : 0;
@@ -282,17 +284,29 @@ static uint8_t faces(const Poly *p)
     return dist > (p->cull == 1 ? 55L * 16384 : 294L * 16384);
 }
 
+static int16_t star_sx[60] = { 0 }, star_sy[60] = { 0 };
+
 static void stars(void)
 {
     uint8_t k;
-    int16_t src = (int16_t)((rc * 4 / 5) >> 2), srs = (int16_t)((rs * 4 / 5) >> 2);
+    /* the stars turn with the roll, at 0.8 (port): vproj with e = 0.8 sin,
+       f = -0.8 cos (Q11) on (x, -y) */
+    pj_e = (int16_t)((rs * 4 / 5) >> 5);
+    pj_f = (int16_t)(-(rc * 4 / 5) >> 5);
+    pj_c = CX;
+    pj_d = CY;
+    pj_vx = star_x;
+    pj_vy = star_y;
+    pj_sx = star_sx;
+    pj_sy = star_sy;
+    pj_n = 60;
+    vproj();
     l2p_begin();
-    l2p_rect(0, 192, 0, 255, PEN_SPACE);       /* (not l2_clear: its DMA takes slots 0-1, this code's) */
+    l2p_bot = ROWS;
+    l2p_rect(0, ROWS, 0, 255, PEN_SPACE);       /* (not l2_clear: its DMA takes slots 0-1, this code's) */
     for (k = 0; k < 60; k++) {
-        /* port: the original's pixels at 0.8: the roll's cos and sin x 0.8 in Q14 */
-        int16_t x = CX + (int16_t)((mul16(star_x[k], src) - mul16(star_y[k], srs)) >> 14);
-        int16_t y = CY - (int16_t)((mul16(star_x[k], srs) + mul16(star_y[k], src)) >> 14);
-        if (x >= 0 && y >= 0 && x < 256 && y < 192) l2p_span((uint8_t)y, x, x, (k & 3) ? PEN_STAR : 1);
+        int16_t x = star_sx[k], y = star_sy[k];
+        if (x >= 0 && y >= 0 && x < 256 && y < ROWS) l2p_span((uint8_t)y, x, x, (k & 3) ? PEN_STAR : 1);
     }
 }
 
@@ -349,7 +363,7 @@ void view_draw(const ODGame *g)
             int16_t r = (j & 1) ? 14 : 24;
             int16_t px = ex + (int16_t)RMUL(a3_cos(a), r), py = ey + (int16_t)RMUL(a3_sin(a), r);
             deb_xy[k][j * 2] = CX + (int16_t)(mul16(px, kk) >> 8);
-            deb_xy[k][j * 2 + 1] = CY - (int16_t)(mul16(py, kk) >> 8);
+            deb_xy[k][j * 2 + 1] = CY - (int16_t)(mul16(py, kk) >> 9);
         }
         bucket_add(DEB + k, z);
     }
@@ -372,6 +386,6 @@ void view_draw(const ODGame *g)
     /* the sight (render.c hud()), at 0.8 */
     l2p_rect(CY, CY + 1, CX - 10, CX - 4, PEN_YELLOW);
     l2p_rect(CY, CY + 1, CX + 4, CX + 10, PEN_YELLOW);
-    l2p_rect(CY - 10, CY - 4, CX, CX + 1, PEN_YELLOW);
+    l2p_rect(CY - 5, CY - 2, CX, CX + 1, PEN_YELLOW);
     l2p_end();
 }

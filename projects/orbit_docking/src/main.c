@@ -5,6 +5,7 @@
 #include <arch/zxn.h>
 #include "zxgame.h"
 #include "nextgfx.h"
+#include "nextcopper.h"
 #include "zxlog.h"
 #include "od.h"
 #include "view.h"
@@ -22,6 +23,23 @@ const uint16_t view_palette[32] = {
 
 static ODGame game;
 
+/* port: the view is drawn 96 rows high and shown 192: every other line the
+   copper moves Layer 2's Y scroll (NextReg 0x17) back a row, so each row
+   shows twice */
+static void copper_doubling(void)
+{
+    uint16_t l;
+    copper_begin();
+    copper_move(0x17, 0);
+    for (l = 2; l < 192; l += 2) {
+        copper_wait(l - 1, 50);
+        copper_move(0x17, (uint8_t)(192 - l / 2));
+    }
+    copper_wait(191, 50);
+    copper_move(0x17, 0);
+    copper_end();
+}
+
 static uint16_t rgb9(uint16_t c)
 {
     return (uint16_t)(((c >> 9) & 7) << 6 | ((c >> 5) & 7) << 3 | ((c >> 1) & 7));
@@ -35,6 +53,7 @@ int main(void)
     next_init();
     l2_init();
     for (k = 0; k < 32; k++) pal_set(1, k, rgb9(view_palette[k]));
+    copper_doubling();
     VIEW();
     view_init();
     frame_init();
