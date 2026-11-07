@@ -6,12 +6,13 @@
  *   0x4000-0x5FFF  bank 5's first page (the tilemap); the board's tables
  *                  are mapped here while a board is drawn
  *   0x6000-0x7FFF  page 44: the game shell and the text (game.c, hud.c);
- *                  Layer 2's pages are mapped here briefly (view.c, l2poly,
+ *                  Layer 2's pages are mapped here briefly (view.c, l2fill,
  *                  which put it back)
  *   0x8000-0xEFFF  the drawing (view.c), the sound, the SDK, the variables;
  *                  0xF000- the IM 2 table, the stack
- *   banks 9-14     Layer 2, double buffered; 30-49 the board's tables
- *                  (tools/gen_view.py); 50 sprite patterns; 36.. the sound
+ *   banks 9-17, 23-25 (and 48-110 on a 2 MB Next): Layer 2 screens, the
+ *                  board cache (view.c); 26-45 the board's tables
+ *                  (tools/gen_view.py); 46 sprite patterns; 47 the sound
  * Everything is in the .nex; this only maps it.
  */
 #include <string.h>
@@ -45,7 +46,7 @@ int main(void)
     memcpy(rom_font, (const void *)0x3D00, sizeof(rom_font));
     next_init();
     spr_init();
-    ZXN_WRITE_REG(0x15, 0x33);               /* sprites on, over the border; order U S L */
+    ZXN_WRITE_REG(0x15, 0x2B);               /* sprites on, over the border, clipped; order S U L */
     l2_init();                               /* clears through slots 0-1 and puts the ROM back */
     ZXN_WRITE_MMU0(40);
     ZXN_WRITE_MMU1(41);

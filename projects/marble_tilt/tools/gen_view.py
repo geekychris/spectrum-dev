@@ -270,137 +270,42 @@ def project_all(level, ri, pi):
     return pts
 
 
-def render(level, ri, pi, gates_open=True):
-    """the host's picture of what the Next draws (PIL; l2poly's fill rule is
-    close but not identical at the edges)"""
-    from PIL import Image, ImageDraw
+def palette9():
+    """the Layer 2 palette as loaded (RGB333) and the border's sky (8-bit)"""
     pal = palette()
-    img = Image.new("RGB", (256, 192))
-    d = ImageDraw.Draw(img)
-    for y in range(192):
-        d.line([(0, y), (255, y)], fill=rgb24(pal[(y + 32) // 16]))
+    # the sky is also the border's (the copper's fallback colour, 8-bit
+    # RRRGGGBB): Layer 2 gets the same colours, the 8-bit ones widened as
+    # the Next does (blue's low bit = either of its two bits)
+    # port: plat_sky's 16 steps from 0x225 to 0x001 in 12-bit colour; the
+    # Next's 8-bit fallback colour has three that fit (navy, dark blue, black)
+    sky8 = [0x25] * 5 + [0x01] * 4 + [0x00] * 7
+    pal9 = [rgb9(c) for c in pal[:128]]
+    for k, c8 in enumerate(sky8):
+        b2 = c8 & 3
+        pal9[k] = (c8 >> 5) << 6 | ((c8 >> 2) & 7) << 3 | (b2 << 1) | (1 if b2 else 0)
+    return pal9, sky8
+
+
+def rgb24_9(c9):
+    return tuple(((c9 >> s) & 7) * 255 // 7 for s in (6, 3, 0))
+
+
+def render(level, ri, pi, gates_open=True):
+    """the host's picture of the board the Next draws: the same polygons
+    through sdk/tools/l2fill.py (l2fill's rows, pixel for pixel)"""
+    from PIL import Image
+    sys.path.insert(0, os.path.join(PROJ, "..", "..", "sdk", "tools"))
+    from l2fill import fill
+    pal, _ = palette9()
+    canvas = [[(y + 32) // 16] * 256 for y in range(192)]
     pts = project_all(level, ri, pi)
     for kind, col, vs in polys(level):
         if kind == (2 if gates_open else 1):
             continue
-        d.polygon([pts[i] for i in vs], fill=rgb24(pal[col]))
+        fill(canvas, [pts[i] for i in vs], col)
+    img = Image.new("RGB", (256, 192))
+    img.putdata([rgb24_9(pal[c]) for row in canvas for c in row])
     return img
-
-
-# ---- the marble (sprite) ----
-MARBLE_SIZES = 10                    # radius 0..4.5 pixels in half pixels
-SHADES = [0x445, 0x667, 0x889, 0xAAB, 0xCCD, 0xDDE, 0xEEF, 0xFFF]   # the original's 0xDDE body, 0xFFF shine
-
-
-def marble_image(r2):
-    """a shaded ball of radius r2 / 2 pixels round (0, 0): [(dx, dy, shade)];
-    port: the original's flat octagon and shine, lit from the top left"""
-    import math
-    r = max(r2 / 2.0, 0.6)
-    out = []
-    for dy in range(-6, 7):
-        for dx in range(-6, 7):
-            d = math.hypot(dx, dy)
-            if d > r + 0.25:
-                continue
-            nz = math.sqrt(max(0.0, 1 - min(1.0, (d / (r + 0.25)) ** 2)))
-            light = max(0.0, (-dx * 0.5 - dy * 0.55) / (r + 0.25) + nz * 0.75)
-            out.append((dx, dy, max(0, min(len(SHADES) - 1, int(light * len(SHADES))))))
-    return out
-
-
-def shadow_image():
-    """render.c's shadow: the octagon of radius 9 on the floor, as pixels
-    round its middle (at the board's middle, level)"""
-    from PIL import Image, ImageDraw
-    v = View(0, 0, FOV, CX, CY)
-    oct8 = [(9, 0), (6, 6), (0, 9), (-6, 6), (-9, 0), (-6, -6), (0, -9), (6, -6)]
-    cx, cy = v.project(0, 1, 0)
-    pts = [v.project(x, 1, z) for x, z in oct8]
-    img = Image.new("L", (32, 32))
-    ImageDraw.Draw(img).polygon([(x - cx + 16, y - cy + 16) for x, y in pts], fill=1)
-    return [(x - 16, y - 16) for y in range(32) for x in range(32) if img.getpixel((x, y))]
-
-
-def write_marble():
-    from geom import a3_cos as c, a3_sin as s
-    v = View(0, 0, FOV, CX, CY)
-    out = ['/* made by tools/gen_view.py: the marble\'s pictures and the shadow (see there) */',
-           '#include "marble_data.h"', '']
-    for i in range(MARBLE_SIZES):
-        px = marble_image(i)
-        out.append(f"static const int8_t img{i}[] = {{ " + ", ".join(f"{a}, {b}, {k}" for a, b, k in px) + ", 127 };")
-    out.append("const int8_t *const marble_images[MARBLE_SIZES] = { " + ", ".join(f"img{i}" for i in range(MARBLE_SIZES)) + " };")
-    sh = shadow_image()
-    out.append("const int8_t marble_shadow[] = { " + ", ".join(f"{a}, {b}" for a, b in sh) + ", 127 };")
-    out.append("const uint16_t marble_shades[MARBLE_SHADES] = { " + ", ".join(f"0x{rgb9(c12):03X}" for c12 in SHADES) + " };")
-    with open(os.path.join(PROJ, "src", "marble_data.c"), "w") as f:
-        f.write("\n".join(out) + "\n")
-    with open(os.path.join(PROJ, "src", "marble_data.h"), "w") as f:
-        f.write(f'''/* made by tools/gen_view.py: the marble sprite's pictures and the camera */
-#ifndef MARBLE_DATA_H
-#define MARBLE_DATA_H
-#include <stdint.h>
-#define MARBLE_SIZES  {MARBLE_SIZES}             /* radius in half pixels */
-#define MARBLE_SHADES {len(SHADES)}
-#define MARBLE_PAL    240           /* sprite palette entries of the shades */
-#define MARBLE_FOV    {FOV}
-#define MARBLE_CX     {CX}
-#define MARBLE_CY     {CY}
-#define MARBLE_CCP    {c(View.CAM_PITCH)}L        /* the camera's pitch: cos, sin (16.16) */
-#define MARBLE_CSP    {s(View.CAM_PITCH)}L
-extern const int8_t *const marble_images[MARBLE_SIZES];   /* dx, dy, shade ... 127 */
-extern const int8_t marble_shadow[];                      /* dx, dy ... 127 */
-extern const uint16_t marble_shades[MARBLE_SHADES];
-#endif
-''')
-
-
-# ---- sprite patterns (bank SPR_BANK): 0 the marble (made at run time),
-# 1..9 the tilt gauge (48 x 48, render.c hud()), 10 its dot, then the
-# original's 16 x 16 font's glyphs for GLYPHS (the title, the clock)
-SPR_BANK = 46
-GLYPHS = "MARBLETIHOUGNP0123456789!:"
-INK, GAUGE_RING, GAUGE_CROSS, GAUGE_DOT = 138, 139, 140, 141     # sprite palette entries
-
-
-def font16():
-    import re
-    src = open(os.path.join(HERE, "orig", "amiga3d", "a3d_font16.h")).read()
-    rows = re.findall(r"\{ (0x[0-9A-F]{4}(?:, 0x[0-9A-F]{4}){15}) \}", src)
-    return [[int(v, 16) for v in r.split(", ")] for r in rows]
-
-
-def sprite_bank():
-    import math
-    T = 0xE3
-    pats = [bytearray([T] * 256) for _ in range(64)]
-    big = [[T] * 48 for _ in range(48)]
-    for y in range(48):
-        for x in range(48):
-            d = math.hypot(x - 23.5, y - 23.5)
-            if abs(d - 18) < 0.8:
-                big[y][x] = GAUGE_RING
-            elif d < 18 and (abs(x - 23.5) < 0.6 or abs(y - 23.5) < 0.6):
-                big[y][x] = GAUGE_CROSS
-    for k in range(9):
-        ox, oy = (k % 3) * 16, (k // 3) * 16
-        for y in range(16):
-            for x in range(16):
-                pats[1 + k][y * 16 + x] = big[oy + y][ox + x]
-    for y in range(16):
-        for x in range(16):
-            if math.hypot(x - 7.5, y - 7.5) < 3.2:
-                pats[10][y * 16 + x] = GAUGE_DOT
-    f = font16()
-    for i, ch in enumerate(GLYPHS):
-        g = f[ord(ch) - 32]
-        for y in range(16):
-            for x in range(16):
-                if g[y] & (0x8000 >> x):
-                    pats[11 + i][y * 16 + x] = INK
-    with open(os.path.join(PROJ, "gfx", f"bank_{SPR_BANK}.bin"), "wb") as fo:
-        fo.write(b"".join(bytes(p) for p in pats))
 
 
 def main():
@@ -482,16 +387,7 @@ def main():
            '#include "view_data.h"', '']
     out.append("const uint16_t view_lists[8] = { " + ", ".join(f"0x{a:04X}" for a in starts) + " };")
     out.append("const uint8_t view_bump_page[8] = { " + ", ".join(str(bump_pages.get(lv, 0)) for lv in range(8)) + " };")
-    # the sky is also the border's (the copper's fallback colour, 8-bit
-    # RRRGGGBB): Layer 2 gets the same colours, the 8-bit ones widened as
-    # the Next does (blue's low bit = either of its two bits)
-    # port: plat_sky's 16 steps from 0x225 to 0x001 in 12-bit colour; the
-    # Next's 8-bit fallback colour has three that fit (navy, dark blue, black)
-    sky8 = [0x25] * 5 + [0x01] * 4 + [0x00] * 7
-    pal9 = [rgb9(c) for c in pal[:128]]
-    for k, c8 in enumerate(sky8):
-        b2 = c8 & 3
-        pal9[k] = (c8 >> 5) << 6 | ((c8 >> 2) & 7) << 3 | (b2 << 1) | (1 if b2 else 0)
+    pal9, sky8 = palette9()
     out.append("const uint16_t view_palette[128] = {")
     for i in range(0, 128, 16):
         out.append("    " + ", ".join(f"0x{c:03X}" for c in pal9[i:i + 16]) + ",")

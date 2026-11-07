@@ -141,5 +141,30 @@ isq_next:
     push ix
     pop hl
     pop ix
+    ; the last round's trial (2 root + 1) needs 17 bits once root reaches
+    ; 2^15, and BC keeps 16: the root can come out one too big there (never
+    ; too small). So: if root * root > v, root - 1.
+    push hl                     ; SP: root, return, v
+    ld d,h
+    ld e,l
+    call l_mulu_32_16x16        ; DEHL = root * root
+    ld b,h
+    ld c,l
+    ld hl,4
+    add hl,sp                   ; -> v
+    ld a,(hl)
+    sub c
+    inc hl
+    ld a,(hl)
+    sbc a,b
+    inc hl
+    ld a,(hl)
+    sbc a,e
+    inc hl
+    ld a,(hl)
+    sbc a,d                     ; carry: v < root * root
+    pop hl
+    ret nc
+    dec hl
     ret
 

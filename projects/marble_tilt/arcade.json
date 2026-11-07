@@ -1,0 +1,7 @@
+{
+  "title": "Marble Tilt",
+  "ready": "mt: ready",
+  "description": "Tilt a floating 3D maze to roll the marble to the exit against the clock: holes, gates, bumpers and sand over eight levels.",
+  "controls": "Q/A/O/P or cursor tilt, ENTER pause, B autopilot, H help, Kempston",
+  "picture": "screenshots/play.png"
+}

@@ -22,4 +22,5 @@ void hud_big(uint8_t group, int16_t x, int16_t y, const char *s, uint8_t ink);
 void hud_big_centre(uint8_t group, int16_t y, const char *s, uint8_t ink);
 void hud_gauge(fix roll, fix pitch);     /* the tilt gauge at the top right */
 void hud_gauge_hide(void);
+void hud_clip(uint8_t ybot);            /* sprites shown on lines 0..ybot only */
 #endif

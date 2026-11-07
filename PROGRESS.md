@@ -193,6 +193,20 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   breakpoint. SDK: `tmap` (tile maps), `plat` (platformer collision, the
   original's), `cellspr48`, `tools/levelpack.py`; tests in projects/sdktestroom.
 
+- **Marble Tilt** (Next): the original's amiga3d rules unchanged on 16.16
+  (`fix16.h`, the engine's fixed point bit for bit: the original's whole
+  autopilot game hashes as in its tests/vectors.h, on the Next and the host);
+  the 3D board from the original's camera and geometry projected on the host
+  for each of the 11 x 11 tilt steps, filled on 256x192 Layer 2 (`l2fill`,
+  pixel-exact against its host model), cached in spare banks and shown by
+  NextReg 0x12, new ones drawn in each frame's spare time; the marble a
+  sprite cut by the board's row-coded colours, its shadow from a half-bright
+  sprite palette; tilemap HUD, sprite-zoomed big text, copper sky; effects
+  from the original's synthesis settings + a port tune on TurboSound; high
+  scores. Loop 50 fps, rules 25 ticks/s, boards 6-8/s while tilting. SDK:
+  fix16, l2fill (+ tools/l2fill.py), isqrt32 fix, spr_pattern by DMA;
+  projects/fixfilltest.
+
 ### Cleanup (2026-11-06)
 
 SDK modules pulled out of the games, each with a test (sdktest,

@@ -19,6 +19,7 @@
 | `tools/nextpic.py` | pictures -> Layer 2 banks (320 or 256 mode) + the `BANK_n` asm + a palette, sprite sheets -> patterns (16x16 or 32x32 quads); also a Python module (`rgb9`, `l2_bytes`, `write_banks`, `quad_patterns`; for pictures made in Python: `quantize`, `nearest`, `piece` / `rle_columns` (column RLE), `group_patterns`; boing_pinball's and spectral_keep's gen_gfx.py use it) |
 | `tools/aystream.py` | AY register streams for `aystream.h`: an `Ay` you set tones/noise on frame by frame, `encode` keeps only the changes and runs of quiet frames |
 | `tools/levelpack.py` | ASCII rooms (a `size`, a `legend` of character -> tile id, `room NAME` + rows) -> zxrle-packed C maps, names and a header for `tmap_load`; `parse` / `pack_rooms` as a module (`--help`) |
+| `tools/l2fill.py` | `l2fill.h`'s polygons on the host, pixel for pixel: host pictures a test can compare the Next's Layer 2 with |
 | `tools/zxrle.py` | `pack` / `unpack` for `zxrle.h` (PackBits-style runs and literals) |
 | `tools/fatimg.py` | SD card images: read a FAT12/16 image (with or without an MBR) into a tree, change it (`drop`, `put`), write a FAT16 image with an MBR (8.3 + long names, reproducible); `ls` / `cat` from the command line |
 | `tools/nextbasic.py` | text -> tokenised (Next)BASIC (as NextZXOS stores it, dot commands kept as text), +3DOS headers for programs and code (`plus3dos_basic`, `plus3dos_code`) |
@@ -57,6 +58,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | `gauge48.h` | `gauge48.c` | a bar gauge (fuel, energy) on a character row: only the changed pixels redrawn |
 | `attrtint.h` | `attrtint.c`, `attrtint_capture.asm` | colour for moving objects: tint the plain (open-sky) cells under them, restore them after; scenery cells keep their colours (a 96-byte bitmap of plain cells) |
 | `zxgame.h` | `spr32.asm` | `spr32_shift`: shift a 32-pixel-wide image into place (draw once, blit anywhere without 8 pre-shifted copies) |
+| `fix16.h` | `fix16.c`, `fix16.asm`, `fix16_tab.c` | the amiga3d engine's 16.16 fixed point bit for bit (`fmul`, `fdiv` in Z80N asm, `fhypot`, `fsqrt`, `a3_sin`, `a3_angle`): amiga3d games' rules ported unchanged (Marble Tilt's whole-game hash matches its tests); `fix16_model.h` + `tools/test_fix16.c` check the asm's steps on the host; test: `projects/fixfilltest` |
 | `font5.h` | `font5.c` | a 5x7 font for drawing text yourself (Layer 2, a dot-matrix display), `font5_width` |
 | `nextgfx.h` | `next/nextgfx.c` | Next: 28 MHz, Next registers, hardware sprites (`spr_show_quad` 32x32, patterns from memory pages), palettes (`pal_load`), TurboSound chip select |
 | | `next/l2wide.c` | Layer 2 320x256 (`l2w_*`): mode setup, column mapping through any MMU slot, fills, 5x7 text with a dot-matrix option |
@@ -80,6 +82,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktest48gfx` (the 48K dr
 | `persp.h` | `next/persp.asm`, `next/persp.c` | perspective for pseudo-3D: `persp_scale(z)` = fov x 4096 / z (one division a depth, 16 rounds), then `persp_mul`, `persp_x1/y1`, `persp_xs`, `persp_xy` (a MUL a coordinate, clamped for l2poly); inline C on a host compiler. Test: `projects/geomtest` |
 | `l2wpoly.h` | `next/l2wpoly.c` | convex polygons and rectangles on 320x256 column-major planes (Layer 2 or a copy in other pages) as vertical spans (DMA for long ones), clipped, optionally writing a depth key per pixel into a depth plane; plane-to-plane copies and fills; through any two MMU slots (`l2wp_slots`) |
 | `nextsprl.h` | `next/nextsprl.c` | the frame's sprites as one list of 16x16 4-bit patterns (128 slots) with palette offsets, sent by DMA, leftovers hidden; `spl_zmask` cuts a pattern where `l2wpoly`'s depth plane is nearer (sprites behind Layer 2 geometry) |
+| `l2fill.h` | `next/l2fill.asm` | Layer 2 256x192: convex polygons for scenes of many small ones (Marble Tilt's board): edges stepped into a row table, short spans unrolled, long ones by DMA, any `l2_back` bank; test: `projects/fixfilltest` |
 | `isosort.h` | `isosort.c` | isometric draw order for boxes (separating axis + depth key, then a depth-first sort); `iso_behind` for "is this scenery in front of the sprite" |
 
 `zxlog` and `zxtext` are linked into every z88dk project.

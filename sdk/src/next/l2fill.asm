@@ -149,8 +149,8 @@ scmp:
 sc_diff:                        ; signs differ: HL < DE if HL is negative
     ld a,h
     rla                         ; carry = HL's sign
-    ld a,1
-    or a                        ; NZ (keeps the carry)
+    ld a,0
+    inc a                       ; NZ (inc keeps the carry)
     ret
 
 ; one edge, (f_tx, f_ty) above (f_bx, f_by), into the row table's column f_col2

@@ -211,6 +211,19 @@ Details: docs/emulator-harness.md.
   game crashed into the ROM a few frames later). Guard widths of 0 in asm loops.
 - zsdcc pushes a char argument as one byte (`push af; inc sp`): an asm function with
   (int16, char, ptr, char, char) finds them at sp+2, +4, +5, +7, +8.
+- zsdcc got `v += v >= 0 ? K / 2 : -(K / 2); return v / K;` wrong for a long `v`
+  (0 came out as 2); Marble Tilt's view_step rounds with plain loops instead.
+- `l2_init()`, `l2_clear()` and `dma_*_banks()` work through MMU slots 0-1 and put the
+  ROM back: map banked code at 0x0000 after them (Marble Tilt's main.c).
+- With the ULA off, ZEsarUX still shows the ULA's border colour (ULA palette entry
+  16 + border) unless that entry is the transparency colour; set it to 0xE3
+  (`pal_set8(0, 16, 0xE3)`) and the border shows the fallback colour (NextReg 0x4A),
+  as on the Next.
+- `run_until` stops on the instruction that starts the log line: `run(1)` before
+  parsing the line. A test's `write_mem` is not in an input recording: anything it
+  changes (even only log output, which costs time) breaks the replay.
+- Code that maps Layer 2 pages into a slot must check its data before putting the
+  slot back (a list read through slot 2 read 0 after the restore: boards half drawn).
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 - zsdcc: `long + 0x8000` became unsigned (`0x8000` is an unsigned int), so `(WORD)((x + 0x8000) >> 16) > 256`
   was true for x = -0.7: write `0x8000L`, and compare through a local. A function returning a pointer found

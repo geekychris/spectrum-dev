@@ -79,8 +79,21 @@ static void to_title(void)
     set_state(TS_TITLE);
 }
 
+/* the original's determinism test (tests/test_cases.c): the autopilot's
+   whole game from level 1, whose state hash is its tests/vectors.h's.
+   Runs at start-up while T is held (test.py) */
+static void selftest(void)
+{
+    int k;
+    mt_new_game(&game, 1, 1);
+    for (k = 0; k < 6000 && !game.over && !game.won; k++) mt_tick(&game, mt_bot(&game));
+    zx_log("mt: selftest ticks=%d level=%d won=%d score=%ld hash=%08lX\n", k, game.level, game.won, game.score,
+           mt_state_hash(&game));
+}
+
 void game_init(void)
 {
+    if (key_down(IN_KEY_SCANCODE_t)) selftest();
     tl.start_level = 1;
     hs_init(400);
     to_title();
@@ -248,6 +261,7 @@ static void draw_hiscores(uint8_t row)
 
 static void draw_title(uint8_t blink)
 {
+    hud_clip(tl.title_page ? 159 : 199);
     hud_big(BIG_TITLE, 48, 12, "MARBLE", TX_YELLOW);
     hud_big(BIG_CLOCK, 96, 48, "TILT", TX_CYAN);
     if (tl.title_page) {
@@ -292,6 +306,7 @@ static void draw_play(uint8_t blink)
     uint8_t clock_ink = game.time_left < 250 && (game.tick & 8) ? TX_RED : TX_WHITE;
     if (hud_dirty) {
         hud_clear();
+        hud_clip(255);
         shown_secs = shown_clock = shown_falls = -1;
         shown_score = -1;
         shown_gates = shown_auto = shown_msg = 2;
@@ -380,7 +395,7 @@ void game_frame(uint8_t frames)
 {
     uint8_t steps;
     fps_flips += view_flip();                    /* a board that is ready */
-    if (tl.help) view_hide_marble();
+    if (tl.help || tl.state == TS_OVER || tl.state == TS_ENTRY) view_hide_marble();   /* behind the panels */
     else view_marble(&game);
     if (tl.state != TS_ENTRY && !tl.help) hud_gauge(game.roll, game.pitch);
     input();
@@ -409,8 +424,9 @@ void game_frame(uint8_t frames)
     fps_frames += frames;
     while (frames--) snd_tick();
     if (fps_frames >= 100) {
-        zx_log("mt: perf loops=%u ticks=%u frames=%u flips=%u drawn=%u cached=%u board=%u\n", fps_loops,
-               fps_ticks, fps_frames, fps_flips, view_draws, view_hits, view_board_lines);
+        zx_log("mt: perf loops=%u ticks=%u frames=%u flips=%u drawn=%u cached=%u board=%u ay=%u,%u,%u,%u\n",
+               fps_loops, fps_ticks, fps_frames, fps_flips, view_draws, view_hits, view_board_lines, snd_reg(0, 7),
+               snd_reg(0, 8) & 15, snd_reg(1, 7), snd_reg(1, 8) & 15);
         fps_flips = 0;
         fps_frames = fps_loops = fps_ticks = 0;
     }

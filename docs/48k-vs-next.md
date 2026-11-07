@@ -58,7 +58,7 @@ the CPU is slow, so the work goes into drawing less:
   leaves no room for the variables above 0x8000, so they go below (in
   contended memory: hot loops are in assembly)
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -99,6 +99,12 @@ the 48K:
   showing the ball's depth is palette entries, one set per depth band of
   the walls. Its rules are bit-exact with the Amiga's (the original's tests
   run in the game)
+- Marble Tilt keeps an amiga3d game's 16.16 rules exactly (`fix16.h`,
+  `MUL` for the 64-bit products) and its live 3D board: the projection is
+  done on the host for every tilt step, the Next only fills polygons, keeps
+  finished boards in spare banks and shows one by pointing Layer 2's start
+  bank (NextReg 0x12) at it; new boards are drawn in each frame's spare
+  time so the marble and the rules never wait
 
 ## Things to know
 

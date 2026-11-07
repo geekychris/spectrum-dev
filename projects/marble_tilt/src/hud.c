@@ -3,7 +3,7 @@
  * help pages in render.c) on the Next's other layers, so the board on
  * Layer 2 is only drawn when it changes:
  *
- *   the tilemap (over everything): the original's 8 x 8 text, here in the
+ *   the tilemap (over Layer 2, under the sprites): the original's 8 x 8 text, in the
  *     Spectrum's ROM font with the original's drop shadow, in the
  *     original's pens; panels
  *   sprites at twice their size: the original's 16 x 16 font for its big
@@ -170,6 +170,17 @@ void hud_gauge(fix roll, fix pitch)
     for (k = 0; k < 9; k++) spr_put(S_GAUGE + k, 294 - 24 + (k % 3) * 16, 26 - 24 + (k / 3) * 16, 1 + k, 0, 0);
     spr_put(S_GAUGE + 9, 294 - 8 + (int16_t)((roll * 15) / 7864L), 26 - 8 - (int16_t)((pitch * 15) / 7864L),
             10, 0, 0);
+}
+
+/* sprites only above display line ybot + 1 (the clip window): the marble
+   stays off the title's panels */
+void hud_clip(uint8_t ybot)
+{
+    ZXN_WRITE_REG(0x1C, 0x02);               /* reset the sprite clip index */
+    ZXN_WRITE_REG(0x19, 0);
+    ZXN_WRITE_REG(0x19, 159);                /* x 0..319 (in pairs over the border) */
+    ZXN_WRITE_REG(0x19, 0);
+    ZXN_WRITE_REG(0x19, ybot);
 }
 
 void hud_gauge_hide(void)

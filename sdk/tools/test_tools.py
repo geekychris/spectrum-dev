@@ -1,5 +1,5 @@
 """Tests for the SDK's tools (run by ./zx selftest): mod2ay.py, nextpic.py, aystream.py, zxrle.py,
-fatimg.py, nextbasic.py."""
+fatimg.py, nextbasic.py; and fix16's C model on the host (test_fix16.c)."""
 import os
 import subprocess
 import sys
@@ -156,6 +156,16 @@ h = plus3dos_basic(dot, autostart=10)
 check("nextbasic: +3DOS header (signature, length, autostart, checksum)",
       h[:8] == b"PLUS3DOS" and int.from_bytes(h[11:15], "little") == len(h) and h[18:20] == b"\x0a\x00"
       and h[127] == sum(h[:127]) & 0xFF)
+
+# fix16: the Z80 code's C model (fmul, fdiv, a3_angle from 16 x 16 products) against 64-bit, 2M pairs
+with tempfile.TemporaryDirectory() as tmp:
+    exe = os.path.join(tmp, "test_fix16")
+    src = os.path.join(ROOT, "sdk")
+    r = subprocess.run(["cc", "-O2", "-DFIX16_Z80_C", "-I", os.path.join(src, "include"), os.path.join(HERE, "test_fix16.c"),
+                        os.path.join(src, "src", "fix16.c"), os.path.join(src, "src", "fix16_tab.c"), "-o", exe],
+                       capture_output=True, text=True)
+    out = subprocess.run([exe], capture_output=True, text=True).stdout if r.returncode == 0 else r.stderr
+    check("fix16: the asm's C model = the amiga3d engine's 64-bit fmul / fdiv / a3_angle", "0 mismatches" in out, out[-200:])
 
 print(f"{'FAIL' if failures else 'PASS'}: sdk tools")
 sys.exit(1 if failures else 0)

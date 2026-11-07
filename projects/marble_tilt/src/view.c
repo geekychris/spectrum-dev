@@ -1,20 +1,27 @@
 /*
  * view.c - Marble Tilt's picture on the Next: the original's render.c.
  *
- * The board: tools/gen_view.py worked out on the host where every corner
- * of the board lands on the screen for each tilt step the original eases
- * through (its camera and its tilt drawn double, geom.py), and each level's
- * polygons in draw order. Here a board is drawn only when what it shows
- * changes (the tilt steps, the gates, the level): the void's bands, then
- * the polygons by l2poly, into the back buffer, shown at the next frame.
+ * The board: tools/gen_view.py works out on the host where every corner of
+ * the board lands on the screen for each tilt step the original eases
+ * through (its camera, its tilt drawn double: geom.py), and each level's
+ * polygons in draw order. port: the Next fills those polygons (l2fill)
+ * instead of projecting them; a board takes about three frames of the
+ * CPU, so
+ *   - boards are kept: a cache of Layer 2 screens (four on a 1 MB Next,
+ *     25 on a 2 MB one), shown by pointing NextReg 0x12 at them; a tilt
+ *     seen before costs nothing;
+ *   - a new board is drawn in the time left over in each frame (the
+ *     marble, the rules and the text keep their rates), into a screen
+ *     that isn't shown, and shown when it is done; one that is done after
+ *     the tilt moved on is still shown if it lies on the way.
  *
- * The marble: a hardware sprite, projected here with the same camera at
- * the tilt drawn. port: the original sorts it with the walls; here its
- * pattern is made each frame from the Layer 2 pixels under it: a pixel of
- * a block from a nearer board row hides it (the blocks' colours encode
- * their row, see gen_view.py), as does anything but the void when it has
- * dropped below the board. Its shadow (the original's flat dark octagon)
- * takes the floor's own colour from a darker sprite palette.
+ * The marble: a hardware sprite placed by interpolating in the shown
+ * board's grid (projected properly while it falls). port: the original
+ * sorts it with the walls; here its pattern is made each time it moves
+ * from the Layer 2 pixels under it: a block from a nearer board row hides
+ * it (the blocks' colours encode their row), as does anything but the void
+ * once it has dropped below the board. Its shadow (the original's flat
+ * dark octagon) takes the colour under it from a darker sprite palette.
  */
 #include <string.h>
 #include <arch/zxn.h>
@@ -46,8 +53,8 @@ static uint16_t slot_key[MAX_SLOTS], slot_used[MAX_SLOTS], use_clock;
 static uint8_t shown = 0xFF, pending = 0xFF, drawing = 0xFF, stage;
 static uint16_t want_key = NO_KEY, draw_key;
 static const uint8_t *draw_p;
-uint8_t view_roll, view_pitch;
-uint8_t view_trace;                      /* log each board shown (set by the test, through memory) */           /* the tilt steps (0..10) of the board shown */
+uint8_t view_roll, view_pitch;          /* the tilt steps (0..10) of the board shown */
+uint8_t view_trace;                      /* 1: log each board shown (profiling, set through memory) */
 
 static uint16_t key_of(uint8_t level, uint8_t gates, uint8_t tilt)
 {
@@ -416,4 +423,8 @@ void view_marble(const MTGame *g)
     spr_show(0, mx - 8 + 32, my - 8 + 32, 0, 0);
 }
 
-void view_hide_marble(void) { spr_hide(0); }
+void view_hide_marble(void)
+{
+    spr_hide(0);
+    m_slot = 0xFF;                           /* shown again at the next view_marble */
+}
