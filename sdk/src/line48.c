@@ -9,6 +9,12 @@ extern const uint8_t *pl_ptr;
 extern void line_core(void);
 extern void lp_core(void);
 extern void pl_core(void);
+extern uint8_t pd_x, pd_y, ps_n;
+extern const uint8_t *pd_ptr;
+extern poly_at *ps_on;
+extern const poly_at *ps_want;
+extern void pd_core(void);
+extern void ps_core(void);
 
 #define ROW_LO ((uint8_t *)0xF200)
 #define ROW_HI ((uint8_t *)0xF300)
@@ -96,4 +102,44 @@ void plot_list(const uint8_t *xy, uint8_t n)
     pl_ptr = xy;
     pl_n = n;
     pl_core();
+}
+
+void poly_compile(const vec_pt *pts, uint8_t n, uint8_t *out)
+{
+    uint8_t i;
+    out[0] = (uint8_t)pts[0].x;
+    out[1] = (uint8_t)pts[0].y;
+    out[2] = n;
+    out += 3;
+    for (i = 0; i < n; i++) {
+        const vec_pt *a = pts + i, *b = i + 1 < n ? a + 1 : pts;
+        int8_t dx = b->x - a->x, dy = b->y - a->y;
+        uint8_t dir = 0, maj, min;
+        if (dx < 0) { dx = -dx; dir = 1; }
+        if (dy < 0) { dy = -dy; dir += 2; }
+        if ((uint8_t)dy > (uint8_t)dx) { maj = dy; min = dx; dir += 4; }   /* y major */
+        else { maj = dx; min = dy; }
+        out[0] = dir << 1;          /* the loop (line48.asm loop_tab) */
+        out[1] = maj;               /* pixels: the last is the next edge's first */
+        out[2] = maj >> 1;
+        out[3] = maj;
+        out[4] = min;
+        out += 5;
+    }
+}
+
+void poly_draw(uint8_t x, uint8_t y, const uint8_t *poly)
+{
+    pd_x = x;
+    pd_y = y;
+    pd_ptr = poly;
+    pd_core();
+}
+
+void poly_sync(poly_at *shown, const poly_at *want, uint8_t n)
+{
+    ps_on = shown;
+    ps_want = want;
+    ps_n = n;
+    ps_core();
 }

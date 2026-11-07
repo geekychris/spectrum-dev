@@ -43,3 +43,15 @@ void vec_rot_table(const vec_pt *src, uint8_t n, uint16_t scale, uint8_t bits, v
         dst += n;
     }
 }
+
+void vec_poly_table(const vec_pt *src, uint8_t n, uint16_t scale, uint8_t bits, uint8_t *dst)
+{
+    vec_pt tmp[16];
+    uint16_t steps = 1 << bits, i;
+    uint8_t shift = 8 - bits;
+    for (i = 0; i < steps; i++) {
+        vec_rotate(src, n, (uint8_t)(i << shift), scale, tmp);
+        poly_compile(tmp, n, dst);
+        dst += POLY_BYTES(n);
+    }
+}

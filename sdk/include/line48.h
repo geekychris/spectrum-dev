@@ -9,6 +9,16 @@
  *   line_poly(cx, cy, pts, n, 1);  closed polygon of int8 offsets around (cx, cy)
  *   plot_list(xy, n);              n points from x,y byte pairs (y >= 192 skipped)
  *
+ * Shapes drawn every frame can be compiled once (each edge's octant, length
+ * and error worked out in advance: ~200 T-states an edge instead of ~450):
+ *
+ *   uint8_t rock[POLY_BYTES(8)];
+ *   poly_compile(pts, 8, rock);    closed polygon, the same pixels as line_poly
+ *   poly_draw(cx, cy, rock);
+ *   poly_sync(shown, want, n);     XOR display list: each entry {x, y, poly}
+ *                                  that differs from the shown one is drawn
+ *                                  off where it was and on where it is wanted
+ *
  * line_poly wraps around the screen edges (x mod 256, y mod 192): a shape
  * half off the right edge shows its other half on the left, which is what a
  * wrap-around playfield wants. Offsets must stay within -32..+32 of the
@@ -45,5 +55,11 @@ extern uint8_t line_clip(int16_t x0, int16_t y0, int16_t x1, int16_t y1);
 extern void line_poly(uint8_t cx, uint8_t cy, const vec_pt *pts, uint8_t n, uint8_t closed);
 /* n pixels from x,y pairs; pairs with y >= 192 are skipped */
 extern void plot_list(const uint8_t *xy, uint8_t n);
+
+#define POLY_BYTES(n) (3 + 5 * (n))
+typedef struct { uint8_t x, y; const uint8_t *poly; } poly_at;   /* poly 0 = none */
+extern void poly_compile(const vec_pt *pts, uint8_t n, uint8_t *out);
+extern void poly_draw(uint8_t x, uint8_t y, const uint8_t *poly);
+extern void poly_sync(poly_at *shown, const poly_at *want, uint8_t n);
 
 #endif

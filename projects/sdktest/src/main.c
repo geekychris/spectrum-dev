@@ -49,6 +49,19 @@ static void line_tests(void)
     line_poly(190, 128, octagon, 8, 1);
     line_poly(196, 132, octagon, 8, 1);
     line_poly(220, 60, arrow, 5, 0);                             /* open polyline */
+    {
+        static uint8_t oct_c[POLY_BYTES(8)];
+        static poly_at shown[3], want[3];
+        poly_compile(octagon, 8, oct_c);
+        line_poly(60, 50, octagon, 8, 1);
+        poly_draw(60, 50, oct_c);                                /* the same pixels: gone */
+        want[0].x = 100; want[0].y = 40; want[0].poly = oct_c;
+        want[2].x = 30; want[2].y = 30;                          /* no polygon */
+        poly_sync(shown, want, 3);
+        want[0].x = 104; want[0].y = 44;
+        poly_sync(shown, want, 3);                               /* moved */
+        poly_sync(shown, want, 3);                               /* nothing changed */
+    }
     vec_rotate(arrow, 5, 32, 205, rot);
     line_mode = LINE_OR;
     line_poly(160, 60, rot, 5, 1);

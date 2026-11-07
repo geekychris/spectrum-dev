@@ -137,6 +137,7 @@ def model_lines_screen():
     for c in ((128, 2), (190, 128), (196, 132), (190, 128), (196, 132)):
         model_poly(scr, *c, OCTAGON, True, "xor")
     model_poly(scr, 220, 60, ARROW, False, "xor")
+    model_poly(scr, 104, 44, OCTAGON, True, "xor")               # poly_sync's result
     model_poly(scr, 160, 60, model_rotate(ARROW, 32, 205), True, "or")
     return scr
 
@@ -148,7 +149,7 @@ def check_lines(e):
     text = {p for p in got if 32 <= p[0] < 48 and 3 <= p[1] < 11}
     want = model_lines_screen()
     diff = (got - text) ^ want
-    check("line48: every line, clip, polygon and point matches the model", not diff,
+    check("line48: every line, clip, polygon, compiled polygon, sync and point matches the model", not diff,
           f"{len(diff)} pixels differ, e.g. {sorted(diff)[:8]}")
     check("line48: wrapped polygon shows at the top and the bottom",
           any(y < 20 for x, y in want if 110 < x < 150) and any(y > 180 for x, y in want if 110 < x < 150))
