@@ -68,7 +68,7 @@ are worked out once at start-up (the ship's for each of 128 angles).
 The logic runs at a fixed 50 Hz (`frame_wait()` returns how many frames
 passed and the game catches up), so it plays at the original's speed
 whatever the frame rate. Frame rate (`rb: fps=` in the log, measured by the
-test's bot, which fires all the time): 30-39 fps with a few rocks, 12-25
+test's bot, which fires all the time): 30-40 fps with a few rocks, 12-25
 with 8-17 rocks and explosions. When a frame overruns,
 the next one redraws only half of the rocks (they take turns), so the ship
 and the shots keep their rate.

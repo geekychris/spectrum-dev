@@ -33,7 +33,7 @@ the CPU is slow, so the work goes into drawing less:
 - tables built at start-up can go in the RAM below the program
   (0x5D00-0x7FFF once the BASIC loader is done), as Rock Blaster's do
 - the game logic runs at a fixed 50 Hz while the screen updates when it can
-  (Nova 35-48 fps, Frank about 19, Rock Blaster 12-39), so the games play at
+  (Nova 35-48 fps, Frank about 19, Rock Blaster 12-40), so the games play at
   the original speed
 - sound on the beeper (which stops the CPU), or on the AY on a 128K (Rock
   Blaster plays the original's MOD there through `modplay`)
