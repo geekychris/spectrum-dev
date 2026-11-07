@@ -23,6 +23,11 @@
  *                                top-right, bottom-left, bottom-right), with a
  *                                drop shadow 2 pixels down-right in pen
  *                                shadow (0: none)
+ *   tm_glyphnx(tile, glyph, n, fg, shadow, off)
+ *                                a glyph at n times its size (n 1..4) as n x n
+ *                                tiles (row by row), with a drop shadow off
+ *                                pixels down-right in pen shadow (0: none);
+ *                                n = 1 with a shadow gives a shadowed font
  *   tm_put(col, row, tile, pal)  one cell; pal = palette offset 0..15
  *   tm_print(col, row, s, first, pal)
  *                                a string, character c -> tile first + c - 32
@@ -43,6 +48,7 @@ extern void tm_init(void);
 extern void tm_def(uint8_t tile, const uint8_t *defs, uint8_t n);
 extern void tm_font(uint8_t tile, const uint8_t *font, uint8_t n, uint8_t fg, uint8_t bg);
 extern void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow);
+extern void tm_glyphnx(uint8_t tile, const uint8_t *glyph, uint8_t n, uint8_t fg, uint8_t shadow, uint8_t off);
 extern void tm_put(uint8_t col, uint8_t row, uint8_t tile, uint8_t pal);
 extern void tm_print(uint8_t col, uint8_t row, const char *s, uint8_t first, uint8_t pal);
 extern void tm_fill(uint8_t col, uint8_t row, uint8_t w, uint8_t h, uint8_t tile, uint8_t pal);

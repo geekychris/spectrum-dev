@@ -78,20 +78,22 @@ void tm_font(uint8_t tile, const uint8_t *font, uint8_t n, uint8_t fg, uint8_t b
     }
 }
 
-void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow)
+void tm_glyphnx(uint8_t tile, const uint8_t *glyph, uint8_t n, uint8_t fg, uint8_t shadow, uint8_t off)
 {
-    static uint8_t px[16][16];
-    uint8_t *d, x, y, t;
+    static uint8_t px[32][32];
+    static uint8_t def[32];
+    uint8_t *d, x, y, t, size;
+    if (n < 1 || n > 4) return;
+    size = n << 3;
     memset(px, 0, sizeof(px));
-    for (y = 0; y < 16; y++)
-        for (x = 0; x < 16; x++)
-            if (glyph[y >> 1] & (0x80 >> (x >> 1))) {
-                if (shadow && x < 14 && y < 14 && !px[y + 2][x + 2]) px[y + 2][x + 2] = shadow;
+    for (y = 0; y < size; y++)
+        for (x = 0; x < size; x++)
+            if (glyph[y / n] & (0x80 >> (x / n))) {
+                if (shadow && x + off < size && y + off < size && !px[y + off][x + off]) px[y + off][x + off] = shadow;
                 px[y][x] = fg;
             }
-    for (t = 0; t < 4; t++) {
-        static uint8_t def[32];
-        uint8_t ox = (t & 1) << 3, oy = (t & 2) << 2;
+    for (t = 0; t < n * n; t++) {
+        uint8_t ox = (t % n) << 3, oy = (t / n) << 3;
         d = def;
         for (y = 0; y < 8; y++)
             for (x = 0; x < 8; x += 2) *d++ = px[oy + y][ox + x] << 4 | px[oy + y][ox + x + 1];
@@ -99,6 +101,11 @@ void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow)
         memcpy(def_ptr(tile + t), def, 32);
         map_out();
     }
+}
+
+void tm_glyph2x(uint8_t tile, const uint8_t *glyph, uint8_t fg, uint8_t shadow)
+{
+    tm_glyphnx(tile, glyph, 2, fg, shadow, 2);
 }
 
 void tm_put(uint8_t col, uint8_t row, uint8_t tile, uint8_t pal)
