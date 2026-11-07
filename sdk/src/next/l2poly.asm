@@ -416,73 +416,9 @@ bd_y1:
     jp z,bd_done
     ld (bd_nr),a
     ld (bd_left),a
-    ; only the rails the spans use are set up and stepped: bd_map[rail] =
-    ; its number among them (in order), 0xFF if no span uses it
-    ld b,a
-    ld hl,bd_map
-bd_m0:
-    ld (hl),0xFF
-    inc hl
-    djnz bd_m0
-    ld l,(ix+13)
-    ld h,(ix+14)
-    ld a,(ix+15)
-    or a
-    jp z,bd_done
-    ld b,a
-    ld d,0
-bd_m1:
-    ld e,(hl)                   ; left rail
-    inc hl
-    ld c,(hl)                   ; right rail
-    inc hl
-    inc hl
-    push hl
-    ld hl,bd_map
-    add hl,de
-    ld (hl),0
-    ld hl,bd_map
-    ld e,c
-    add hl,de
-    ld (hl),0
-    pop hl
-    djnz bd_m1
-    ld hl,bd_map
-    ld a,(bd_nr)
-    ld b,a
-    ld c,0
-bd_m2:
-    ld a,(hl)
-    inc a
-    jr z,bd_m3                  ; (0xFF: not used)
-    ld (hl),c
-    inc c
-bd_m3:
-    inc hl
-    djnz bd_m2
-    ld a,c
-    ld (bd_nused),a
-    ld hl,bd_map
-    ld (bd_mp),hl
     ld hl,bd_rx
     ld (bd_dst),hl
 bd_rail:
-    ld hl,(bd_mp)
-    ld a,(hl)
-    inc hl
-    ld (bd_mp),hl
-    inc a
-    jr nz,bd_used
-    ld hl,(bd_src)              ; not used: skip it
-    inc hl
-    inc hl
-    ld (bd_src),hl
-    ld hl,(bd_src2)
-    inc hl
-    inc hl
-    ld (bd_src2),hl
-    jp bd_rail_next
-bd_used:
     ld hl,(bd_src)
     ld c,(hl)
     inc hl
@@ -601,7 +537,6 @@ bd_setx:
     ld de,6
     add hl,de
     ld (bd_dst),hl
-bd_rail_next:
     ld hl,bd_left
     dec (hl)
     jp nz,bd_rail
@@ -615,9 +550,9 @@ bd_rail_next:
     ld b,a
     ld de,bd_sp
 bd_span_prep:
-    call bd_mapr
+    ld a,(hl)
     call bd_xptr
-    call bd_mapr
+    ld a,(hl)
     call bd_xptr
     ld a,(hl)
     ld (de),a
@@ -746,8 +681,8 @@ bs_next:
     or a
     sbc hl,de
     jr z,bd_done
-    ; every rail used: x += slope (24 bits)
-    ld a,(bd_nused)
+    ; every rail: x += slope (24 bits)
+    ld a,(bd_nr)
     ld b,a
     ld hl,bd_rx
 bd_step:
@@ -780,19 +715,6 @@ bd_done:
     ret
 bs_jp:
     jp (hl)
-
-; A = bd_map[(HL)]: a span's rail, numbered among the rails used
-bd_mapr:
-    push hl
-    push de
-    ld e,(hl)
-    ld d,0
-    ld hl,bd_map
-    add hl,de
-    ld a,(hl)
-    pop de
-    pop hl
-    ret
 
 ; DE -> the next span entry: write &bd_rx[A].x integer part (bd_rx + 6 * A + 1); HL++
 bd_xptr:
@@ -1340,9 +1262,6 @@ bd_src:    defs 2
 bd_src2:   defs 2
 bd_dst:    defs 2
 bd_nr:     defs 1
-bd_nused:  defs 1
-bd_mp:     defs 2
-bd_map:    defs 32          ; L2P_RAILS
 bd_ns:     defs 1
 bd_left:   defs 1
 bd_rowhi:  defs 1
