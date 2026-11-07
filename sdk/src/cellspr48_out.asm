@@ -13,14 +13,14 @@
 
 SECTION code_user
 
-defc CS_MAX_SPR = 16                ; cellspr48.h
 
 defc CS_MAX_DIRTY = 200             ; cellspr48.h
 
 PUBLIC _cs_compose, _cs_flush, _cs_mark_rc
 EXTERN _cs_list_c, _cs_list_r, _cs_list_n, _cs_dirty, _cs_map_row, _cs_tiles, _cs_attrs
 EXTERN _cs_col, _cs_row, _cs_w, _cs_h, _cs_overflow
-PUBLIC _cs_tilep, _cs_attr, _cs_dst, _cs_attrp, _cs_cx, _cs_cy, _cs_nact, _cs_act, _cs_buf
+PUBLIC _cs_tilep, _cs_attr, _cs_dst, _cs_attrp, _cs_cx, _cs_cy, _cs_nact, _cs_buf
+EXTERN _cs_act                      ; cellspr48.c (sized by CS_MAX_SPR)
 
 ; void cs_mark_rc(uint16_t rc) __z88dk_fastcall: HL = row << 8 | column.
 ; Adds the cell to the dirty list unless it is there (its bit in cs_dirty) or
@@ -340,5 +340,4 @@ _cs_cx:    defs 1
 _cs_cy:    defs 1
 _cs_nact:  defs 1
 _cs_buf:   defs 8
-_cs_act:   defs 9 * CS_MAX_SPR
 cs_i:      defs 2

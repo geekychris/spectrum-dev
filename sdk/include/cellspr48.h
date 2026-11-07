@@ -32,7 +32,7 @@
  *                          gfx (spr_preshift() output), w (bytes), h (lines),
  *                          ink/keep (cell attr = (tile attr & keep) | ink),
  *                          on; the module sees what changed
- *   cs_nspr                how many of cs_spr[] the game uses (CS_MAX_SPR = 16 after
+ *   cs_nspr                how many of cs_spr[] the game uses (CS_MAX_SPR after
  *                          cs_init: set it to what you use, the passes walk them all)
  *   cs_update()            compose and write the cells that changed
  *
@@ -59,7 +59,10 @@
 
 #include <stdint.h>
 
-#define CS_MAX_SPR  16            /* cellspr48_out.asm / _ref.asm size their tables by it */
+#ifndef CS_MAX_SPR
+#define CS_MAX_SPR  8             /* a project can set more: EXTRA_CFLAGS := -DCS_MAX_SPR=14 in its
+                                     Makefile (cellspr48.c sizes the asm's tables too; 32 bytes a sprite) */
+#endif
 #define CS_MAX_DIRTY 200        /* more marks than this in one frame: whole room */
 
 typedef struct {

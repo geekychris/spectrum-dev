@@ -22,14 +22,14 @@ uint8_t cs_overflow;
 /* cellspr48_spr.asm: marks what moved, lists the drawn sprites (cs_act: c0,
    c1, y, h, stride, gfx, keep, ink) for cellspr48_out.asm's composer */
 extern uint8_t cs_nact;
-extern uint8_t cs_act[9 * CS_MAX_SPR];
+uint8_t cs_act[9 * CS_MAX_SPR];       /* here, so the C and the asm agree on CS_MAX_SPR */
 extern void cs_sprite_pass(void);
 extern void cs_flush(void);
 
 /* cellspr48_ref.asm */
 extern const uint8_t *cs_ref_c, *cs_ref_r;
 extern uint8_t cs_ref_n, cs_ref_first, cs_ref_lines, cs_nbox;
-extern uint8_t cs_box[4 * CS_MAX_SPR];
+uint8_t cs_box[4 * CS_MAX_SPR];
 extern void cs_refresh_loop(void);
 
 void cs_init(uint8_t *map, uint8_t w, uint8_t h, uint8_t col, uint8_t row,
