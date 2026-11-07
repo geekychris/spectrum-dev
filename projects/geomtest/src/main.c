@@ -107,6 +107,17 @@ int main(void)
                row_count(139, 10), row_count(140, 10));
         l2p_band(30, 10, xt, xb, 4, spans, 2);       /* edges given the other way up */
         zx_log("geo: band2 r10=%d..%d r29=%d..%d\n", first(10, 11), last(10, 11), first(29, 11), last(29, 11));
+        {
+            /* rails no span uses (0 and 2) are skipped: the same as a band of the two used */
+            static const int16_t x2t[] = { 100, 900 }, x2b[] = { 60, 1500 };
+            static const uint8_t sp3[] = { 3, 1, 13 }, sp2[] = { 0, 1, 14 };
+            int16_t a0, a1, b0, b1;
+            l2p_band(50, 70, xt, xb, 4, sp3, 1);
+            a0 = first(50, 13); a1 = last(69, 13);
+            l2p_band(50, 70, x2t, x2b, 2, sp2, 1);
+            b0 = first(50, 14); b1 = last(69, 14);
+            zx_log("geo: band3 %d..%d %d..%d left13=%u\n", a0, a1, b0, b1, row_count(50, 13) + row_count(69, 13));
+        }
         l2p_rect(-5, 3, 250, 300, 12);
         zx_log("geo: rect %u %u %d\n", row_count(0, 12), row_count(2, 12), first(3, 12));
     }

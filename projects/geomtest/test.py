@@ -38,6 +38,7 @@ with Emulator(machine="next") as e:
     has("span 256 5..9 256 0 0")                              # DMA, unrolled, 256, empty
     has("band r99=0 r100=100..156 199 r139=61..195 121 r140=0")  # rails + spans in one row loop
     has("band2 r10=60..196 r29=98..158")                      # the far edge below the near one
+    has("band3 100..255 100..255 left13=0")                   # unused rails skipped: as the two used
     has("rect 6 6 -1")                                        # clipped rectangle
     # persp: scale = fov * 4096 / z, (v * s) >> 12 floored, points offset, clamped to +-16000
     has("persp s=589 m=143,-144 130,73 145,80 -4184,-2803")
