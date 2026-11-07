@@ -7,10 +7,11 @@
  *  - the 28x31 maze in 6x6-pixel tiles (168x186: the original's 8x8 tiles
  *    would need 248 lines), the logic still in the original's 8-unit tiles
  *    and drawn at 3/4 scale, so speeds, timings and the AI are untouched
- *  - the maze is drawn once per level into a shadow screen (SDK shadow48);
- *    each frame, right after the interrupt, the sprites' old places are
- *    restored from it and the sprites drawn again, before the beam reaches
- *    them: no flicker, no tearing
+ *  - the maze is drawn once per level and kept in a shadow screen (SDK
+ *    shadow48); each frame, right after the interrupt, the sprites' old
+ *    places are restored from it and the sprites drawn again, top first,
+ *    before the beam reaches them: no flicker, no tearing (a frame that ran
+ *    long waits for the next interrupt rather than draw late)
  *  - colour from attributes: the hedge is green, each sprite colours the
  *    cells it covers (the Spectrum's colour clash, kept small by 6x6 sprites)
  *  - logic at a fixed 50 Hz; the picture is redrawn every frame
@@ -80,7 +81,7 @@ static void scr_tab_init(void)
 #define SX(p) scr_tab[(uint8_t)((p) + 8)]
 #define SY(p) (scr_tab[(uint8_t)((p) + 8)] - (MX - MY))
 
-/* ------------------------------------------------------------ the maze (in the shadow) */
+/* ------------------------------------------------------------ the maze */
 
 /* hedge: open around the maze, so the outer edge gets a line too */
 #define hedge(x, y) ((uint8_t)(x) < MAZE_W && (uint8_t)(y) < MAZE_H && maze_row[y][x] == T_WALL)
@@ -143,8 +144,8 @@ static void tile_update(uint8_t tx, uint8_t ty)
     if (n_dirty < MAX_DIRTY) dirty_xy[n_dirty++] = xy;
 }
 
-/* the maze, drawn on the screen (it appears row by row, about a third of
-   a second), then copied to the shadow */
+/* the maze, drawn on the screen (it appears row by row in under a
+   second), then copied to the shadow */
 static void maze_draw(void)
 {
     uint8_t tx, ty;

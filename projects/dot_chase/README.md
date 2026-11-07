@@ -63,7 +63,8 @@ on a 128K; on a 48K they are short beeper slices.
 - **The maze in 6-pixel tiles.** 31 rows of 8 pixels need 248 lines; at 6
   pixels the maze is 168 x 186 and fits beside a HUD. The logic still works
   in the original's 8-unit tiles (speeds, collisions, AI untouched) and is
-  drawn at 3/4 scale through a lookup table.
+  drawn at 3/4 scale through a lookup table. The maze appears row by row
+  in under a second at the start of a garden.
 - **A shadow screen** (SDK `shadow48.h`) at 0x6000 holds the maze without
   sprites, bitmap and attributes. Each frame, straight after the interrupt,
   `spr8_frame` puts the sprites' old places back from it and draws the
