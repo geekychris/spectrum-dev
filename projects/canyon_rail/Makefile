@@ -11,3 +11,9 @@ include $(ZX_SDK)/project.mk
 .DEFAULT_GOAL := all
 all: $(OUT)
 	@echo "built $(OUT)"
+
+# memory map (src/main.c; link addresses in zpragma.inc):
+# the rules: 16K bank 16 at 0x0000, mapped for a tick (map_rules)
+$(OBJDIR)/cr_core.c.o: EXTRA_CFLAGS += --codesegBANK_16 --constsegBANK_16
+# the picture: 16K bank 18 at 0x0000, mapped while drawing (map_render)
+$(OBJDIR)/render.c.o: EXTRA_CFLAGS += --codesegBANK_18 --constsegBANK_18

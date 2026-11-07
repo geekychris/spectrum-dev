@@ -11,6 +11,7 @@ static void tick(void) { ints++; }
 
 int main(void)
 {
+    ZXN_WRITE_MMU0(32); ZXN_WRITE_MMU1(33);     /* the rules' bank (main.c) */
     next_init();
     frame_init();
     frame_hook = tick;
