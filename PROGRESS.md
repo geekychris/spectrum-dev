@@ -153,6 +153,16 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   (lines, wrapped polygons, compiled polygons, `poly_sync`, points),
   `vec48` (rotation tables), `hit48` (circle collisions), `text_xor`; an optional
   faster key decode (`input_fast`); `modplay` fixed on a single-AY 128K.
+- **Rotoball** (Next): the original's rules, physics (16.16, as the
+  original) and CPU; a two-player mode added (`input2.h`). The two views are
+  a fixed 320x256 Layer 2 picture moved by palette rotation (sideways) and
+  copper palette switches per row (down the pitch); ball, skimmer and posts
+  are sprites in host-made sizes, hardware zoom for the big ones; the
+  copper gives each pane its own sprite clip window (`nextsplit.h`).
+  Tilemap HUD, TurboSound title tune and the original's effects. 50 fps,
+  no frame missed in the test (bot match to full time, two-player match,
+  replays). SDK: input2, nextsplit, sprg_show_ex/sprg_hide,
+  palfx_load_bytes, copper lists by DMA; tests in projects/splittest.
 
 ### Cleanup (2026-11-06)
 

@@ -38,7 +38,7 @@ the CPU is slow, so the work goes into drawing less:
 - sound on the beeper (which stops the CPU), or on the AY on a 128K (Rock
   Blaster plays the original's MOD there through `modplay`)
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -59,6 +59,13 @@ the 48K:
   are a palette trick (the upper half of the palette is the lower half
   darker), the panel's shade is the copper switching palettes, the HUD is
   the tilemap. Its code is in three banks the main loop maps in turn
+- Rotoball's two perspective views are one fixed Layer 2 picture: each
+  floor pixel holds its sideways phase, a camera's sideways movement is a
+  rotation of its pane's palette, and its movement down the pitch is the
+  copper switching floor rows to the second palette. The copper also gives
+  each half of the split screen its own sprite clip window. The CPU draws
+  no pixels; ball, skimmer and posts are sprites in many sizes, zoomed by
+  the hardware when big
 
 ## Things to know
 

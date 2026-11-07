@@ -27,7 +27,7 @@
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
 (one object per file, so files are split where a game might want only
-part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext` and `projects/nextlibtest`.
+part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext`, `projects/nextlibtest` and `projects/splittest` (split screens, two-player input).
 
 | header | module (src/) | what |
 |---|---|---|
@@ -55,11 +55,13 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/sdktestnext` and `project
 | | `next/dma.c` | zxnDMA: `dma_copy`, `dma_fill`, whole banks (`dma_copy_banks`, `dma_fill_banks`) at ~2 T-states a byte; `dma_to_port` (memory -> sprite patterns 0x5B, attributes 0x57) |
 | | `next/l2text5.c` | `l2_text5`, `l2_text5_center`: the 5x7 font on Layer 2 |
 | `l2rle.h` | `next/l2rle.c`, `next/l2rle_blit.asm` | Layer 2 320x256 extras: column-RLE "pieces" (`nextpic.piece`) blitted through a colour table (asm), `l2w_span` (and/or a row: shadows with a half-bright upper palette), `l2w_clear` (DMA), `l2w_plot` |
-| `nextspr.h` | `next/nextspr.c` | sprite groups: cols x rows 16x16 patterns uploaded by DMA, shown as one object; `sprg_mask_rle` hides the parts behind a Layer 2 piece (isometric occlusion) |
-| `nextcopper.h` | `next/nextcopper.c` | copper lists (`copper_wait`, `copper_move`, `copper_end`, `copper_stop` / `copper_run`): per-line register writes, e.g. palette switches and gradients. The copper restarts at the vertical blank, line 248 |
+| `nextspr.h` | `next/nextspr.c` | sprite groups: cols x rows 16x16 patterns uploaded by DMA, shown as one object (`sprg_show_ex`: hardware zoom, palette offset; `sprg_hide`: a range); `sprg_mask_rle` hides the parts behind a Layer 2 piece (isometric occlusion) |
+| `nextcopper.h` | `next/nextcopper.c` | copper lists (`copper_wait`, `copper_move`, `copper_end` (sent by DMA), `copper_stop` / `copper_run`): per-line register writes, e.g. palette switches and gradients. The copper restarts at the vertical blank, line 248 |
 | `nexttile.h` | `next/nexttile.c` | the tilemap as a 40x32 text/HUD layer over everything: 1-bit fonts -> 4-bit tiles, 2x glyphs with a drop shadow, print / fill, a palette offset per cell |
-| `palfx.h` | `next/palfx.c` | palettes loaded with an effect (`palfx_load_fx`: c * mul / 8 + add, i.e. darken, half-bright copies, flashes, fades), second palettes, `palfx_active` |
+| `palfx.h` | `next/palfx.c` | palettes loaded with an effect (`palfx_load_fx`: c * mul / 8 + add, i.e. darken, half-bright copies, flashes, fades), second palettes, `palfx_active`; `palfx_load_bytes` (raw bytes by DMA, for palettes rewritten every frame) |
 | `aystream.h` | `next/aystream.c` | TurboSound register-stream player: music and effects made on the host (`tools/aystream.py`), one stream a chip, banked, looping, attenuation (ducking) |
+| `input2.h` | `input2.c` | input for two players: each reads only their own key sets (QAOP, WASD, IJKL, cursor), Sinclair 1/2 and Kempston 1/2 (`in2_scan` once a frame, `in2_update(&pad)`: held + pressed); 48K and Next |
+| `nextsplit.h` | `next/nextsplit.c` | split screens with the copper: horizontal panes with their own clip windows (sprites, Layer 2, tilemap) and `split_row` for register moves before a given row; a list can be rebuilt every frame and uploaded in the vertical blank |
 | `zxrle.h` | `zxrle.c` | run-length unpacking (`rle_unpack`) of data packed by `tools/zxrle.py`: level maps and other data with long runs |
 | `isosort.h` | `isosort.c` | isometric draw order for boxes (separating axis + depth key, then a depth-first sort); `iso_behind` for "is this scenery in front of the sprite" |
 

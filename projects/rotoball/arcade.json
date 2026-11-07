@@ -1,0 +1,7 @@
+{
+  "title": "Rotoball",
+  "ready": "roto: ready",
+  "description": "Split-screen futuristic ball sport: carry the ball over the other goal line in 90 seconds. One player against the CPU, or two.",
+  "controls": "P1 W/S/A/D, P2 I/K/J/L, Sinclair, Kempston, SPACE start",
+  "picture": "screenshots/carry.png"
+}

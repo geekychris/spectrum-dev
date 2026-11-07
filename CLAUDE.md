@@ -171,6 +171,15 @@ Details: docs/emulator-harness.md.
 - To profile, sample: stop at random (frame, T-state) points with `run_to` and histogram
   the PC by the map's labels (local `l_func_NNNNN` labels locate C hot spots in
   `zcc -S` output); breakpoint-to-return timings include any interrupt in between.
+- ZEsarUX draws a scanline at its end, so a copper move anywhere on line L shows on L; on the Next
+  a move after the right border (h >= 36) shows from L + 1. `split_row(y)` (nextsplit.h) waits for
+  the horizontal blank above row y: right on the Next, one row early in ZEsarUX.
+- With a Sinclair/cursor joystick selected, ZEsarUX's Kempston port floats (0xFF: every direction
+  held). Treat a Kempston read with bits 5-7 set as nothing (input2.c does).
+- On the Next with the ULA off and the tilemap's definitions below 0x2000 in bank 5, page 11
+  (0x6000-0x7FFF) is free: `ORG := 24576` gives a C program 8K more (rotoball).
+- `./zx shot --until X --frames N` can grab a frame before the program has drawn its first
+  screen; check with a Python `Emulator` and `run(n)` before chasing a missing layer.
 - z80asm rejected a label named `px` (syntax error at its use); Z80N instructions (`add hl,nn`) assemble in sdk .asm files as they are.
 
 
