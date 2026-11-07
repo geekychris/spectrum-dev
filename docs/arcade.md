@@ -5,6 +5,7 @@ Next shows the same list (see the Arcade section of the README).
 
 | | Game | Machine | Controls |
 |---|---|---|---|
+| ![](images/arcade/blockbre.png) | **[Block Breaker 3D](../projects/block_breaker_3d/README.md)**<br>Breakout down a tunnel: steer the ball into bricks 3 deep. 8 levels, capsules, tough and steel. | Spectrum Next | QAOP/joystick move, SPACE serve, H help |
 | ![](images/arcade/boingpin.png) | **[Boing Pinball](../projects/boing_pinball/README.md)**<br>The Comet Tour table with the Boing ball: bumpers, drop targets, ramp, orbit, missions, multiball. | Spectrum Next | Z/M flippers, SPACE plunger, Q nudge |
 | ![](images/arcade/frankthe.png) | **[Frank the Frog](../projects/frank_the_frog/README.md)**<br>Hop Frank across the traffic and the river's logs and rafts into the four ponds. | 48K | Q/A/O/P hop, SPACE start, Kempston |
 | ![](images/arcade/minermet.png) | **[Miner Meteor](../projects/miner_meteor/README.md)**<br>Collect every key in the cavern and reach the exit before the air runs out, past spikes, conveyors, collapsing floors and guardians. Six caverns. | 48K | O/P walk, Q or SPACE jump, Kempston |
