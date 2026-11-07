@@ -38,7 +38,6 @@ const char big_letters[] = "CANYORIL";          /* the title's letters, in tile 
 static hs_editor ed;
 static int8_t ed_place;
 static uint8_t drawn_state = 0xFF, drawn_help = 0xFF, drawn_page = 0xFF, hurt_shown;
-static char hud_txt[6][16];
 static uint8_t fire_lock;
 
 static uint16_t rgb9(uint16_t c)
@@ -55,15 +54,6 @@ static void put(uint8_t col, uint8_t row, const char *s, uint8_t c)
 static void centre(uint8_t row, const char *s, uint8_t c)
 {
     put(20 - (uint8_t)(strlen(s) / 2), row, s, c);
-}
-
-/* a HUD field: redrawn only when it changes */
-static void field(uint8_t slot, uint8_t col, uint8_t row, uint8_t w, const char *s, uint8_t c)
-{
-    if (!strcmp(hud_txt[slot], s)) return;
-    strcpy(hud_txt[slot], s);
-    tm_fill(col, row, w, 1, 0, 0);
-    put(col, row, s, c);
 }
 
 static char *num(char *p, uint32_t v, uint8_t digits)        /* zero-padded */
@@ -244,8 +234,10 @@ void front_input(uint8_t in, uint8_t edge, uint8_t keys)
         if (r & HS_EDIT_TAKEN) sfx(SFX_KEY);
         if (r & HS_EDIT_CHANGED) drawn_state = 0xFF;
         if (r & HS_EDIT_DONE) {
-            hs_insert(ed_place, ed.name, (uint32_t)game.score);
-            zx_log("canyon: name=%s\n", ed.name);
+            char nm[4];                         /* (ed can be at 0x0000 in this bank: printf's NULL) */
+            memcpy(nm, ed.name, 4);
+            hs_insert(ed_place, nm, (uint32_t)game.score);
+            zx_log("canyon: name=%s\n", nm);
             front_to_title();
         }
         break;
@@ -345,31 +337,54 @@ static void big(uint8_t col, uint8_t row, const char *s, uint8_t c)
     }
 }
 
+/* the HUD in the border: each part redrawn when what it shows changes */
+static int32_t shown_score = -1;
+static uint8_t shown_m, shown_stage, shown_bar = 0xFF, shown_shield = 0xFF, shown_auto = 0xFF;
+
 static void hud(void)
 {
     char tmp[16];
     uint8_t m = 1 + game.combo / 4, k, w;
     if (m > 8) m = 8;
-    strcpy(tmp, "SCORE ");
-    num(tmp + 6, (uint32_t)game.score, 7);
-    field(0, VC0, 1, 13, tmp, C_WHITE);
-    tmp[0] = 0;
-    if (m > 1) { tmp[0] = 'x'; unum(tmp + 1, m); }
-    field(1, 18, 1, 3, tmp, C_YELLOW);
-    strcpy(tmp, "STAGE ");
-    unum(tmp + 6, game.stage);
-    field(2, 29, 1, 7, tmp, C_YELLOW);
-    /* how far to the guardian (12 cells), or its nodes */
-    if (!game.boss) {
-        w = (uint8_t)(game.cam_s * 12 / CR_LEN);
-        for (k = 0; k < 12; k++) tm_put(24 + k, 2, k < w ? T_SOLID : '-', k < w ? C_CYAN : C_GREY);
-    } else
-        for (k = 0; k < 12; k++)
-            tm_put(24 + k, 2, (k % 3 == 2) ? 0 : T_SOLID, game.node_hp[k / 3] > 0 ? C_NODE : C_PANEL);
-    put(VC0, 29, "SHIELD", C_GREY);
-    w = (uint8_t)(game.shield * 12 / CR_SHIELD);
-    for (k = 0; k < 12; k++) tm_put(11 + k, 29, k < w ? T_SOLID : '-', game.shield > 30 ? C_GREEN : C_RED);
-    field(3, 31, 29, 4, rl.autoplay ? "AUTO" : "", C_GREEN);
+    if (game.score != shown_score) {
+        shown_score = game.score;
+        strcpy(tmp, "SCORE ");
+        num(tmp + 6, (uint32_t)game.score, 7);
+        put(VC0, 1, tmp, C_WHITE);
+    }
+    if (m != shown_m) {
+        shown_m = m;
+        tm_fill(18, 1, 3, 1, 0, 0);
+        if (m > 1) { tmp[0] = 'x'; unum(tmp + 1, m); put(18, 1, tmp, C_YELLOW); }
+    }
+    if (game.stage != shown_stage) {
+        shown_stage = game.stage;
+        strcpy(tmp, "STAGE ");
+        unum(tmp + 6, game.stage);
+        put(29, 1, tmp, C_YELLOW);
+    }
+    /* how far to the guardian (12 cells), or its nodes (128 + a bit each) */
+    if (!game.boss) w = (uint8_t)(game.cam_s * 12 / CR_LEN);
+    else for (w = 128, k = 0; k < CR_NODES; k++) if (game.node_hp[k] > 0) w |= 1 << k;
+    if (w != shown_bar) {
+        shown_bar = w;
+        if (!game.boss)
+            for (k = 0; k < 12; k++) tm_put(24 + k, 2, k < w ? T_SOLID : '-', k < w ? C_CYAN : C_GREY);
+        else
+            for (k = 0; k < 12; k++)
+                tm_put(24 + k, 2, (k % 3 == 2) ? 0 : T_SOLID, w & (1 << (k / 3)) ? C_NODE : C_PANEL);
+    }
+    w = (uint8_t)(game.shield * 12 / CR_SHIELD) | (game.shield > 30 ? 0 : 0x80);
+    if (w != shown_shield) {
+        shown_shield = w;
+        put(VC0, 29, "SHIELD", C_GREY);
+        for (k = 0; k < 12; k++) tm_put(11 + k, 29, k < (w & 0x7F) ? T_SOLID : '-', w & 0x80 ? C_RED : C_GREEN);
+    }
+    if (rl.autoplay != shown_auto) {
+        shown_auto = rl.autoplay;
+        tm_fill(31, 29, 4, 1, 0, 0);
+        if (rl.autoplay) put(31, 29, "AUTO", C_GREEN);
+    }
 }
 
 static void frame_red(uint8_t on)
@@ -464,10 +479,18 @@ static void screen_entry(void)
     put(18 + ed.pos, 19, "^", C_YELLOW);
 }
 
+static uint16_t shown_msgs = 0xFFFF;
+
 static void screen_play(void)
 {
     char tmp[40];
-    /* the messages over the view, rows 8..26 (cleared each time) */
+    /* what the messages over the view show: redrawn when that changes */
+    uint16_t msgs = (rl.flash_timer > 0 && rl.flash[0]) | (game.between ? 2 : 0) |
+                    (game.boss && game.tick % 50 < 30 &&
+                     game.node_hp[0] + game.node_hp[1] + game.node_hp[2] + game.node_hp[3] == 4 * (3 + game.stage) ? 4 : 0) |
+                    (rl.state == RS_OVER ? 8 : 0) | (rl.state_timer == 0 ? 16 : 0) | (rl.paused ? 32 : 0);
+    if (msgs == shown_msgs) return;
+    shown_msgs = msgs;
     tm_fill(VC0, VR0 + 4, 32, 19, 0, 0);
     if (rl.flash_timer > 0 && rl.flash[0]) centre(VR0 + 4, rl.flash, rl.flash_pen);
     if (game.between) {
@@ -505,7 +528,9 @@ void front_draw(void)
         drawn_state = rl.state;
         drawn_help = rl.help;
         drawn_page = page;
-        memset(hud_txt, 1, sizeof(hud_txt));
+        shown_score = -1;
+        shown_m = shown_stage = shown_bar = shown_shield = shown_auto = 0xFF;
+        shown_msgs = 0xFFFF;
         hurt_shown = 0;
         if (rl.help) { screen_help(rl.help); return; }
         if (rl.state == RS_TITLE) { screen_title(page); return; }

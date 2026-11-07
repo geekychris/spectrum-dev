@@ -7,8 +7,9 @@
  * port: each slab edge's points go through the engine's camera rotation
  * once (shared by the slabs either side; with 16-bit deltas the same values
  * as cam_xform), then a reciprocal scale (sdk persp) onto 256 x 192; the
- * slab across the near plane is clipped there. The floor is one bank quad
- * with the river over it (the original: three quads). Drawn 96 rows high:
+ * slab across the near plane is clipped there. The ground is filled in the
+ * banks' first tone, every other slab's bank is a quad in the second, and
+ * the river is a quad over them (the original: three quads a slab). Drawn 96 rows high:
  * main.c's copper shows each row twice.
  */
 #include <stdint.h>
@@ -29,8 +30,10 @@ typedef struct { int16_t x, y, z; } P3;
 
 A3Cam render_cam;                       /* this frame's camera (sprites.c too) */
 #define cam render_cam
-int16_t cy4, sy4, cp4, sp4;             /* the camera's trig >> 4 (cam_xform's factors; view.asm) */
+extern int16_t cy4, sy4, cp4, sp4;      /* the camera's trig >> 4 (cam_xform's factors; in view.asm) */
 extern void xform16(int16_t dx, int16_t dy, int16_t dz, P3 *o);   /* view.asm */
+extern uint16_t zscale(uint16_t z) __z88dk_fastcall;            /* view.asm: persp_scale by ztab */
+uint16_t ztab[1024];                    /* persp_scale(4 k + 2), for zscale */
 
 /* an edge: L top, L base, river L, river R, R base, R top (camera space,
    screen); view.asm's edge6 knows this layout */
@@ -38,18 +41,20 @@ typedef struct {
     P3 c[6];
     int16_t px[6], py[6];
     uint8_t front;                      /* all six in front of the near plane */
+    uint8_t seg;                        /* s / SEG (low bits: tones) */
     int32_t s;                          /* where */
     int16_t h;
     const void *p;                      /* its Place */
 } Edge;
-extern void edge6(const int16_t *dx, int16_t dyb, int16_t dyt, int16_t dz, Edge *e);    /* view.asm */
+extern void edge6f(int16_t c, int16_t w, int16_t dyb, int16_t dyt, int16_t dz, Edge *e);   /* view.asm */
+extern void edge_frame(void);
 static Edge edge[NE];
 
 #define xform(wx, wy, wz, o) xform16((int16_t)((wx) - cam.x), (int16_t)((wy) - cam.y), (int16_t)((wz) - cam.z), o)
 
 static void project(const P3 *p, int16_t *x, int16_t *y)
 {
-    uint16_t s = persp_scale((uint16_t)p->z);
+    uint16_t s = zscale((uint16_t)p->z);
     *x = persp_x1(p->x, 0, s, VIEW_W / 2);
     *y = persp_y1(p->y, 0, (s >> 2) + (s >> 3), VIEW_ROWS / 2);    /* (3/4 of the across scale, half height) */
 }
@@ -76,15 +81,12 @@ static const Place *place_of(int32_t s)
 
 static void make_edge(Edge *e, int32_t s)
 {
-    static int16_t dx[6];
     const Place *p = place_of(s);
-    int16_t c = p->c - (int16_t)cam.x, w = p->w;
     e->s = s;
+    e->seg = (uint8_t)(s / SEG);
     e->h = p->h;
     e->p = p;
-    dx[0] = c - w - 70; dx[1] = c - w; dx[2] = c - 30;
-    dx[3] = c + 30; dx[4] = c + w; dx[5] = c + w + 70;
-    edge6(dx, (int16_t)-cam.y, p->h - (int16_t)cam.y, (int16_t)(s - cam.z), e);
+    edge6f(p->c - (int16_t)cam.x, p->w, (int16_t)-cam.y, p->h - (int16_t)cam.y, (int16_t)(s - cam.z), e);
 }
 
 /* a polygon of camera-space points, clipped at the near plane */
@@ -130,20 +132,31 @@ static void quad(const Edge *a, const Edge *b, uint8_t i, uint8_t j, uint8_t col
 static void spire(const Edge *a, const Edge *b, int8_t side)
 {
     uint8_t k = side < 0 ? 0 : 5;
-    P3 apex;
-    const P3 *v[3];
     const Place *pa = a->p, *pb = b->p;
     int32_t x = ((int32_t)pa->c + pb->c + side * ((int32_t)pa->w + pb->w + 140)) / 2;
-    xform(x + side * 20, (a->h + b->h) / 2 + 90, a->s + SEG / 2, &apex);
-    v[0] = &a->c[k]; v[1] = &b->c[k]; v[2] = &apex;
-    poly3(v, 3, PEN_SPIRE);
+    P3 apex;
+    xform(x + side * 20, (a->h + b->h) / 2 + 90, a->s + (b->s - a->s) / 2, &apex);
+    if (a->front && b->front && apex.z >= NEAR_Z) {
+        /* the rim's two points are projected with their edges */
+        static int16_t xy[6];
+        xy[0] = a->px[k]; xy[1] = a->py[k];
+        xy[2] = b->px[k]; xy[3] = b->py[k];
+        project(&apex, &xy[4], &xy[5]);
+        l2p_poly(xy, 3, PEN_SPIRE);
+        render_polys++;
+    } else {
+        const P3 *v[3];
+        v[0] = &a->c[k]; v[1] = &b->c[k]; v[2] = &apex;
+        poly3(v, 3, PEN_SPIRE);
+    }
 }
 
 void render_init(void)
 {
-    uint8_t k;
+    uint16_t k;
     for (k = 0; k < 32; k++) place[k].s = -1;
     persp_fov(SX(200));                 /* the original's FOV, scaled across (render.h) */
+    for (k = 64; k < 1024; k++) ztab[k] = persp_scale(k * 4 + 2);
 }
 
 void render_scene(const CRGame *g)
@@ -154,6 +167,7 @@ void render_scene(const CRGame *g)
     cr_camera(g, &cam);
     cy4 = (int16_t)(cam.cy >> 4); sy4 = (int16_t)(cam.sy >> 4);
     cp4 = (int16_t)(cam.cp >> 4); sp4 = (int16_t)(cam.sp >> 4);
+    edge_frame();
     hz = SY(cam_horizon(&cam)) / 2;
     if (hz < 1) hz = 1;
     if (hz > VIEW_ROWS - 1) hz = VIEW_ROWS - 1;
@@ -171,16 +185,16 @@ void render_scene(const CRGame *g)
     l2p_top = 0;
     l2p_bot = VIEW_ROWS + 1;                  /* (the last line shows row 96) */
     l2p_rect(0, hz, 0, VIEW_W - 1, PEN_SKY);
-    l2p_rect(hz, VIEW_ROWS + 1, 0, VIEW_W - 1, PEN_WALL + 1);
+    l2p_rect(hz, VIEW_ROWS + 1, 0, VIEW_W - 1, PEN_BANK);      /* port: the bank's first tone (the original: a wall's) */
     /* port: the floor first (the banks, then the river: one slab's bank
        quad would leave slivers over the next one's river), then the walls and
        spires; each far to near */
     for (pass = 0; pass < 3; pass++)
         for (k = n - 1; k-- > 0; ) {
             const Edge *a = &edge[k], *b = &edge[k + 1];
-            uint8_t tone = (uint8_t)((b->s - a->s > SEG ? a->s / (2 * SEG) : a->s / SEG) & 1);  /* (pairs alternate too) */
+            uint8_t tone = (b->seg - a->seg > 1 ? a->seg >> 1 : a->seg) & 1;     /* (pairs alternate too) */
             if (b->c[1].z < NEAR_Z && b->c[4].z < NEAR_Z) continue;        /* behind */
-            if (pass == 0) quad(a, b, 1, 4, PEN_BANK + tone);
+            if (pass == 0) { if (tone) quad(a, b, 1, 4, PEN_BANK + 1); }    /* (tone 0: the ground's fill) */
             else if (pass == 1) quad(a, b, 2, 3, PEN_RIVER);
             else {
                 quad(a, b, 1, 0, PEN_WALL + 2 * tone);

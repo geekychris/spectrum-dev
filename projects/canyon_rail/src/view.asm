@@ -2,9 +2,10 @@
 
 SECTION code_user
 
-PUBLIC _xform16, _edge6
+PUBLIC _xform16, _edge6, _zscale, _edge6f, _edge_frame
+EXTERN _ztab
 EXTERN _persp_scale
-EXTERN _cy4, _sy4, _cp4, _sp4
+PUBLIC _cy4, _sy4, _cp4, _sp4
 
 ; void xform16(int16_t dx, int16_t dy, int16_t dz, P3 *o)
 ; the engine's cam_xform with 16-bit deltas (the same values):
@@ -197,6 +198,18 @@ e6_y:
     call acc_sub_m
     call acc_sh12
     ld (e_rzz),hl
+    call e6_store_project
+e6_next:
+    ld hl,e_k
+    inc (hl)
+    ld a,(hl)
+    cp 6
+    jp nz,e6_point
+    pop ix
+    ret
+
+; store the point (e_rx, e_ry, e_rzz) as c[e_k] of e_out, and project it
+e6_store_project:
     ; store c[k]
     ld de,(e_out)
     ld a,(e_k)
@@ -231,9 +244,7 @@ e6_y:
     jr c,e6_behind
     ; s = persp_scale(z), at most 32767
     ld hl,(e_rzz)
-    push hl
-    call _persp_scale
-    pop af
+    call zs_hl
     bit 7,h
     jr z,e6_s_ok
     ld hl,32767
@@ -291,19 +302,12 @@ e6_s_ok:
     ld (hl),e
     inc hl
     ld (hl),d
-    jr e6_next
+    ret
 e6_behind:
     ld hl,(e_out)
     ld de,60
     add hl,de
     ld (hl),0
-e6_next:
-    ld hl,e_k
-    inc (hl)
-    ld a,(hl)
-    cp 6
-    jp nz,e6_point
-    pop ix
     ret
 
 acc_put:                        ; (HL) = acc
@@ -345,6 +349,241 @@ acc_sub_m:                      ; acc -= (HL)
     sbc hl,bc
     ld (xf_acc + 2),hl
     ret
+
+; uint16_t zscale(uint16_t z) __z88dk_fastcall: persp_scale(z) (fov * 4096 / z),
+; from render.c's table ztab[z / 4] for 256 <= z < 4096 (within 1%: the
+; picture's points, not the rules'), the division otherwise
+_zscale:
+zs_hl:
+    ld a,h
+    or a
+    jr z,zs_div                 ; z < 256
+    cp 16
+    jr nc,zs_div                ; z >= 4096
+    srl h
+    rr l
+    res 0,l                     ; (z / 4) * 2: the entry's offset
+    ld de,_ztab
+    add hl,de
+    ld a,(hl)
+    inc hl
+    ld h,(hl)
+    ld l,a
+    ret
+zs_div:
+    push hl
+    call _persp_scale
+    pop af
+    ret
+
+
+; ---------------------------------------------------------------- edge6f
+; void edge_frame(void): the frame's constants for edge6f (after cy4.. are set)
+_edge_frame:
+    ld hl,30
+    ld de,(_cy4)
+    call mul_set
+    ld hl,k30c
+    call acc_put
+    ld hl,70
+    ld de,(_cy4)
+    call mul_set
+    ld hl,k70c
+    call acc_put
+    ld hl,30
+    ld de,(_sy4)
+    call mul_set
+    ld hl,k30s
+    call acc_put
+    ld hl,70
+    ld de,(_sy4)
+    call mul_set
+    ld hl,k70s
+    call acc_put
+    ret
+
+; void edge6f(int16_t c, int16_t w, int16_t dyb, int16_t dyt, int16_t dz, Edge *e)
+; edge6's points for the picture, quicker: the six points are c - w - 70,
+; c - w, c - 30, c + 30, c + w, c + w + 70 across, so their rotated x and
+; depth are sums of c's, w's and the frame's 30 / 70 products (exact so
+; far); then, the pitch being small and fixed, z = rz - (dy sp >> 12) (the
+; cos left out: under a unit) and y = (dy cp + rz sp) >> 12 as before.
+; Projection as edge6. Edge layout as edge6.
+_edge6f:
+    push ix
+    ld ix,0
+    add ix,sp
+    ; XC = c cy - dz sy, ZC = c sy + dz cy, WX = w cy, WZ = w sy
+    ld l,(ix+4)
+    ld h,(ix+5)
+    ld de,(_cy4)
+    call mul_set
+    ld l,(ix+12)
+    ld h,(ix+13)
+    ld de,(_sy4)
+    call mul_sub
+    ld hl,f_XC
+    call acc_put
+    ld l,(ix+4)
+    ld h,(ix+5)
+    ld de,(_sy4)
+    call mul_set
+    ld l,(ix+12)
+    ld h,(ix+13)
+    ld de,(_cy4)
+    call mul_add
+    ld hl,f_ZC
+    call acc_put
+    ld l,(ix+6)
+    ld h,(ix+7)
+    ld de,(_cy4)
+    call mul_set
+    ld hl,f_WX
+    call acc_put
+    ld l,(ix+6)
+    ld h,(ix+7)
+    ld de,(_sy4)
+    call mul_set
+    ld hl,f_WZ
+    call acc_put
+    ; the heights: Yc = dy cp, and dy sp >> 12 for z
+    ld l,(ix+8)
+    ld h,(ix+9)
+    ld de,(_cp4)
+    call mul_set
+    ld hl,e_Ybc
+    call acc_put
+    ld l,(ix+8)
+    ld h,(ix+9)
+    ld de,(_sp4)
+    call mul_set
+    call acc_sh12
+    ld (f_zb),hl
+    ld l,(ix+10)
+    ld h,(ix+11)
+    ld de,(_cp4)
+    call mul_set
+    ld hl,e_Ytc
+    call acc_put
+    ld l,(ix+10)
+    ld h,(ix+11)
+    ld de,(_sp4)
+    call mul_set
+    call acc_sh12
+    ld (f_zt),hl
+    ld l,(ix+14)
+    ld h,(ix+15)
+    ld (e_out),hl
+    ld bc,60
+    add hl,bc
+    ld (hl),1
+    xor a
+    ld (e_k),a
+f_point:
+    ; X = XC +- WX +- k (point k), and Z the same
+    ld a,(e_k)
+    ld hl,f_XC
+    call f_sum
+    call acc_sh12
+    ld (e_rx),hl
+    ld a,(e_k)
+    or 0x80                     ; (the Z set)
+    ld hl,f_ZC
+    call f_sum
+    call acc_sh12
+    ld (xf_rz),hl
+    ; the rim (0, 5) or the floor
+    ld a,(e_k)
+    or a
+    jr z,f_top
+    cp 5
+    jr z,f_top
+    ld hl,e_Ybc
+    ld de,(f_zb)
+    jr f_y
+f_top:
+    ld hl,e_Ytc
+    ld de,(f_zt)
+f_y:
+    push de
+    push hl
+    ld hl,(xf_rz)
+    ld de,(_sp4)
+    call mul_set
+    pop hl
+    call acc_add_m
+    call acc_sh12
+    ld (e_ry),hl
+    pop de                      ; dy sp >> 12
+    ld hl,(xf_rz)
+    or a
+    sbc hl,de
+    ld (e_rzz),hl
+    call e6_store_project       ; (edge6's tail: store, project)
+    ld hl,e_k
+    inc (hl)
+    ld a,(hl)
+    cp 6
+    jr nz,f_point
+    pop ix
+    ret
+
+; acc = (HL: XC or ZC) + the offsets of point A (bit 7: the Z set): HL's base
+; +- W +- 30 / 70 constant
+f_sum:
+    push af
+    ex de,hl
+    ld hl,xf_acc
+    ex de,hl
+    ld bc,4
+    ldir                        ; acc = base
+    pop af
+    ld b,a
+    and 0x7F
+    ld c,a                      ; C = k
+    bit 7,b
+    ld hl,f_WX
+    jr z,f_s1
+    ld hl,f_WZ
+f_s1:
+    ; points 0, 1: - W; 4, 5: + W
+    ld a,c
+    cp 2
+    jr nc,f_s2
+    push bc
+    call acc_sub_m
+    pop bc
+    jr f_s3
+f_s2:
+    cp 4
+    jr c,f_s3
+    push bc
+    call acc_add_m
+    pop bc
+f_s3:
+    ; 0: - 70, 2: - 30, 3: + 30, 5: + 70
+    ld a,c
+    bit 7,b
+    ld hl,k70c
+    ld de,k30c
+    jr z,f_s4
+    ld hl,k70s
+    ld de,k30s
+f_s4:
+    or a
+    jr z,f_sub_hl               ; 0
+    cp 5
+    jr z,f_add_hl               ; 5
+    ex de,hl                    ; the 30s
+    cp 2
+    jr z,f_sub_hl
+    cp 3
+    jr z,f_add_hl
+    ret                         ; 1, 4
+f_sub_hl:
+    jp acc_sub_m
+f_add_hl:
+    jp acc_add_m
 
 mul_set:                        ; acc = HL * DE
     call smul
@@ -483,9 +722,23 @@ sm_c:
     ret
 
 SECTION bss_user
+_cy4:   defs 2                  ; the camera's cos / sin >> 4 (render.c sets them)
+_sy4:   defs 2
+_cp4:   defs 2
+_sp4:   defs 2
 xf_sign: defs 1
 xf_acc: defs 4
 xf_rz:  defs 2
+f_XC:   defs 4
+f_ZC:   defs 4
+f_WX:   defs 4
+f_WZ:   defs 4
+k30c:   defs 4
+k70c:   defs 4
+k30s:   defs 4
+k70s:   defs 4
+f_zb:   defs 2
+f_zt:   defs 2
 e_A:    defs 4
 e_B:    defs 4
 e_Ybc:  defs 4

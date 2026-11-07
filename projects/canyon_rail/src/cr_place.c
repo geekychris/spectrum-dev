@@ -49,24 +49,28 @@ static void camera(int32_t s, Cam *c)
 static Cam cam_cache;
 static int32_t cam_cache_s = -1;
 
-void cr_camera(const CRGame *g, Cam *c)
+static const Cam *cam_at(const CRGame *g)
 {
     if (g->cam_s != cam_cache_s) {
         camera(g->cam_s, &cam_cache);
         cam_cache_s = g->cam_s;
     }
-    *c = cam_cache;
+    return &cam_cache;
+}
+
+void cr_camera(const CRGame *g, Cam *c)
+{
+    *c = *cam_at(g);
 }
 
 int cr_project(const CRGame *g, int32_t x, int32_t y, int32_t z, int *px, int *py, int32_t *depth)
 {
-    Cam c;
+    const Cam *c = cam_at(g);           /* port: the kept camera, not a copy of it */
     V3 v;
     int32_t sx, sy;
-    cr_camera(g, &c);
-    cam_xform(&c, x, y, z, &v);
+    cam_xform(c, x, y, z, &v);
     if (v.z < NEAR_Z + 4) return 0;
-    cam_project(&c, &v, &sx, &sy);
+    cam_project(c, &v, &sx, &sy);
     *px = (int)sx;
     *py = (int)sy;
     *depth = v.z;

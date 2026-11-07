@@ -29,7 +29,8 @@
 
 typedef struct { int16_t x, y, z; } P3;
 extern void xform16(int16_t dx, int16_t dy, int16_t dz, P3 *o);     /* view.asm */
-extern A3Cam render_cam;                /* render.c: this frame's camera */
+extern A3Cam render_cam;
+extern uint16_t zscale(uint16_t z) __z88dk_fastcall;            /* view.asm */                /* render.c: this frame's camera */
 
 typedef struct { uint8_t view, frame, k; int16_t x, y, z; } Obj;
 static Obj obj[MAX_OBJ];
@@ -37,7 +38,10 @@ static uint8_t nobj;
 static uint8_t half;
 static uint8_t attrs[128 * 5];
 static uint8_t nattr, nattr_shown;
-static uint32_t thresh[SPR_NSIZES], bthresh[SPR_NSIZES];   /* scale between size k - 1 and k */
+static int32_t fix_s[CR_MAX_TARGETS];
+static int16_t fix_x[CR_MAX_TARGETS], fix_y[CR_MAX_TARGETS];   /* (target_at) */
+static uint16_t thresh[SPR_NSIZES];     /* scale between size k - 1 and k */
+static uint32_t bthresh[SPR_NSIZES];    /* (the bursts': times their size) */
 
 void spr_setup(void)
 {
@@ -47,11 +51,12 @@ void spr_setup(void)
     for (k = 0; k < SPR_NSIZES; k++) {
         /* size k is F0 * 0.8^k pixels a unit: halfway (in log terms) to the
            next is 0.8^0.5 = 0.894 of it */
-        thresh[k] = (s * 894) / 1000;
+        thresh[k] = (uint16_t)((s * 894) / 1000);
         bthresh[k] = (b * 894) / 1000;
         s = (s * 4) / 5;
         b = (b * 4) / 5;
     }
+    for (k = 0; k < CR_MAX_TARGETS; k++) fix_s[k] = -1;
     for (k = 0; k < 16; k++) {
         uint16_t c = spr_pal12[k];
         pal[k] = RGB9((((c >> 8) & 15) * 7 + 7) / 15, (((c >> 4) & 15) * 7 + 7) / 15, ((c & 15) * 7 + 7) / 15);
@@ -92,7 +97,7 @@ void spr_world(uint8_t view, uint8_t frame, int32_t wx, int32_t wy, int32_t wz, 
     if (dx < -8000 || dx > 8000 || dz < -100 || dz > 8000) return;
     xform16((int16_t)dx, (int16_t)dy, (int16_t)dz, &p);
     if (p.z < 16) return;
-    s = persp_scale((uint16_t)p.z);
+    s = zscale((uint16_t)p.z);
     if (s > 32767) s = 32767;
     if (rmul > 1) {
         f = (uint32_t)s * rmul;
@@ -186,6 +191,36 @@ void spr_hide_all(void)
 }
 
 /* ---------- the objects: everything but the canyon, as sprites ---------- */
+/* cr_target_pos's place, its fixed parts kept (port: worked out once a
+   target; the original's sines are slow here): a turret's whole place, a
+   drone's or pod's point on the ride's line, which it swoops about */
+
+static int32_t swoop(int32_t amp, int32_t angle) { return (amp * a3_sin((uint16_t)(angle & 0xFFFF))) >> 16; }
+
+static void target_at(const CRGame *g, int k, int32_t *x, int32_t *y)
+{
+    const Target *t = &g->tg[k];
+    if (fix_s[k] != t->s) {
+        fix_s[k] = t->s;
+        if (t->type == TG_TURRET) {
+            fix_x[k] = (int16_t)(cr_path_x(t->s) + t->side * (cr_half_width(t->s) - 14));
+            fix_y[k] = (int16_t)(30 + t->h);
+        } else {
+            fix_x[k] = (int16_t)cr_path_x(t->s);
+            fix_y[k] = (int16_t)cr_path_y(t->s);
+        }
+    }
+    *x = fix_x[k];
+    *y = fix_y[k];
+    if (t->type == TG_DRONE) {
+        *x += swoop(t->amp, g->tick * 500 + t->phase);
+        *y += 70 + swoop(25, g->tick * 900 + t->phase);
+    } else if (t->type == TG_POD) {
+        *x += swoop(60, g->tick * 400 + t->phase);
+        *y += 45;
+    }
+}
+
 void spr_objects(const CRGame *g)
 {
     int k;
@@ -205,8 +240,8 @@ void spr_objects(const CRGame *g)
         const Target *t = &g->tg[k];
         int32_t ahead = t->s - g->cam_s;
         if (!t->alive || ahead < 20 || ahead > 1300) continue;
-        cr_target_pos(g, k, &x, &y, &z);
-        spr_world(t->type == TG_TURRET ? SV_TURRET : t->type == TG_DRONE ? SV_DRONE : SV_POD, 0, x, y, z, 1);
+        target_at(g, k, &x, &y);
+        spr_world(t->type == TG_TURRET ? SV_TURRET : t->type == TG_DRONE ? SV_DRONE : SV_POD, 0, x, y, t->s, 1);
     }
     if (g->cam_s + 1300 > CR_LEN) {
         int32_t bs = CR_LEN + 450;

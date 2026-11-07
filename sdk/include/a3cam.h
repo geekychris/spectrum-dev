@@ -16,7 +16,10 @@
  *
  * Not ported: cam_place / cam_for (16.16 cameras): A3Cam is the whole-unit
  * camera (CAM_U 1). The engine's int is 32 bits: here every value that can
- * pass 16 bits is int32_t. Test: projects/sdktestnext ("a3cam").
+ * pass 16 bits is int32_t. (Plain C: z88dk's 32-bit helpers already use the
+ * Z80N's MUL; an asm 16-bit path measured slower.) Tests: projects/geomtest
+ * ("a3cam") and projects/canyon_rail's tools/check_trace.sh (whole games
+ * against the original's).
  */
 #ifndef ZX_A3CAM_H
 #define ZX_A3CAM_H

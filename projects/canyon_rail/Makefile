@@ -7,6 +7,10 @@ BUILD := build-trace
 EXTRA_CFLAGS += -DCR_TRACE
 endif
 include $(ZX_SDK)/project.mk
+ifeq ($(TRACE),1)
+# the trace links the rules alone (the picture, sprites and shell left out)
+OBJS := $(filter-out $(addprefix $(OBJDIR)/,render.c.o sprites.c.o spr_tab.c.o spr_data.asm.o view.asm.o front.c.o),$(OBJS))
+endif
 
 .DEFAULT_GOAL := all
 all: $(OUT)
