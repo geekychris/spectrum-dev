@@ -128,9 +128,9 @@ with Emulator(machine="next") as e:
     e.screenshot(SHOTS / "gameover.png")
     if rank >= 0:
         e.run(2)
-        e.type("BOT")
-        e.run(10)
-        more += e.log()
+        e.type("BOT", hold_frames=15, gap_frames=15)    # the editor reads the keys once a drawn frame
+        e.run_until("pc: name=", 200)
+        more += e.log(0)[-400:]
         check("high-score initials", "pc: name=BOT" in more, more[-200:])
     else:
         check(f"score {final} below the table: no entry", final <= 1000)

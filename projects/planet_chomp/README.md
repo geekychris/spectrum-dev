@@ -155,4 +155,6 @@ host comparison. `.venv/bin/python projects/planet_chomp/tools/profile.py
   fill.
 - Sprites are always over the walls: a spook behind a wall shows in front
   of it.
-- Z, X, C, H and B are read once a frame: a very short tap can be missed.
+- Z, X, C, H and B are read once a frame: a very short tap can be missed;
+  initials typed faster than the frame rate (one letter a drawn frame) lose
+  letters.
