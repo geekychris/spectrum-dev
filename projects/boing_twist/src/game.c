@@ -93,14 +93,17 @@ static uint8_t next_allowed(uint8_t from, int8_t d, uint8_t level)
     return from;
 }
 
-static void texture(void)
+static void texture_band(uint8_t only)
 {
     uint8_t marks = screen == SC_PLAY && anim_move < 0 && !busy && !peeking;
-    ball_build(&P, (marks ? BB_MARKS : 0) | (peeking && screen == SC_PLAY ? BB_PEEK : 0), sel_band, sel_half);
+    if (tex_marks || tex_peek) only = 0xFF;  /* (the marks cross every band) */
+    ball_build(&P, (marks ? BB_MARKS : 0) | (peeking && screen == SC_PLAY ? BB_PEEK : 0), sel_band, sel_half, only);
     tex_marks = marks;
     tex_peek = peeking;
     ball_dirty = 1;
 }
+
+static void texture(void) { texture_band(0xFF); }
 
 /* a solved ball of this picture and level's grid (the title's, the select screen's) */
 static void show_picture(uint8_t pic, uint8_t level)
@@ -221,7 +224,7 @@ static void anim_finish(void)
         enter_solved();
         return;
     }
-    texture();
+    texture_band(BT_IS_FLIP(m) ? 0xFF : (uint8_t)BT_BAND(m));
 }
 
 /* a new puzzle of the chosen level and picture (main_os4.c start_game) */
@@ -237,6 +240,8 @@ static void start_game(void)
     /* the scramble (one that leaves a checkerboard solved is retried), shown move by move;
        port: from a queue long enough for Expert's 80 (the original's 64 drop the rest) */
     seed = bt_start_level(&P, lv, seed, -1);
+    zx_log("bt: play pic=%u level=%u grid=%dx%d scramble=%d seed=%lu\n", play_pic, lv, P.bands, P.segs, P.nscramble,
+           seed);
     qh = qt = 0;
     for (i = 0; i < P.nscramble; i++) enqueue(K_SCRAMBLE, P.hist[i]);
     bt_reset(&P);
@@ -254,8 +259,6 @@ static void start_game(void)
     off16 = target16 = 128u << 8;              /* the original's yaw -180 */
     snd_music(0);
     set_screen(SC_PLAY);
-    zx_log("bt: play pic=%u level=%u grid=%dx%d scramble=%d seed=%lu\n", play_pic, lv, P.bands, P.segs, P.nscramble,
-           seed);
     texture();
 }
 
@@ -494,7 +497,7 @@ static void draw_play_ball(void)
             ball_twist_shift((uint8_t)BT_BAND(anim_move), BT_WEST(anim_move) ? (uint8_t)-dd : dd);
         }
     }
-    ball_draw(&v_play[pitch], ball_off(), 128, 96);
+    ball_draw(&v_play[pitch], ball_off(), v_play[pitch].cx, v_play[pitch].cy);
 }
 
 /* the room and the shadow in both screens (the ball stays put on these) */
@@ -519,10 +522,10 @@ static void picture(void)
         /* the 1984 demo: bouncing across the room, spinning on a leaning axis */
         uint16_t t = scene_t;
         uint8_t ib = screen == SC_TITLE ? t % BOUNCE_T : t % BOUNCE_S, ix = screen == SC_TITLE ? t % SWAY_T : t % SWAY_S;
-        int16_t x = 128 + (screen == SC_TITLE ? sway_t[ix] : sway_s[ix]);
-        int16_t y = 96 + (screen == SC_TITLE ? bounce_t[ib] : bounce_s[ib]);
+        int16_t x = v_title.cx + (screen == SC_TITLE ? sway_t[ix] : sway_s[ix]);
+        int16_t y = v_title.cy + (screen == SC_TITLE ? bounce_t[ib] : bounce_s[ib]);
         int16_t wx = 128 + (screen == SC_TITLE ? wall_dx_t[ix] : wall_dx_s[ix]);
-        int16_t wy = 96 + (screen == SC_TITLE ? wall_dy_t[ib] : wall_dy_s[ib]);
+        int16_t wy = 48 + (screen == SC_TITLE ? wall_dy_t[ib] : wall_dy_s[ib]);
         room_to_back();
         room_shadow(wx, wy, x, SH_TITLE_FY, SH_TITLE_RX, SH_TITLE_RY);
         ball_draw(&v_title, ball_off(), x, y);
@@ -550,7 +553,8 @@ static void picture(void)
 }
 
 /* ---------------- the main loop's pass ---------------- */
-static uint16_t fps_frames, fps_drawn, fps_ticks;
+static uint16_t fps_frames, fps_drawn, fps_ticks, fps_busy;
+static uint8_t drew_last;
 
 void game_after_wait(void)
 {
@@ -604,12 +608,16 @@ void game_frame(uint8_t frames)
         screens_draw();
     }
     fps_frames += frames;
+    if (drew_last) fps_busy += frames;        /* the frames the last drawing took */
+    drew_last = flip_pending;
     if (flip_pending) fps_drawn++;
     while (frames--) snd_tick();
     if (fps_frames >= 100) {
-        zx_log("bt: perf fps10=%u ticks=%u screen=%u px=%u ay=%u,%u,%u\n",
-               (uint16_t)((uint32_t)fps_drawn * 500u / fps_frames), fps_ticks, screen, pixels_last,
+        /* fps10: pictures a second while it moves (passes that drew, over the frames they took) */
+        zx_log("bt: perf fps10=%u drawn=%u busy=%u ticks=%u screen=%u px=%u ay=%u,%u,%u\n",
+               fps_busy ? (uint16_t)((uint32_t)fps_drawn * 500u / fps_busy) : 0, fps_drawn, fps_busy, fps_ticks, screen,
+               pixels_last,
                snd_reg(0, 8) & 15, snd_reg(1, 8) & 15, snd_reg(2, 8) & 15);
-        fps_frames = fps_drawn = fps_ticks = 0;
+        fps_frames = fps_drawn = fps_ticks = fps_busy = 0;
     }
 }

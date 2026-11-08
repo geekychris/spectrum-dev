@@ -34,7 +34,7 @@ void room_load(uint8_t r)
     do {
         z80_outp(0x123B, 0x0B | (y & 0xC0));
         rv_unpack4((const uint8_t *)((uint16_t)y << 7), (uint8_t *)((uint16_t)(y & 63) << 8));
-    } while (++y < 192);
+    } while (++y < 96);
     z80_outp(0x123B, 0x02);
     /* its 16 colours and their shadowed copies */
     set_mmu(2, META_PAGE + (off >> 13));
@@ -52,7 +52,7 @@ void room_load(uint8_t r)
 
 void room_to_back(void)
 {
-    l2_copy_to_back(ROOM_BANK);
+    dma_copy_banks(l2_back, ROOM_BANK, 2);  /* (96 rows: the first 24K) */
     logic_map();                             /* (the DMA gave slots 0-1 back to the ROM) */
 }
 
@@ -61,6 +61,7 @@ static void ellipse(int16_t cx, int16_t cy, uint8_t rx, uint8_t ry, uint8_t clip
 {
     int16_t y, y0 = cy - ry, y1 = cy + ry, lo, hi;
     uint16_t r2 = (uint16_t)ry * 2, rr = r2 * r2;
+    if (!ry) return;
     rv_bank = l2_back;
     if (y0 < 0) y0 = 0;
     if (y1 >= clip) y1 = clip - 1;
@@ -82,7 +83,7 @@ void room_shadow(int16_t wx, int16_t wy, int16_t fx, int16_t fy, uint8_t rx, uin
 {
     uint8_t kind = rooms[room_cur].shadow;
     switch (kind) {
-    case 0: ellipse(wx, wy, SH_WALL_R, SH_WALL_R, SH_WALL_CLIP); break;
-    case 1: ellipse(fx, fy, rx, ry, 192); break;
+    case 0: ellipse(wx, wy, SH_WALL_R, SH_WALL_R / 2, SH_WALL_CLIP); break;   /* (half height: the rows are doubled) */
+    case 1: ellipse(fx, fy, rx, ry, 96); break;
     }
 }

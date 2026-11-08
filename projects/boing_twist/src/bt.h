@@ -42,6 +42,8 @@ extern uint16_t rv_pixels;
 extern void rv_draw(void);
 extern void rv_or_span(uint8_t y, uint8_t x, uint8_t n, uint8_t bits);
 extern void rv_copy(const uint8_t *src, uint8_t *dst, uint8_t n, uint8_t turned);
+extern void rv_fill(uint8_t *dst, uint8_t v, uint16_t n);   /* write-only (the window) */
+extern void rv_row(uint8_t *dst, const uint8_t *prog, uint8_t n, uint8_t dv);
 extern void rv_unpack4(const uint8_t *src, uint8_t *dst);
 
 #endif

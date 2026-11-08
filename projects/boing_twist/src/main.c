@@ -11,19 +11,38 @@
 #include "sound.h"
 #include "game.h"
 #include "bt.h"
+#include "nextcopper.h"
 
-uint8_t rom_font[768];                   /* copied from the ROM while slot 0 has it */
+
+/* port: Layer 2 is drawn 96 rows high and shown 192: every other line the
+   copper moves its Y scroll (NextReg 0x17) back a row, so each row shows
+   twice (Orbit Docking's; one more move at the end so the last line shows
+   row 95 too) */
+static void copper_doubling(void)
+{
+    uint16_t l;
+    copper_begin();
+    copper_move(0x17, 0);
+    for (l = 2; l <= 192; l += 2) {
+        copper_wait(l - 1, 50);
+        copper_move(0x17, (uint8_t)(192 - l / 2));
+    }
+    copper_end();
+}
 
 int main(void)
 {
-    memcpy(rom_font, (const void *)0x3D00, sizeof(rom_font));
+    /* the ROM's font, for the text: into SAVE_PAGE (free until a twist) while the ROM is in */
+    ZXN_WRITE_REG(0x53, SAVE_PAGE);
+    memcpy((void *)0x6000, (const void *)0x3D00, 768);
+    ZXN_WRITE_REG(0x53, 11);
     next_init();
     spr_init();
     ZXN_WRITE_REG(0x15, 0x09);               /* sprites, tilemap over Layer 2 (S U L) */
     l2_init();
     logic_map();                             /* the text, the tables and the rules from here on */
-    ZXN_WRITE_REG(0x4A, 0);                  /* the border: black */
-    pal_set8(0, 16, 0xE3);                   /* (the ULA's border colour shows the fallback) */
+    zx_border(INK_BLACK);
+    copper_doubling();
     hud_init();
     snd_init();
     input_init();

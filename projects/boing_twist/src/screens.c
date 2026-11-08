@@ -17,7 +17,8 @@ char tmp[44];
 /* ---------------- the text ---------------- */
 static void fmt_time(char *b, uint16_t s)
 {
-    sprintf(b, "%u:%02u", s / 60, s % 60);
+    uint8_t ss = s % 60;
+    sprintf(b, "%u:%c%c", s / 60, '0' + ss / 10, '0' + ss % 10);
 }
 
 static void draw_scores(uint8_t row)
@@ -65,7 +66,7 @@ static void draw_help(void)
 static void draw_select(void)
 {
     static const char *const tips[BT_NLEVELS] = {
-        "BIG TILES, BOLD PICTURES", "MORE TILES, LONGER SCRAMBLE", "THE BOING BALL'S OWN 128", "128 TILES, TWICE AS JUMBLED" };
+        "BIG TILES, BOLD ART", "MORE TILES, MORE MOVES", "THE BOING BALL'S OWN", "TWICE THE SCRAMBLE" };
     const BtLevel *lv = &bt_levels[sel_level];
     uint8_t list[NPICS], n = 0, at = 0, first, i, rows = 7, y;
     hud_ctext(2, "CHOOSE A PUZZLE", TX_YELLOW);

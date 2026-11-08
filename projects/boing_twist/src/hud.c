@@ -11,6 +11,7 @@
 #include <arch/zxn.h>
 #include "nexttile.h"
 #include "hud.h"
+#include "bt.h"
 
 #define T_FONT  1                        /* tiles 1..64: characters 32..95 (capitals), on nothing */
 #define T_PFONT 65                       /* 65..128: on the panel */
@@ -18,7 +19,7 @@
 #define T_BIG   130                      /* the title's letters, 3 x 3 tiles each (..201) */
 #define RGB9(r, g, b) ((uint16_t)((r) << 6 | (g) << 3 | (b)))
 
-extern uint8_t rom_font[768];
+#define rom_font ((const uint8_t *)0x6000)  /* main.c left the ROM font in SAVE_PAGE: mapped there by hud_init */
 
 /* the original's colours: C_WHITE, C_YELLOW, C_RED, C_CYAN, C_DIM, green, grey-blue */
 static const uint16_t ink_rgb[7] = {
@@ -43,6 +44,7 @@ void hud_init(void)
 {
     uint8_t k, def[32];
     static const char big[] = "BOINGTWS";
+    ZXN_WRITE_REG(0x53, SAVE_PAGE);
     tm_init();
     for (k = 0; k < 64; k++) {
         shadow_tile(T_FONT + k, rom_font + k * 8, 0);
@@ -56,6 +58,7 @@ void hud_init(void)
         tm_pal(k, 2, RGB9(0, 0, 0));
         tm_pal(k, 3, RGB9(1, 1, 2));         /* the panel */
     }
+    ZXN_WRITE_REG(0x53, 11);
 }
 
 uint8_t hud_on_panel;

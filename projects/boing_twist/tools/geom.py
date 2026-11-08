@@ -10,7 +10,8 @@ import math
 
 import numpy as np
 
-W, H = 256, 192                       # Layer 2
+W, H = 256, 192                       # the screen
+HM = 96                               # Layer 2's rows: each shown twice (the copper)
 FOVY = 45.0
 FOCAL = (H * 0.5) / math.tan(math.radians(FOVY / 2))   # pixels per unit at distance 1
 ROOM_Z = -6.5                         # back wall
@@ -55,13 +56,15 @@ def ball_extent(vx, vy, dist):
 
 
 def ball_pixels(vx, vy, dist, yaw, pitch, roll):
-    """every screen pixel the ball covers: (xs, ys, q) with q the point of the
-    ball (its own frame, unit vectors) the pixel shows (render.c rd_pick)"""
+    """every pixel the ball covers: (xs, ys, q) with q the point of the ball
+    (its own frame, unit vectors) the pixel shows (render.c rd_pick). ys are
+    Layer 2's rows: row k is the screen's 2k and 2k + 1 (seen through the
+    middle, y = 2k + 1)"""
     xl, xr, yt, yb = ball_extent(vx, vy, dist)
     x0, x1 = int(math.floor(xl)) - 1, int(math.ceil(xr)) + 1
-    y0, y1 = int(math.floor(yt)) - 1, int(math.ceil(yb)) + 1
+    y0, y1 = int(math.floor(yt / 2)) - 1, int(math.ceil(yb / 2)) + 1
     ys, xs = np.mgrid[y0:y1 + 1, x0:x1 + 1]
-    d = np.stack([(xs + 0.5 - W * 0.5) / FOCAL, -(ys + 0.5 - H * 0.5) / FOCAL, -np.ones(xs.shape)], -1)
+    d = np.stack([(xs + 0.5 - W * 0.5) / FOCAL, -(2 * ys + 1.0 - H * 0.5) / FOCAL, -np.ones(xs.shape)], -1)
     d /= np.linalg.norm(d, axis=-1, keepdims=True)
     C = np.array([vx, vy, -dist])
     b = d @ C

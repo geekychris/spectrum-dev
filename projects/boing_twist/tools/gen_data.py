@@ -11,7 +11,7 @@ the band's rows of the texture turned; a flip is drawn from a second
 texture laid out round the flip's axis (TF: alpha round it, beta from it),
 where the flip is again an add.
 
-  views     the play view at each tilt (port: -24..24 degrees in steps of 12,
+  views     the play view at each tilt (port: -36..36 degrees in steps of 12,
             the original's W / S steps; it allows -60..60), each with its
             flip view (the pixels the flipping half covers, as TF texels,
             and any the other half shows, as picture texels); the title's
@@ -21,9 +21,13 @@ where the flip is again an add.
   pictures  256 x 96 texels in 25 colours (+ groove, ring, half line);
             per picture: the 224 palette entries (28 colours x 8 shades)
             and which tiles look alike (bt_set_sig) for each grid
-  rooms     nine of the original's ten rooms drawn from its box (ray cast, its
+  rooms     the original's ten rooms drawn from its box (ray cast, its
             textures and grids), 4 bits a pixel (16 colours and their
-            shadowed copies in the palette)
+            shadowed copies in the palette), at half height like the ball
+
+port: Layer 2 is drawn 96 rows high and the copper shows each row twice
+(src/main.c), which halves the ball's pixels; everything here is made for
+those rows.
 
 Output: gfx/bank_NN.bin, src/gfx_data.asm, src/gfx_data.h, src/gfx_data.c.
     python3 tools/gen_data.py [--preview DIR]
@@ -42,11 +46,11 @@ PROJ = os.path.dirname(HERE)
 ORIG = os.path.normpath(os.path.join(PROJ, "..", "..", "..", "amiga_mcp", "examples", "boing_twist"))
 sys.path.insert(0, HERE)
 import geom  # noqa: E402
-from geom import FOCAL, TEX_W, TEX_H, TF_H, W, H  # noqa: E402
+from geom import FOCAL, TEX_W, TEX_H, TF_H, W, H, HM  # noqa: E402
 
 FIRST_BANK = 30                      # banks below: Layer 2, the working banks and code (src/bt.h)
 PAGE = 8192
-PITCHES = [-24, -12, 0, 12, 24]
+PITCHES = [-36, -24, -12, 0, 12, 24, 36]
 PLAY_DIST = 3.6
 TITLE = dict(vx=0.0, vy=0.0, dist=4.4, pitch=0.0, roll=-17.0)
 SELECT = dict(vx=1.05, vy=0.05, dist=3.9, pitch=12.0, roll=0.0)
@@ -87,7 +91,7 @@ def shading(xs, ys, ext):
     xl, xr, yt, yb = ext
     cx, cy = (xl + xr) * 0.5, (yt + yb) * 0.5
     x = (xs + 0.5 - cx) / ((xr - xl) * 0.5)
-    y = -(ys + 0.5 - cy) / ((yb - yt) * 0.5)
+    y = -(2 * ys + 1.0 - cy) / ((yb - yt) * 0.5)        # (Layer 2 row k: the screen's 2k + 1)
     rr = x * x + y * y
     k = np.where(rr > 1, 1 / np.sqrt(np.maximum(rr, 1e-9)), 1.0)
     x, y = x * k, y * k
@@ -159,7 +163,7 @@ def view(vx, vy, dist, pitch, roll):
     u, v = geom.tex_uv(lat, lon)
     lvl = shading(xs, ys, ext)
     cx, cy = geom.project(vx, vy, -dist)
-    cx, cy = int(round(cx)), int(round(cy))
+    cx, cy = int(round(cx)), int(round((cy - 1) / 2))   # in Layer 2's rows
     return xs, ys, q, u, v, lvl, cx, cy
 
 
@@ -441,7 +445,7 @@ def render_room(th, ss=4):
         shade_face("back", np.where(ok, t, np.inf), P, 0, 1,
                    [(bx0, geom.ROOM_Y, geom.ROOM_Z), (bx1, geom.ROOM_Y, geom.ROOM_Z), (bx1, by1, geom.ROOM_Z),
                     (bx0, by1, geom.ROOM_Z)])
-    img = img.reshape(H, ss, W, ss, 3).mean(axis=(1, 3))
+    img = img.reshape(HM, 2 * ss, W, ss, 3).mean(axis=(1, 3))      # Layer 2's rows: two screen rows each
     return np.clip(img, 0, 255).astype(np.uint8)
 
 
@@ -477,7 +481,7 @@ def bounce_tables():
     for name, (fb, kb, fx, ax) in {"title": (2.4, 1.7, 0.55, 1.6), "solved": (2.6, 1.5, 0.8, 1.0)}.items():
         nb = int(round(math.pi / fb * 50))
         nx = int(round(2 * math.pi / fx * 50))
-        by = [int(round(-FOCAL * (-0.5 + kb * abs(math.sin(math.pi * i / nb))) / TITLE["dist"])) for i in range(nb)]
+        by = [int(round(-FOCAL * (-0.5 + kb * abs(math.sin(math.pi * i / nb))) / TITLE["dist"] / 2)) for i in range(nb)]
         bx = [int(round(FOCAL * ax * math.sin(2 * math.pi * i / nx) / TITLE["dist"])) for i in range(nx)]
         by_wall = [-0.5 + kb * abs(math.sin(math.pi * i / nb)) for i in range(nb)]
         out[name] = (by, bx, by_wall, [ax * math.sin(2 * math.pi * i / nx) for i in range(nx)])
@@ -488,17 +492,17 @@ def shadow_defines():
     out = []
     r = FOCAL * 1.15 / -geom.ROOM_Z
     _, floor_y = geom.project(0, geom.ROOM_Y, geom.ROOM_Z)
-    out.append(f"#define SH_WALL_R {int(round(r))}")
-    out.append(f"#define SH_WALL_CLIP {int(floor_y)}      /* rows below this are floor */")
+    out.append(f"#define SH_WALL_R {int(round(r))}          /* across; down: half (Layer 2's rows) */")
+    out.append(f"#define SH_WALL_CLIP {int(floor_y) // 2}      /* rows below this are floor */")
     for name, (vx, vy, dist) in {"PLAY": (0.0, 0.0, PLAY_DIST), "SELECT": (SELECT["vx"], SELECT["vy"], SELECT["dist"]),
                                  "TITLE": (0.0, 0.0, TITLE["dist"])}.items():
         wx, wy = geom.project(vx + 0.85, vy - 0.15, geom.ROOM_Z)
         cx, cy = geom.project(vx, geom.ROOM_Y, -dist)
         _, sy0 = geom.project(vx, geom.ROOM_Y, -dist - 1.0)
         _, sy1 = geom.project(vx, geom.ROOM_Y, -dist + 0.6)
-        out += [f"#define SH_{name}_WX {int(round(wx))}", f"#define SH_{name}_WY {int(round(wy))}",
-                f"#define SH_{name}_FX {int(round(cx))}", f"#define SH_{name}_FY {int(round((sy0 + sy1) / 2))}",
-                f"#define SH_{name}_RX {int(round(FOCAL / dist))}", f"#define SH_{name}_RY {int(round((sy1 - sy0) / 2))}"]
+        out += [f"#define SH_{name}_WX {int(round(wx))}", f"#define SH_{name}_WY {int(round(wy / 2))}",
+                f"#define SH_{name}_FX {int(round(cx))}", f"#define SH_{name}_FY {int(round((sy0 + sy1) / 4))}",
+                f"#define SH_{name}_RX {int(round(FOCAL / dist))}", f"#define SH_{name}_RY {int(round((sy1 - sy0) / 4))}"]
     return out
 
 
@@ -568,8 +572,8 @@ def main():
         meta += blob
         previews.append((name, idx, cols))
     # ---- rooms (the Boing room first, as the original)
-    # port: the Arcade room is left out (no picture comes with it; memory)
-    order = ["boing", "midnight", "space", "aquarium", "garden", "observatory", "retroroom", "study", "workshop"]
+    order = ["boing", "midnight", "space", "aquarium", "arcade", "garden", "observatory", "retroroom", "study",
+             "workshop"]
     room_recs = []
     room_imgs = []
     for rname in order:
@@ -671,9 +675,9 @@ def main():
 
     csrc += arr("bounce_t", bt["title"][0]) + arr("sway_t", bt["title"][1])
     csrc += arr("bounce_s", bt["solved"][0]) + arr("sway_s", bt["solved"][1])
-    csrc += arr("wall_dy_t", [int(round(-FOCAL * (v - 0.15) / 6.5)) for v in bt["title"][2]])
+    csrc += arr("wall_dy_t", [int(round(-FOCAL * (v - 0.15) / 6.5 / 2)) for v in bt["title"][2]])
     csrc += arr("wall_dx_t", [int(round(FOCAL * (v + 0.85) / 6.5)) for v in bt["title"][3]])
-    csrc += arr("wall_dy_s", [int(round(-FOCAL * (v - 0.15) / 6.5)) for v in bt["solved"][2]])
+    csrc += arr("wall_dy_s", [int(round(-FOCAL * (v - 0.15) / 6.5 / 2)) for v in bt["solved"][2]])
     csrc += arr("wall_dx_s", [int(round(FOCAL * (v + 0.85) / 6.5)) for v in bt["solved"][3]])
     open(os.path.join(PROJ, "src", "gfx_data.h"), "w").write("\n".join(hdr) + "\n")
     open(os.path.join(PROJ, "src", "gfx_data.c"), "w").write("\n".join(csrc) + "\n")

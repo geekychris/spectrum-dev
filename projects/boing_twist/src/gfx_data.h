@@ -13,13 +13,13 @@ typedef struct { const char *title; uint8_t level, room, page; uint16_t meta; } 
 typedef struct { const char *title; uint8_t page; uint16_t meta; uint8_t shadow; } Room;
 
 #define FIRST_DATA_BANK 30
-#define LAST_DATA_BANK 109
-#define NPITCH 5
-#define PITCH0 2       /* the level view */
-#define PITCH_DEFAULT 3  /* the original's 12 degrees */
+#define LAST_DATA_BANK 95
+#define NPITCH 7
+#define PITCH0 3       /* the level view */
+#define PITCH_DEFAULT 4  /* the original's 12 degrees */
 #define NPICS 18      /* 0: the Boing ball, made by the game */
-#define NROOMS 9
-#define META_PAGE 216
+#define NROOMS 10
+#define META_PAGE 189
 #define META_PAGES 3
 #define NRING 118
 #define BOUNCE_T 65
@@ -28,26 +28,26 @@ typedef struct { const char *title; uint8_t page; uint16_t meta; uint8_t shadow;
 #define SWAY_S 393
 /* render.c shadow(): on the back wall a disc up and right of the ball, above the floor line;
    on the floor an ellipse under it (port: as dark at any height) */
-#define SH_WALL_R 41
-#define SH_WALL_CLIP 149      /* rows below this are floor */
+#define SH_WALL_R 41          /* across; down: half (Layer 2's rows) */
+#define SH_WALL_CLIP 74      /* rows below this are floor */
 #define SH_PLAY_WX 158
-#define SH_PLAY_WY 101
+#define SH_PLAY_WY 51
 #define SH_PLAY_FX 128
-#define SH_PLAY_FY 192
+#define SH_PLAY_FY 96
 #define SH_PLAY_RX 64
-#define SH_PLAY_RY 20
+#define SH_PLAY_RY 10
 #define SH_SELECT_WX 196
-#define SH_SELECT_WY 100
+#define SH_SELECT_WY 50
 #define SH_SELECT_FX 190
-#define SH_SELECT_FY 184
+#define SH_SELECT_FY 92
 #define SH_SELECT_RX 59
-#define SH_SELECT_RY 17
+#define SH_SELECT_RY 9
 #define SH_TITLE_WX 158
-#define SH_TITLE_WY 101
+#define SH_TITLE_WY 51
 #define SH_TITLE_FX 128
-#define SH_TITLE_FY 174
+#define SH_TITLE_FY 87
 #define SH_TITLE_RX 53
-#define SH_TITLE_RY 14
+#define SH_TITLE_RY 7
 extern const int8_t pitch_deg[NPITCH];
 extern const View v_play[NPITCH], v_flip[NPITCH], v_fstat[NPITCH], v_title, v_select, v_ct;
 extern const Pic pics[NPICS];

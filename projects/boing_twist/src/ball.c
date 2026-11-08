@@ -87,7 +87,7 @@ static void boing_picture(BtPuzzle *p)
         write_third(v >> 6);
         b = brow[v];
         for (s = 0; s < g_segs; s++)
-            memset(dst + ball_cols[s], (b + s) & 1 ? 0 : 1, seg_w(s));
+            rv_fill(dst + ball_cols[s], (b + s) & 1 ? 0 : 1, seg_w(s));
     }
     write_off();
     for (v = 0; v < g_bands * g_segs; v++) {
@@ -125,28 +125,23 @@ uint8_t ball_half_u(uint8_t half)
     return (uint8_t)((((uint16_t)half * 4 + g_segs) * 128u / g_segs + 1) >> 1);
 }
 
-void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_half)
+static uint8_t prog[BT_MAX_S * 5];        /* a band's slots for rv_row */
+
+void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_half, uint8_t only)
 {
-    uint8_t v, s, b, dv, third = 0xFF, h, base, home, o, ws, wh, w, c0, srow;
-    const uint8_t *src;
+    uint8_t v, s, b, dv, third = 0xFF, h, base, home, o, ws, wh, *r, b0 = 0, b1 = g_bands;
     uint8_t *dst;
+    if (only < g_bands) { b0 = only; b1 = only + 1; }
     memcpy(slots, p->slot, (uint16_t)g_bands * g_segs * 2);
     set_mmu(0, src_page);
     set_mmu(1, src_page + 1);
     set_mmu(2, src_page + 2);
     write_bank(TEX_BANK);
     h = ball_rows[1];                        /* rows a band */
-    for (v = 0; v < 96; v++) {
-        dst = (uint8_t *)((uint16_t)(v & 63) << 8);
-        if ((v >> 6) != third) { third = v >> 6; write_third(third); }
-        b = brow[v];
-        dv = v - ball_rows[b];
-        if (dv == 0) {                       /* the groove along the band's top */
-            memset(dst, C_GROOVE, 256);
-            continue;
-        }
+    for (b = b0; b < b1; b++) {
+        /* the band's slots: where each piece's row starts in the picture */
         base = b * g_segs;
-        for (s = 0; s < g_segs; s++) {
+        for (s = 0, r = prog; s < g_segs; s++, r += 5) {
             if (flags & BB_PEEK) {
                 home = base + s;
                 o = 0;
@@ -156,13 +151,18 @@ void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_
             }
             ws = seg_w(s);
             wh = seg_w(home_s[home]);
-            w = ws < wh ? ws : wh;
-            c0 = ball_cols[s];
-            srow = ball_rows[home_b[home]] + (o ? h - 1 - dv : dv);
-            src = (const uint8_t *)(((uint16_t)srow << 8) | (o ? ball_cols[home_s[home]] + wh - 1 : ball_cols[home_s[home]]));
-            rv_copy(src, dst + c0, w, o);
-            if (ws > w) dst[(uint8_t)(c0 + w)] = o ? src[-(int16_t)(w - 1)] : src[w - 1];   /* a column short */
-            dst[c0] = C_GROOVE;              /* the groove on the tile's west side */
+            r[0] = o ? ball_cols[home_s[home]] + wh - 1 : ball_cols[home_s[home]];
+            r[1] = ball_rows[home_b[home]] + (o ? h - 1 : 0);
+            r[2] = ws < wh ? ws : wh;
+            r[3] = ws;
+            r[4] = o;
+        }
+        for (dv = 0; dv < h; dv++) {
+            v = ball_rows[b] + dv;
+            dst = (uint8_t *)((uint16_t)(v & 63) << 8);
+            if ((v >> 6) != third) { third = v >> 6; write_third(third); }
+            if (dv == 0) rv_fill(dst, C_GROOVE, 256);   /* the groove along the band's top */
+            else rv_row(dst, prog, g_segs, dv);
         }
     }
     logic_map();                             /* ring_uv is in the logic bank: read there, written through the window */
@@ -186,7 +186,7 @@ void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_
             if (b == 0 || b == g_bands) continue;
             v = ball_rows[b];
             if ((v >> 6) != third) { third = v >> 6; write_third(third); }
-            memset((uint8_t *)((uint16_t)(v & 63) << 8), C_RING, 256);
+            rv_fill((uint8_t *)((uint16_t)(v & 63) << 8), C_RING, 256);
         }
     }
     write_off();
@@ -250,8 +250,8 @@ void ball_draw(const View *v, uint8_t off, int16_t x, int16_t y)
 void ball_draw_flip(uint8_t pitch, uint8_t half, uint8_t phi)
 {
     rv_page = v_flip[pitch].page;
-    rv_cx = 128;
-    rv_cy = 96;
+    rv_cx = v_flip[pitch].cx;
+    rv_cy = v_flip[pitch].cy;
     rv_off = (uint8_t)-phi;
     rv_bank = l2_back;
     rv_tex = TF_PAGE;

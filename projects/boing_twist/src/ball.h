@@ -14,7 +14,8 @@ extern uint8_t ball_rows[BT_MAX_B + 1];   /* and row of each band */
 /* the picture on the ball, cut for bands x segs: its palette, and which of its
    tiles look alike into p (bt_set_sig) */
 void ball_picture(uint8_t pic, uint8_t bands, uint8_t segs, BtPuzzle *p);
-void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_half);
+/* only: just this band (a twist changed only it), 0xFF: all */
+void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_half, uint8_t only);
 uint8_t ball_half_u(uint8_t half);        /* the half's middle, in texels */
 void ball_twist_begin(uint8_t band);
 void ball_twist_shift(uint8_t band, uint8_t d);   /* the band's rows turned d texels east */
