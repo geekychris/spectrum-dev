@@ -262,7 +262,7 @@ static void progress_bar(uint8_t px)
 
 /* what the HUD shows: it is redrawn only when this changes */
 typedef struct {
-    uint8_t state, level, sel, paused, demo, blink, page, music, entry, ipos, dying, fin, out, pr;
+    uint8_t state, level, sel, paused, demo, blink, page, music, entry, ipos, dying, fin, out, pr, mode;
     long tl, ct;
     int deaths;
     uint32_t score;
@@ -325,7 +325,8 @@ static void hud_title(void)
                     G.best[i] > 0 && i == G.level ? medal_name(medal_of(G.best[i])) : "");
             text_at(8 + i, 5, buf, sel ? P_WHITE : G.best[i] > 0 ? P_AMBER : P_DIM);
         }
-    ctext(15, "ONE PLAYER", P_CYAN);
+    /* port: the two modes (main.c), each with its own best times and high scores */
+    ctext(15, play_mode ? "X: PLAY MODE (REAL TIME)" : "X: EXACT MODE (50 HZ, SLOW)", P_CYAN);
     if (G.best_run > 0) {
         fmt_time(t, G.best_run);
         sprintf(buf, "BEST FULL RUN %s (%ld FALLS)", t, G.best_run_falls);
@@ -346,7 +347,7 @@ void hud_frame_b(void)
     memset(&k, 0, sizeof k);
     k.state = (uint8_t)G.state; k.level = (uint8_t)G.level; k.sel = (uint8_t)G.title_select;
     k.paused = (uint8_t)G.paused; k.demo = (uint8_t)G.demo; k.blink = blink();
-    k.page = (uint8_t)((G.clock / 300) & 1); k.music = (uint8_t)G.music_on;
+    k.page = (uint8_t)((G.clock / 300) & 1); k.music = (uint8_t)G.music_on; k.mode = play_mode;
     k.entry = hud_entry; k.ipos = hud_initials_pos; memcpy(k.ini, hud_initials, 4);
     k.dying = (uint8_t)pl->dying; k.fin = (uint8_t)pl->finished; k.out = (uint8_t)pl->out_of_time;
     k.pr = (uint8_t)((160L * progress) >> 16);

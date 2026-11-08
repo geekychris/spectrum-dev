@@ -382,10 +382,22 @@ static void advance(void)
 
 /* ---- one step of the race (scaled by the slow-motion) ---- */
 
+/* port: play mode (phys_dt2, the default) runs the physics on every second
+   race step, one step of 2/50 s (phys.asm doubles every per-step amount);
+   the clocks, timers and camera here keep their 50 steps a second. Exact
+   mode (phys_dt2 = 0) is the original's 50 Hz physics */
+static unsigned char dt_phase;
+
+static void world_step(void)
+{
+    if (!phys_dt2 || (G.clock & 1)) phys_world_step();
+}
+
 static void race_step(unsigned long held[2])
 {
-    int i, all_out = 1;
-    phys_world_step();
+    int i, all_out = 1, do_phys = 1;
+    if (phys_dt2) { dt_phase ^= 1; do_phys = dt_phase; }
+    if (do_phys) phys_world_step();
     bits_step();
     for (i = 0; i < G.nplayers; i++) {
         Player *p = &G.p[i];
@@ -414,7 +426,7 @@ static void race_step(unsigned long held[2])
         }
         m->kill = 0;
         m->goal = 0;
-        phys_marble_step(m, wx, wz);
+        if (do_phys) phys_marble_step(m, wx, wz);
         p->time_left--;
         p->course_time++;
         p->run_time++;
@@ -499,7 +511,7 @@ void game_step(unsigned long held0, unsigned long pressed0, unsigned long held1,
             rs_log("demo starts course=%d\n", G.title_select + 1);
             return;
         }
-        phys_world_step();
+        world_step();                                /* port: see race_step */
         G.cine_t = (G.cine_t + 59) & 0xFFFF;               /* 0.045 of the course a second */
         {
             V3 f;
@@ -530,7 +542,7 @@ void game_step(unsigned long held0, unsigned long pressed0, unsigned long held1,
         for (i = 0; i < G.nplayers; i++) cam_follow(&G.p[i]);
         break;
     case ST_CLEAR:
-        phys_world_step();
+        world_step();
         bits_step();
         for (i = 0; i < G.nplayers; i++) {
             V3 f;
@@ -543,7 +555,7 @@ void game_step(unsigned long held0, unsigned long pressed0, unsigned long held1,
         break;
     case ST_GAMEOVER:
     case ST_WON:
-        phys_world_step();
+        world_step();
         bits_step();
         if (G.state == ST_WON) {
             V3 f;

@@ -22,6 +22,7 @@ INCLUDE "rsmac.inc"
 
 PUBLIC _phys_reset_b, _phys_reset_enemies_b, _phys_world_step_b, _phys_marble_step_b
 PUBLIC _phys_ground_below_b
+PUBLIC _phys_dt2
 PUBLIC _Wd, _phys_sound, _phys_marbles, _phys_nmarbles
 PUBLIC _phy_goal, _phy_kill_y, _phy_nacid, _phy_acid, _phy_nzone, _phy_zone
 PUBLIC _phy_npillar, _phy_pillar, _phy_nsweep, _phy_sweep, _phy_ncrush, _phy_crush
@@ -3268,6 +3269,7 @@ ws_sw:
     LDX32 16                    ; speed
     MULC 233
     SRA32 10
+    call p_dbl                  ; port: x2 in play mode
     ld c,(iy + 0)
     ld b,(iy + 1)
     add hl,bc
@@ -3310,6 +3312,9 @@ ws_nocr:
 ws_cb:
     push bc
     call ws_crumble
+    ld a,(_phys_dt2)            ; port: two ticks of its timers in play mode
+    or a
+    call nz,ws_crumble
     ld bc,CRUMBLE_SIZE
     add ix,bc
     pop bc
@@ -3356,6 +3361,11 @@ ws_crusher:
     push hl
     call ld32_hl
     ld bc,82
+    ld a,(_phys_dt2)            ; port: 2/50 s in play mode
+    or a
+    jr z,wc_0
+    ld bc,164
+wc_0:
     add hl,bc
     jr nc,wc_1
     inc de
@@ -3807,6 +3817,11 @@ en_tset:
     call add_ix
 en_drag:
     ; v.x -= v.x / 250; v.z -= v.z / 250; v.y -= gravity
+    ; port: twice in play mode
+    ld a,(_phys_dt2)
+    inc a
+    ld (dt_k),a
+en_drag2:
     LDX32 B_VX
     ld bc,c250
     call m_div32
@@ -3823,6 +3838,9 @@ en_drag:
     call m_neg32
     ld bc,B_VY
     call add_ix
+    ld hl,dt_k
+    dec (hl)
+    jr nz,en_drag2
     ; port: enemies 0-2 have triangle caches (slots 1-3): see hc_marble
     push ix
     call ball_to_wb
@@ -4079,6 +4097,17 @@ add_ix:
 p_step:
     MULC 1311
     SRA16
+    ; fall through
+; port: play mode (phys_dt2) steps 2/50 s, so every per-step amount is
+; doubled: DEHL *= 2 when phys_dt2 (A clobbered)
+p_dbl:
+    ld a,(_phys_dt2)
+    or a
+    ret z
+    add hl,hl
+    ex de,hl
+    adc hl,hl
+    ex de,hl
     ret
 
 ; the ball at IX -> WB, and back
@@ -4749,12 +4778,14 @@ ms_acc:
     LD32 ms_wx
     call m_mul32s16
     SRA12
+    call p_dbl                  ; port: x2 in play mode
     ADD32 WB + B_VX
     ST32 WB + B_VX
     LD32 ms_wz
     ld bc,(ms_a)
     call m_mul32s16
     SRA12
+    call p_dbl
     ADD32 WB + B_VZ
     ST32 WB + B_VZ
 ms_noin:
@@ -4762,6 +4793,13 @@ ms_noin:
     LD32 WB + B_VY
     SUB32 WB + B_GRAV
     ST32 WB + B_VY
+    ld a,(_phys_dt2)            ; port: twice in play mode
+    or a
+    jr z,ms_g1
+    LD32 WB + B_VY
+    SUB32 WB + B_GRAV
+    ST32 WB + B_VY
+ms_g1:
     ; fans and boost strips
     ld a,(_phy_nzone)
     or a
@@ -4929,6 +4967,13 @@ ms_noacid:
 
 ; (HL) -= (HL) / 1000
 ms_damp:
+    ld a,(_phys_dt2)            ; port: twice in play mode
+    or a
+    jr z,ms_damp1
+    push hl
+    call ms_damp1
+    pop hl
+ms_damp1:
     push hl
     call ld32_hl
     ld bc,c1000
@@ -5228,6 +5273,8 @@ _str_dissolved: defm "DISSOLVED", 0
 SECTION bss_user
 _Wd:            defs WORLD_SIZE
 _phys_sound:    defs 2
+_phys_dt2:      defs 1           ; port: play mode, one step of 2/50 s (see p_dbl)
+dt_k:           defs 1
 _phys_marbles:  defs 4
 _phys_nmarbles: defs 2
 _phy_goal:      defs OBB_SIZE

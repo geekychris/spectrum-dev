@@ -7,13 +7,17 @@
    input: the title's attract demo plays the courses one after another. The
    Next (H held at start-up: hash the race) must log the same race-state
    hash at every change of state: the same physics, step for step.
-3. A game, recorded from reset: the title (music on two TurboSound chips),
+   (H also picks exact mode: the original's 50 Hz physics.)
+3. A game in play mode (the default: the physics at 25 Hz with a doubled
+   step, so it keeps up with real time), recorded from reset: the title (music on two TurboSound chips),
    Kempston picks the course, fire starts; the keys push the marble; the
    original's autopilot (B) finishes course 1 (a score); on course 2 the
    marble is pushed off the edge (a fall, three seconds off) until the clock
    runs out: game over, the initials for the high-score table, back to the
-   title. The frame rate is measured.
+   title, where X swaps in exact mode's own high-score table and back. The
+   frame rate is measured.
 4. The recording replayed twice: every frame hash must match.
+5. Exact mode (X on the title): the autopilot on course 1, its frame rate.
 Screenshots go to screenshots/.
 """
 import re
@@ -52,6 +56,18 @@ def until(e, text, frames):
 def perf(log):
     """(real frames, loops, steps) of each perf line"""
     return [tuple(int(v) for v in m) for m in re.findall(r"perf frames=\d+ real=(\d+) loops=(\d+) steps=(\d+)", log)]
+
+
+def speed_of(fp, name, physics_hz):
+    """frames a second and the share of real time the game keeps up with"""
+    real = sum(f[0] for f in fp)
+    loops = sum(f[1] for f in fp)
+    steps = sum(f[2] for f in fp)
+    fps = loops * 50 / real if real else 0
+    rt = steps / real if real else 0             # game steps (1/50 s each) per real frame
+    print(f"  {name}: {fps:.1f} frames a second, the game at {100 * rt:.0f}% of real time "
+          f"(the physics at {physics_hz * rt:.1f} steps a second of the original's {physics_hz})")
+    return fps, rt
 
 
 SHOTS.mkdir(exist_ok=True)
@@ -93,6 +109,7 @@ with Emulator(machine="next") as e:
     e.record_input("start", from_reset=True)
     check("boots to the title", until(e, "rs: state 0", 300))
     check("Kempston found", "kempston=1" in e.log(0))
+    check("play mode by default", "rs: mode play" in e.log(0))
     e.run(250)
     e.screenshot(SHOTS / "title.png")
     # Kempston: down picks course 2, up course 1 again, fire starts
@@ -143,19 +160,25 @@ with Emulator(machine="next") as e:
     e.press("D")
     check("initials ZED in the table", until(e, "rs: hiscore ZED", 60))
     check("back to the title", until(e, "rs: state 0", 100))
+    # X: exact mode has its own table (ZED isn't in it), X again: play mode's
+    e.run(10)
+    e.hold("X")                              # held: the title's loop reads letters only now and then
+    ok = until(e, "rs: mode exact", 40)
+    e.release()
+    m = re.findall(r"rs: mode exact table=(.*)", e.log(0))
+    check("X: exact mode, with its own high-score table (no ZED)", ok and m and "ZED" not in m[-1], str(m))
+    e.run(60)                                # (a loop of the title must see X up)
+    e.hold("X")
+    ok = until(e, "rs: mode play table=", 40)
+    e.release()
+    m = re.findall(r"rs: mode play table=(.*)", e.log(0))
+    check("X again: play mode and its table (ZED in it)", ok and m and "ZED" in m[-1], str(m))
     e.run(320)                               # the title shows the table in turn with the courses
     e.screenshot(SHOTS / "hiscores.png")
     rec = e.record_input("save", REC)
     print(f"  recorded {rec['frames']} frames, {rec['events']} input changes")
-
-    real = sum(f[0] for f in fp)
-    loops = sum(f[1] for f in fp)
-    steps = sum(f[2] for f in fp)
-    fps = loops * 50 / real if real else 0
-    speed = steps / real if real else 0
-    print(f"  the autopilot on course 1: {fps:.1f} frames a second, the rules at {50 * speed:.1f} steps a second "
-          f"({100 * speed:.0f}% of the original's 50)")
-    check("frames drawn and the rules run (a steady loop)", fps > 3 and speed > 0.4, f"{fps} {speed}")
+    fps, rt = speed_of(fp, "play mode, the autopilot on course 1", 25)
+    check("play mode: frames drawn, the game near real time", fps > 3 and rt > 0.85, f"{fps} {rt}")
 
 seqs = []
 for i in range(2):
@@ -165,6 +188,25 @@ for i in range(2):
         check(f"replay {i + 1}: every frame hash matches the recorded game", r["ok"],
               f"{r.get('mismatches')} mismatches, first at {r.get('first_mismatch')}")
 check("two replays give identical screens", seqs[0] == seqs[1] and len(seqs[0]) > 3000)
+
+print("exact mode")
+with Emulator(machine="next") as e:
+    e.load(NEX)
+    until(e, "rs: state 0", 300)
+    e.run(10)
+    e.hold("X")
+    check("X on the title: exact mode", until(e, "rs: mode exact", 40))
+    e.release()
+    e.run(40)
+    e.screenshot(SHOTS / "title_exact.png")
+    e.press("SPACE")
+    check("exact mode starts course 1", until(e, "rs: state 1 level=1", 60))
+    e.press("B")
+    until(e, "rs: autopilot 1", 80)
+    mark = len(e.log(0))
+    e.run(2000)
+    fps, rt = speed_of(perf(e.log(0)[mark:]), "exact mode, the autopilot on course 1", 50)
+    check("exact mode: frames drawn and the rules run", fps > 3 and rt > 0.4, f"{fps} {rt}")
 
 print(f"{'FAIL' if failures else 'PASS'}: rolling_steel")
 sys.exit(1 if failures else 0)

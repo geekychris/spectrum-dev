@@ -105,6 +105,7 @@ void phys_reset_enemies(void);
 void phys_world_step(void);         /* obstacles, enemies */
 void phys_marble_step(Ball *b, fix wx, fix wz);
 int  phys_ground_below(const V3 *p, fix *y);   /* port: p by pointer */
+extern unsigned char phys_dt2;       /* port: play mode: one physics step is 2/50 s (phys.asm) */
 extern int phys_sound;              /* SFX_* the physics wants played, or -1 */
 extern Ball *phys_marbles[2];
 extern int phys_nmarbles;

@@ -15,7 +15,12 @@
  * Everything is in the .nex: it needs a 2 MB Next.
  *
  * The loop: the rules at 50 steps a second (fixed timestep: as many steps
- * as frames went by), then one picture. port: the score and the high-score
+ * as frames went by), then one picture.
+ * port: two modes. Play mode (the default) runs the original's physics at
+ * 25 Hz with a doubled step (game.c's race_step, phys.asm's phys_dt2), so
+ * the game keeps up with real time; exact mode (X on the title, or H held
+ * at start) runs it at 50 Hz exactly as the original, in slow motion. Each
+ * mode keeps its own best times and high-score table. port: the score and the high-score
  * table (the SDK's) are this port's; the original keeps best times.
  */
 #include <string.h>
@@ -47,6 +52,31 @@ static unsigned long steps;
 static uint8_t trace;                    /* D held at start: log the marble each race step */
 static uint8_t hashing;                  /* H held at start: hash the race (test.py, tools/hostsim.c) */
 uint8_t autopilot;                       /* port: B lets the original's autopilot drive (game.c) */
+uint8_t play_mode;                       /* port: 1 play mode, 0 exact (see the top) */
+
+/* the other mode's best times and high scores (port) */
+static hs_entry hs_other[HS_ENTRIES];
+static long best_other[6], best_run_other, best_falls_other;
+
+static void swap_bytes(void *a, void *b, uint16_t n)
+{
+    uint8_t *x = a, *y = b, t;
+    while (n--) { t = *x; *x++ = *y; *y++ = t; }
+}
+
+static void set_mode(uint8_t m)
+{
+    if (m != play_mode) {
+        swap_bytes(hs_table, hs_other, sizeof hs_other);
+        swap_bytes(G.best, best_other, sizeof best_other);
+        swap_bytes(&G.best_run, &best_run_other, sizeof best_run_other);
+        swap_bytes(&G.best_run_falls, &best_falls_other, sizeof best_falls_other);
+    }
+    play_mode = m;
+    phys_dt2 = m;
+    zx_log("rs: mode %s table=%s %s %s %s %s\n", m ? "play" : "exact", hs_table[0].name, hs_table[1].name,
+           hs_table[2].name, hs_table[3].name, hs_table[4].name);
+}
 
 /* the keys and the joystick as the original's pad (game.h B_*).
    port: SPACE/fire is A (start), ENTER is P (pause), S is C (music on the
@@ -126,13 +156,16 @@ int main(void)
     trace = key_down(IN_KEY_SCANCODE_d);
     hashing = trace || key_down(IN_KEY_SCANCODE_h);
     hs_init(1000);                           /* 5000 .. 1000: a course or two gets you in */
+    memcpy(hs_other, hs_table, sizeof hs_other);
     zx_log("rs: ready kempston=%u\n", input_kempston);
     game_init();
+    play_mode = phys_dt2 = !hashing;         /* the hash is the original's, so exact mode */
+    zx_log("rs: mode %s\n", play_mode ? "play" : "exact");
     for (;;) {
         uint8_t t = frame_wait(), in, pr, k;
         unsigned long held, pressed;
         perf_real += t;
-        if (t > 8) t = 8;
+        if (t > (play_mode ? 16 : 8)) t = play_mode ? 16 : 8;   /* port: play mode's steps cost half */
         flash_frame();
         if (hud_dark != dark_shown || view_palgen != dark_pal) {   /* the HUD's shade (hud.c), in the vertical blank */
             palfx_load_fx(PAL_L2 | PAL_SECOND, 0, view_npal, view_pal, hud_dark, 0);
@@ -147,7 +180,9 @@ int main(void)
             pressed = pad(pr);
             if (key_down(IN_KEY_SCANCODE_s)) held |= B_C;
             if (pr && key_down(IN_KEY_SCANCODE_s)) pressed |= B_C;
-            if (G.state == ST_PLAYING && !G.demo && input_letter_pressed() == 'B') {
+            char letter = input_letter_pressed();
+            if (G.state == ST_TITLE && letter == 'X') set_mode(!play_mode);
+            if (G.state == ST_PLAYING && !G.demo && letter == 'B') {
                 autopilot = !autopilot;
                 zx_log("rs: autopilot %u\n", autopilot);
             }

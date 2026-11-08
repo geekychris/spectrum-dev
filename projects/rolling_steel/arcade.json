@@ -2,6 +2,6 @@
   "title": "Rolling Steel",
   "ready": "rs: ready",
   "description": "Roll the marble down six floating isometric courses against one clock: ice, sand, acid, sweepers, chasers.",
-  "controls": "Q/A/O/P or cursor push, SPACE start, ENTER pause, Kempston",
+  "controls": "Q/A/O/P or cursor push, SPACE start, ENTER pause, X exact/play mode, Kempston",
   "picture": "screenshots/play.png"
 }

@@ -19,7 +19,7 @@ in the way.
 | | |
 |---|---|
 | push the marble | Q A O P, cursor keys, Sinclair or Kempston joystick. Up (Q) pushes away from you |
-| title | up/down choose the course to start from (course 1 is the full run), SPACE/fire starts, S music on/off |
+| title | up/down choose the course to start from (course 1 is the full run), SPACE/fire starts, S music on/off, X play mode / exact mode |
 | pause | ENTER |
 | autopilot | B: the original's demo driver takes over (and plays behind the title after 25 s) |
 
@@ -27,6 +27,22 @@ port: the original's P pauses (P is on QAOP here, so ENTER does), C turns the
 music on and off (S here), and Z/X, +/- and C with up/down turn, zoom and tilt
 the view: the view here is fixed (see below), so they have no keys. Two
 players (split screen) were left out.
+
+## Two modes
+
+- **Play mode** (the default): the original's physics stepped 25 times a
+  second with a doubled step (2/50 s: every per-step amount doubled, the
+  move twice as far, timers ticked twice), so the game keeps up with real
+  time. The clock, timers, camera and the rest of the game still run at 50
+  steps a second. This is an approximation of the original: the same
+  courses and rules, but the rolling and bouncing differ in detail from a
+  50 Hz run, and the race won't hash the same.
+- **Exact mode** (X on the title): the original's physics at 50 Hz, step
+  for step (the hash test). The Next can't run it in real time, so it
+  plays in slow motion.
+
+Each mode has its own best times and high-score table: a score from one
+isn't comparable with the other's. Speeds are under Speed.
 
 ## What's kept, what changed
 
@@ -44,7 +60,8 @@ Kept from the original:
   original's C on the host (`tools/hostsim.c`) and the Next side by side:
   the attract demo's race state hashes the same at every change of state
   through all six courses.
-- The rules' rate: 50 steps a second, as Unity's FixedUpdate.
+- The rules' rate: 50 steps a second, as Unity's FixedUpdate (exact mode;
+  play mode steps the physics at 25 Hz, see Two modes).
 - **The look.** Each course is the original's own geometry, lit and fogged
   by the original's model (`render.c`'s colours, six fog depths), drawn
   through the original's camera and projection at its default view
@@ -106,18 +123,21 @@ Changed (marked `port:` in the code):
 
 ## Speed
 
-The rules are exact, and they are heavy: a step of the marble against ~2,000
-course triangles is a few thousand 32-bit operations, and a steel chaser
-nearby does the same. Measured by `test.py` with the autopilot on course 1:
+The original's rules are heavy: a step of the marble against ~2,000 course
+triangles is a few thousand 32-bit operations, and a steel chaser nearby
+does the same. A physics step costs about 0.9-1.3 frames of the 28 MHz
+Z80N. The loop runs as many 50 Hz game steps as frames went by (up to 16 in
+play mode, 8 in exact mode), then draws one picture. Measured by `test.py`
+with the autopilot on course 1:
 
-- **The rules run at about 28-29 steps a second: 56-58% of the original's
-  50.** The game keeps the original's timing in steps, so it plays in slow
-  motion.
-- **3.5-4.5 pictures a second.** The loop runs as many steps as frames went
-  by (up to 8), then one picture.
+| mode | pictures a second | game speed |
+|---|---|---|
+| **play** (default) | **about 4** | **about 91% of real time** (the physics at ~23 of its 25 steps a second): stretches of Warm-Up run at 83-100%. Heavy stretches of course 2 drop to 55-75% |
+| **exact** | **about 7.5** | **about 63% of real time** (the physics at ~32 of the original's 50 steps a second): slow motion |
 
-A step costs ~0.9-1.3 frames of the 28 MHz Z80N, about 4x less than the
-first exact version. See Known issues.
+Exact mode draws more pictures a second because each picture covers less
+game time. The autopilot takes gold on Warm-Up and First Drop in both
+modes.
 
 The `rs: perf` log lines (every 100 frames) give frames, real frames, loops
 (pictures), steps, the columns and rows scrolled; `rs: phys` the triangle
@@ -176,20 +196,28 @@ The generated files (`gfx/`, `src/data.h`, `src/data_banks.asm`,
   race) play the title's attract demos of all six courses (16,192 steps,
   one dissolved in acid on course 5) and log the same hash at every change
   of state.
-- A game, recorded from reset: the title; Kempston down/up and fire start
+- A game in play mode, recorded from reset: the title; Kempston down/up and fire start
   course 1; Q pushes the marble; B's autopilot finishes the course (a gold,
   a score); on course 2 the marble is pushed off the edge until the clock
   runs out; game over; the score makes the table and the initials ZED go in;
   back to the title and its high-score table. The speed is measured.
+  This game is in play mode. On the title, X swaps in exact mode's own
+  high-score table (no ZED in it) and back.
 - The game replayed twice: every frame hash matches, and the two replays
   are identical.
+- Exact mode (X on the title): the autopilot on course 1, its speed.
 
 Screenshots: `screenshots/` (title, play, autopilot, clear, fall, gameover,
-initials, hiscores).
+initials, hiscores, title_exact).
 
 ## Known issues
 
-- **It runs at about half speed** (see Speed): the exact physics takes about
-  a frame a step. A faster port would have to change the rules (a coarser
-  step, a simpler collision).
+- **Play mode isn't the original's physics, step for step.** It's the same
+  physics with a doubled step, so it plays close to real time. The rolling
+  and bouncing differ in detail, and a fast marble moves about 0.5 units
+  between collision tests (the original: 0.25). Exact mode is the
+  original's, but the Next runs it at about 63% of real time.
+- Play mode falls below real time in heavy stretches (a step costing more
+  than a frame), down to 55-75% on parts of course 2. It draws about 4
+  pictures a second.
 - Sprites are drawn over course in front of them (except crumbling tiles).
