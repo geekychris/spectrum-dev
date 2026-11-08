@@ -66,6 +66,16 @@ int main(void)
         mix(fexp_neg((a < 0 ? -a : a) >> 10));
     }
     zx_log("ff: fix16x %08lX\n", h);
+    /* a3_sin, a3_cos: every angle */
+    h = 2166136261UL;
+    {
+        uint16_t a = 0;
+        do {
+            mix(a3_sin(a));
+            mix(a3_cos(a));
+        } while (++a);
+    }
+    zx_log("ff: sin %08lX\n", h);
     zx_log("ff: done\n");
     for (;;) frame_wait();
 }

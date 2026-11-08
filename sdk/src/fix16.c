@@ -44,13 +44,15 @@ fix fhypot(fix a, fix b)
 #endif
 }
 
+#if !defined(__SDCC) || !defined(__ZXNEXT)
+/* (next/fix16_sin.asm on the Next) */
 int32_t a3_sin(uint16_t a)
 {
     uint8_t i = (uint8_t)(a >> 8), f = (uint8_t)a;
     int32_t s0 = a3_sin_tab[i], s1 = a3_sin_tab[(uint8_t)(i + 1)];
 #if defined(__SDCC)
-    /* neighbours differ by at most 1608: a 16 x 16 multiply (MUL on the
-       Next), not zsdcc's 32 x 32 */
+    /* neighbours differ by at most 1608: a 16 x 16 multiply, not zsdcc's
+       32 x 32 */
     return s0 + (mul16((int16_t)(s1 - s0), f) >> 8);
 #else
     return s0 + (((s1 - s0) * f) >> 8);
@@ -58,6 +60,7 @@ int32_t a3_sin(uint16_t a)
 }
 
 int32_t a3_cos(uint16_t a) { return a3_sin(a + 16384); }
+#endif
 fix fsin(fix rad) { return a3_sin((uint16_t)a3_angle(rad)); }
 fix fcos(fix rad) { return a3_cos((uint16_t)a3_angle(rad)); }
 

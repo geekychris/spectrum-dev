@@ -3,7 +3,8 @@ Python model: 2000 pseudo-random pairs (small, medium, full-range and edge
 values) through fmul, fdiv, a3_angle, fhypot, fsqrt and fsin, hashed; the
 model is the amiga3d engine's 64-bit definitions. Then 1000 pairs through
 fatan2, a3_atan2, fasin, fhypot3 and fexp_neg (the engine's a3d_fix.c and
-a3d_math.c). isqrt32 on values up to 2^32 - 1."""
+a3d_math.c); a3_sin and a3_cos at all 65536 angles. isqrt32 on values up
+to 2^32 - 1."""
 import re
 import sys
 from pathlib import Path
@@ -210,6 +211,17 @@ with Emulator(machine="next") as e:
     m = re.search(r"ff: fix16x ([0-9A-F]{8})", log)
     want = f"{hy:08X}"
     check(f"fix16: fatan2, a3_atan2, fasin, fhypot3, fexp_neg over 1000 pairs = the amiga3d engine's ({want})",
+          m is not None and m.group(1) == want, m.group(1) if m else "missing")
+
+    m = re.search(r"ff: sin ([0-9A-F]{8})", log)
+    h = 2166136261
+    for a in range(65536):
+        for b in (a, (a + 16384) & 0xFFFF):
+            i, f = b >> 8, b & 255
+            v = SIN[i] + (((SIN[(i + 1) & 255] - SIN[i]) * f) >> 8)
+            h = ((h ^ (v & 0xFFFFFFFF)) * 16777619) & 0xFFFFFFFF
+    want = f"{h:08X}"
+    check(f"fix16: a3_sin and a3_cos at every angle = the engine's interpolation ({want})",
           m is not None and m.group(1) == want, m.group(1) if m else "missing")
 
 print(f"{'FAIL' if failures else 'PASS'}: fix16test")
