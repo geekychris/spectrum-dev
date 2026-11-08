@@ -60,3 +60,12 @@ void ter_cell(const Terrain *T, uint8_t i, uint8_t j, fix h[4])
     h[2] = at(T, q);
     h[3] = at(T, q + 3);
 }
+
+void ter_range(const Terrain *T, uint8_t j, int16_t *hi, int16_t *lo)
+{
+    const int16_t *q;
+    map(T->range_page);
+    q = (const int16_t *)(SLOT2 + LV_RANGE_OFF);
+    *hi = q[j];
+    *lo = q[T->n + j];
+}

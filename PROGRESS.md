@@ -234,6 +234,22 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   rooms, copper line doubling, tilemap text, the original's effects and a
   tune on TurboSound, high scores. Logic 50 Hz, 30-37 fps while moving, 42
   on the title; a bot solves by the keys in the test.
+- **Lander 3D** (Next): the original's amiga3d rules on fix16.h, bit for bit
+  (18 flights, the autopilot's and a pilot's on every world, hash-checked
+  against the original's code on the host; three of them in the game's
+  self-test on the Z80N). The levels (ground, pads, start, the probe's tank)
+  are made at build time by the original's own generator: 30 levels in
+  816K of banks, 3-byte heights read through slot 2. The view: the camera
+  never turns, so the ground's strips are drawn near to far by columns
+  (each column's highest row kept: every pixel once, hills hide what is
+  behind them); the grid projected in asm (Z80N MUL, barrel shifts, a
+  reciprocal table); pads, shadow and lander over it, clipped by snapshots
+  of the columns; Layer 2 at half height by copper doubling. Tilemap HUD,
+  sprite big text in the original's 16x16 font, the original's MOD through
+  modplay, high scores. Logic 25 Hz (fixed timestep), picture 4-9 fps
+  (below the 12 aimed at). SDK: fix16 `fatan2`/`fasin`/`a3_atan2`/
+  `fhypot3`/`fexp_neg`, a faster `fmul` (by operand size), `a3_sin` with a
+  16-bit multiply. zsdcc dropped a term of `v |= b & ~w` on volatiles.
 
 - **Orbit Docking** (Next): the original's amiga3d rules on fix16.h, bit for
   bit (the Next flies the original's long autopilot game to its

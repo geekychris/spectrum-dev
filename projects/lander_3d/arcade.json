@@ -1,0 +1,7 @@
+{
+  "title": "Lander 3D",
+  "ready": "ld: ready",
+  "description": "Land in 3D on the Moon, Mars and an asteroid: tip to steer, touch down slow and level on the pads.",
+  "controls": "WASD tip, SPACE thrust, Q/E throttle, B auto",
+  "picture": "screenshots/approach.png"
+}

@@ -66,7 +66,7 @@ typedef struct {
     /* port: the heights are in memory pages (ter_*): hbase + 3 bytes each,
        rpp rows a page from `page`, rows of rowb bytes; hmax the highest */
     fix hmax, hbase;
-    uint8_t page, rpp;
+    uint8_t page, rpp, range_page;       /* range_page: each row's highest, lowest (ter_range) */
     uint16_t rowb;
     Pad pads[3];
 } Terrain;
@@ -131,6 +131,7 @@ int  ld_pop_event(Level *L);
 fix  ter_h(const Terrain *T, uint8_t i, uint8_t j);    /* grid point (i, j) */
 void ter_cell(const Terrain *T, uint8_t i, uint8_t j, fix h[4]);   /* (i, j) (i+1, j) (i, j+1) (i+1, j+1) */
 void ter_done(void);                                    /* slot 2 back to the tilemap */
+void ter_range(const Terrain *T, uint8_t j, int16_t *hi, int16_t *lo);   /* row j's heights in units */
 /* the records (lv_rec.h): field f of record r */
 int32_t lv_field(uint8_t r, uint8_t f);
 

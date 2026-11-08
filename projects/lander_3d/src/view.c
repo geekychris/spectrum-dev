@@ -111,6 +111,29 @@ static void ground(const Level *L)
     vp_hbf = (uint16_t)(T->hbase & 0xFFF);
     vp_cdiv = (uint16_t)(cell_u / 3 + 1);
     vp_pen0 = PEN_GROUND;
+    /* port: the lines wholly below the view (their highest point under its
+       bottom edge, a line nearer the camera than the first that isn't) are
+       left out, and on each line the points beyond the view's sides (for
+       the lowest ground, the widest): no picture there */
+    {
+        uint8_t r, n = (uint8_t)T->n;
+        int16_t dz = vp_dz0, hi, lo, dy, yp, zp;
+        vp_r0 = 0;
+        for (r = 0; r < NLINE; r++, dz += vp_cell) {
+            int16_t j = j_line0 + r;
+            vp_xlim[r] = 32000;
+            if (j < 0 || j >= n) { if (vp_r0 == r) vp_r0 = r + 1; continue; }
+            ter_range(T, (uint8_t)j, &hi, &lo);
+            dy = hi - vp_camy;
+            yp = (int16_t)((mul16(dy, vp_cp) + mul16(dz, vp_sp)) >> 12);
+            zp = (int16_t)((mul16(dz, vp_cp) - mul16(dy, vp_sp)) >> 12);
+            if (vp_r0 == r && (zp <= 0 || mul16(yp, 80) + mul16(zp, 42) < 0)) vp_r0 = r + 1;
+            dy = lo - vp_camy;
+            zp = (int16_t)((mul16(dz, vp_cp) - mul16(dy, vp_sp)) >> 12);
+            if (zp > 0 && zp < 20000) vp_xlim[r] = zp + zp / 5 + vp_cell;
+        }
+        if (vp_r0) vp_r0--;                  /* the line before the first seen: the wedges under it */
+    }
     vp_project();
     ter_done();
 }
@@ -130,18 +153,19 @@ static uint8_t strip_of(int32_t wz)
    offsets are +-r sin 22.5 and +-r cos 22.5, four products a frame */
 static void octagon(int32_t cx, int32_t cy, int32_t cz, int16_t r, uint8_t pen, uint8_t snap)
 {
-    static const int8_t sx[8] = { 1, 2, 2, 1, -1, -2, -2, -1 }, sz[8] = { 2, 1, -1, -2, -2, -1, 1, 2 };
     V3s p[8], m;
-    int16_t a = (int16_t)(mul16(r, 6270) >> 14), b = (int16_t)(mul16(r, 15137) >> 14);   /* r sin, r cos 22.5 (Q14) */
-    int16_t as = (int16_t)(mul16(a, vcam.sp) >> 12), ac = (int16_t)(mul16(a, vcam.cp) >> 12);
-    int16_t bs = (int16_t)(mul16(b, vcam.sp) >> 12), bc = (int16_t)(mul16(b, vcam.cp) >> 12);
-    uint8_t k;
+    VfVtx sv[8];
+    int16_t off[6];
+    off[0] = (int16_t)(mul16(r, 6270) >> 14);       /* r sin, r cos 22.5 (Q14) */
+    off[1] = (int16_t)(mul16(r, 15137) >> 14);
+    off[2] = (int16_t)(mul16(off[0], vcam.sp) >> 12);
+    off[3] = (int16_t)(mul16(off[0], vcam.cp) >> 12);
+    off[4] = (int16_t)(mul16(off[1], vcam.sp) >> 12);
+    off[5] = (int16_t)(mul16(off[1], vcam.cp) >> 12);
     xform(cx, cy, cz, &m);
-    for (k = 0; k < 8; k++) {
-        int8_t i = sx[k], j = sz[k];
-        p[k].x = m.x + (i == 1 ? a : i == 2 ? b : i == -1 ? -a : -b);
-        p[k].y = m.y + (j == 1 ? as : j == 2 ? bs : j == -1 ? -as : -bs);
-        p[k].z = m.z + (j == 1 ? ac : j == 2 ? bc : j == -1 ? -ac : -bc);
+    if (!vo_oct(&m, off, sv, p)) {           /* (vobj.asm) */
+        if (vf_add_poly(sv, 8, pen, snap)) view_polys++;
+        return;
     }
     if (p[0].z < NEAR_Z && p[4].z < NEAR_Z) return;
     poly(p, 8, pen, snap);
@@ -168,8 +192,6 @@ static const Box boxes[7] = {
 };
 /* the bell: mdl_pyramid(-12, 12, -14, -12, 12, -26), base corners then the apex */
 static const int8_t bell_v[5][3] = { { -12, -14, -12 }, { 12, -14, -12 }, { 12, -14, 12 }, { -12, -14, 12 }, { 0, -26, 0 } };
-/* its faces' outward normals (base corner k, k + 1, apex), scaled */
-static const int8_t bell_n[4][3] = { { 0, -24, -24 }, { 24, -24, 0 }, { 0, -24, 24 }, { -24, -24, 0 } };
 
 void view_init(void) {}
 
@@ -177,16 +199,18 @@ void view_init(void) {}
    lo (0) end, as corner indices (bit 0 x, 1 y, 2 z), round the face */
 static const uint8_t face_c[3][4] = { { 0, 2, 6, 4 }, { 0, 1, 5, 4 }, { 0, 1, 3, 2 } };
 
+static VfVtx bsv[7][8];                  /* the boxes' corners on the screen, in camera space */
+static V3s bcv[7][8];
+static V3s bell_c[5];
 static void craft(const Level *L, uint8_t snap, uint8_t frame)
 {
     const Craft *c = &L->c;
     int32_t px = U(c->p[0]), py = U(c->p[1]), pz = U(c->p[2]);
     int16_t cp = (int16_t)(a3_cos((uint16_t)a3_angle(c->pitch)) >> 4), sp = (int16_t)(a3_sin((uint16_t)a3_angle(c->pitch)) >> 4);
     int16_t cr = (int16_t)(a3_cos((uint16_t)a3_angle(c->roll)) >> 4), sr = (int16_t)(a3_sin((uint16_t)a3_angle(c->roll)) >> 4);
-    int16_t R[9], K[9], bz[8];
-    uint8_t vis[3], order[8], nb, i, k, a;
-    V3s ctr, corner[8], term[3][2];
-    VfVtx sv[8];
+    int16_t R[9], K[9], bz[7], d[3];
+    uint8_t near[7], order[7], i, k, a, f;
+    V3s ctr;
     /* R = Rx(pitch) Rz(roll); K = the camera's pitch x R (Q12) */
     R[0] = cr; R[1] = -sr; R[2] = 0;
     R[3] = (int16_t)(mul16(cp, sr) >> 12); R[4] = (int16_t)(mul16(cp, cr) >> 12); R[5] = -sp;
@@ -198,72 +222,68 @@ static void craft(const Level *L, uint8_t snap, uint8_t frame)
     }
     xform(px, py, pz, &ctr);
     if (ctr.z < NEAR_Z) return;
-    /* which end of each axis faces the camera: the + face if its turned
-       normal points back along the direction to the craft */
+    /* each axis's turned direction against the direction to the craft: a
+       face whose normal n has n . d < 0 faces the camera (it is small
+       against its distance: the same for every face) */
     for (a = 0; a < 3; a++)
-        vis[a] = mul16(K[a], ctr.x) + mul16(K[3 + a], ctr.y) + mul16(K[6 + a], ctr.z) < 0;
-    /* the boxes far to near (by their middles' depth) */
-    nb = 0;
+        d[a] = (int16_t)((mul16(K[a], ctr.x) + mul16(K[3 + a], ctr.y) + mul16(K[6 + a], ctr.z)) >> 8);
+    /* the boxes' corners (vobj.asm), then far to near by their depth */
     for (i = 0; i < 7; i++) {
-        const Box *b = &boxes[i];
-        int16_t mx = (b->lo[0] + b->hi[0]) / 2, my = (b->lo[1] + b->hi[1]) / 2, mz = (b->lo[2] + b->hi[2]) / 2;
-        int16_t z = (int16_t)((mul16(K[6], mx) + mul16(K[7], my) + mul16(K[8], mz)) >> 12);
-        for (k = nb; k > 0 && bz[k - 1] < z; k--) { bz[k] = bz[k - 1]; order[k] = order[k - 1]; }
+        int16_t z;
+        near[i] = vo_box(&boxes[i].lo[0], K, &ctr, bsv[i], bcv[i]);
+        z = bcv[i][0].z + bcv[i][7].z;
+        for (k = i; k > 0 && bz[k - 1] < z; k--) { bz[k] = bz[k - 1]; order[k] = order[k - 1]; }
         bz[k] = z;
         order[k] = i;
-        nb++;
     }
-    /* the bell first (it is under the descent stage, seen from above) */
+    /* the bell first (under the descent stage); its faces' normals are
+       (0,-1,-1) (1,-1,0) (0,-1,1) (-1,-1,0) */
+    vo_model(&bell_v[0][0], 5, K, &ctr, bell_c);
     {
-        V3s bv[5];
-        for (k = 0; k < 5; k++) {
-            int16_t x = bell_v[k][0], y = bell_v[k][1], z = bell_v[k][2];
-            bv[k].x = ctr.x + (int16_t)((mul16(K[0], x) + mul16(K[1], y) + mul16(K[2], z)) >> 12);
-            bv[k].y = ctr.y + (int16_t)((mul16(K[3], x) + mul16(K[4], y) + mul16(K[5], z)) >> 12);
-            bv[k].z = ctr.z + (int16_t)((mul16(K[6], x) + mul16(K[7], y) + mul16(K[8], z)) >> 12);
-        }
-        for (k = 0; k < 4; k++) {
-            int16_t nx = bell_n[k][0], ny = bell_n[k][1], nz = bell_n[k][2];
-            int16_t wx = (int16_t)((mul16(nx, K[0]) + mul16(ny, K[1]) + mul16(nz, K[2])) >> 8);
-            int16_t wy = (int16_t)((mul16(nx, K[3]) + mul16(ny, K[4]) + mul16(nz, K[5])) >> 8);
-            int16_t wz = (int16_t)((mul16(nx, K[6]) + mul16(ny, K[7]) + mul16(nz, K[8])) >> 8);
-            if (mul16(wx, ctr.x) + mul16(wy, ctr.y) + mul16(wz, ctr.z) < 0) {
+        int16_t f0 = -d[1] - d[2], f1 = d[0] - d[1], f2 = d[2] - d[1], f3 = -d[0] - d[1];
+        int16_t fd[4];
+        fd[0] = f0; fd[1] = f1; fd[2] = f2; fd[3] = f3;
+        for (k = 0; k < 4; k++)
+            if (fd[k] < 0) {
                 V3s q[3];
-                q[0] = bv[k]; q[1] = bv[(k + 1) & 3]; q[2] = bv[4];
+                uint8_t k1 = (k + 1) & 3;
+                q[0].x = bell_c[k].x; q[0].y = bell_c[k].y; q[0].z = bell_c[k].z;
+                q[1].x = bell_c[k1].x; q[1].y = bell_c[k1].y; q[1].z = bell_c[k1].z;
+                q[2].x = bell_c[4].x; q[2].y = bell_c[4].y; q[2].z = bell_c[4].z;
                 poly(q, 3, PEN_LEGS, snap);
             }
-        }
     }
-    for (i = 0; i < nb; i++) {
-        const Box *b = &boxes[order[i]];
-        /* the six turned edges: term[axis][end] = K's column x the end's coordinate */
-        for (a = 0; a < 3; a++)
-            for (k = 0; k < 2; k++) {
-                int16_t v = k ? b->hi[a] : b->lo[a];
-                term[a][k].x = (int16_t)(mul16(K[a], v) >> 12);
-                term[a][k].y = (int16_t)(mul16(K[3 + a], v) >> 12);
-                term[a][k].z = (int16_t)(mul16(K[6 + a], v) >> 12);
+    for (i = 0; i < 7; i++) {
+        uint8_t b = order[i], nc = (d[0] < 0 ? 1 : 0) | (d[1] < 0 ? 2 : 0) | (d[2] < 0 ? 4 : 0);   /* the nearest corner */
+        const Box *bx = &boxes[b];
+        const VfVtx *sv = bsv[b];
+        const V3s *cv = bcv[b];
+        if (bx->lit == bx->shade) {
+            /* port: one pen: the three faces' outline, a hexagon (the
+               corners one and two steps from the nearest), the same pixels */
+            static const uint8_t hexo[6] = { 1, 3, 2, 6, 4, 5 };
+            if (!near[b]) {
+                VfVtx fv[6];
+                for (f = 0; f < 6; f++) { const VfVtx *q = &sv[nc ^ hexo[f]]; fv[f].x = q->x; fv[f].y = q->y; }
+                if (vf_add_poly(fv, 6, bx->lit, snap)) view_polys++;
+            } else {
+                V3s q[6];
+                for (f = 0; f < 6; f++) { const V3s *r = &cv[nc ^ hexo[f]]; q[f].x = r->x; q[f].y = r->y; q[f].z = r->z; }
+                poly(q, 6, bx->lit, snap);
             }
-        for (k = 0; k < 8; k++) {
-            const V3s *tx = &term[0][k & 1], *ty = &term[1][(k >> 1) & 1], *tz = &term[2][k >> 2];
-            corner[k].x = ctr.x + tx->x + ty->x + tz->x;
-            corner[k].y = ctr.y + tx->y + ty->y + tz->y;
-            corner[k].z = ctr.z + tx->z + ty->z + tz->z;
+            continue;
         }
-        for (k = 0; k < 8 && corner[k].z >= NEAR_Z; k++)
-            ;
-        if (k == 8) vo_scr_n(corner, sv, 8);
         for (a = 0; a < 3; a++) {
-            uint8_t end = vis[a], bit = (uint8_t)(1 << a), f;
-            /* lit facing -x, +y, +z */
-            uint8_t pen = (a == 0 ? !end : end) ? b->lit : b->shade;
-            if (k == 8) {
+            uint8_t end = (nc >> a) & 1, bit = (uint8_t)(1 << a);
+            uint8_t pen = (a == 0 ? !end : end) ? bx->lit : bx->shade;          /* lit facing -x, +y, +z */
+            const uint8_t *fc = face_c[a];
+            if (!near[b]) {
                 VfVtx fv[4];
-                for (f = 0; f < 4; f++) fv[f] = sv[face_c[a][f] | (end ? bit : 0)];
+                for (f = 0; f < 4; f++) { const VfVtx *q = &sv[fc[f] | (end ? bit : 0)]; fv[f].x = q->x; fv[f].y = q->y; }
                 if (vf_add_poly(fv, 4, pen, snap)) view_polys++;
             } else {                         /* near the camera: clipped */
                 V3s q[4];
-                for (f = 0; f < 4; f++) q[f] = corner[face_c[a][f] | (end ? bit : 0)];
+                for (f = 0; f < 4; f++) { const V3s *r = &cv[fc[f] | (end ? bit : 0)]; q[f].x = r->x; q[f].y = r->y; q[f].z = r->z; }
                 poly(q, 4, pen, snap);
             }
         }
@@ -311,6 +331,31 @@ static void stars(uint8_t world)
     vf_nstars = n;
 }
 
+/* render.c compass(): an arrow at the top pointing to the nearest pad, in
+   its ring's colour (and for Mars's wind one at the top right in the HUD's
+   grey: port: the original draws two lines). On the view's coordinates:
+   the original's (x, y) at (0.8 x, (11 + 0.8 y) / 2) */
+static void arrow(int16_t cx, int16_t cy, uint16_t a, uint8_t pen)
+{
+    static const int8_t r[3] = { 12, 7, 7 };
+    static const uint16_t da[3] = { 0, 26000, (uint16_t)-26000 };
+    VfVtx v[3];
+    uint8_t k;
+    for (k = 0; k < 3; k++) {
+        uint16_t b = a + da[k];
+        int16_t x = cx + (int16_t)((a3_sin(b) * r[k]) >> 16), y = cy - (int16_t)((a3_cos(b) * r[k]) >> 16);
+        v[k].x = (int16_t)(x * 4 / 5);
+        v[k].y = (uint16_t)((11 + y * 4 / 5 + 2 * VF_OFF) * 128);
+    }
+    vf_add_poly(v, 3, pen, VF_SNAPS);
+}
+
+static void compass(void)
+{
+    arrow(160, 18, hv.pad_dir, PEN_RING + hv.pad);
+    if (hv.wind) arrow(290, 18, hv.wind_dir, PEN_HUD);
+}
+
 void view_draw(const Level *L, uint8_t frame)
 {
     uint8_t k, sc;
@@ -337,5 +382,6 @@ void view_draw(const Level *L, uint8_t frame)
     vf_snap_at[sc] = strip_of(U(L->c.p[2]));
     octagon(U(L->c.p[0]), vcam.shadow_y + 3, U(L->c.p[2]), 40, PEN_SHADOW, sc);
     craft(L, sc, frame);
+    if (view_compass) compass();
     vf_draw();
 }

@@ -53,3 +53,10 @@ void ter_cell(const Terrain *T, uint8_t i, uint8_t j, fix h[4])
     q += T->rowb;
     h[2] = at(T, q); h[3] = at(T, q + 3);
 }
+
+void ter_range(const Terrain *T, uint8_t j, int16_t *hi, int16_t *lo)
+{
+    const uint8_t *q = page(T->range_page) + LV_RANGE_OFF;
+    *hi = (int16_t)(q[j * 2] | q[j * 2 + 1] << 8);
+    *lo = (int16_t)(q[(T->n + j) * 2] | q[(T->n + j) * 2 + 1] << 8);
+}

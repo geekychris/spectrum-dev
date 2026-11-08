@@ -65,6 +65,22 @@ static void put_level(int idx, int w, int lv)
         npages++;
         if (j + rpp >= n - 1) break;            /* the last page has the last row */
     }
+    /* each row's highest and lowest heights in engine units (>> 12), int16,
+       at RANGE_OFF in the last page: what the view culls by */
+    {
+        unsigned char *pg = banks + (size_t)(npages - 1) * 8192 + LV_RANGE_OFF;
+        int r = 0;
+        if (n * 4 + LV_RANGE_OFF > 8192 || (n - 1 - (n - 1) / rpp * rpp + 1) * rowb > LV_RANGE_OFF) { fprintf(stderr, "no room for the ranges\n"); exit(1); }
+        for (j = 0; j < n; j++, r++) {
+            fix lo = 0x7FFFFFFF, hi = -0x7FFFFFFF;
+            for (i = 0; i < n; i++) {
+                if (T->h[j * n + i] > hi) hi = T->h[j * n + i];
+                if (T->h[j * n + i] < lo) lo = T->h[j * n + i];
+            }
+            pg[j * 2] = (unsigned char)(hi >> 12); pg[j * 2 + 1] = (unsigned char)((hi >> 12) >> 8);
+            pg[n * 2 + j * 2] = (unsigned char)(lo >> 12); pg[n * 2 + j * 2 + 1] = (unsigned char)((lo >> 12) >> 8);
+        }
+    }
 #define F(x) v[k++] = (int32_t)(x)
     F(w); F(lv); F(L.seed);
     F(L.params.fuel); F(L.params.start_alt); F(L.params.start_h); F(L.params.start_dist); F(L.params.pad_scale); F(L.params.wind);
@@ -74,7 +90,7 @@ static void put_level(int idx, int w, int lv)
     for (i = 0; i < 3; i++) F(L.c.v[i]);
     F(L.c.pitch); F(L.c.roll); F(L.c.wp); F(L.c.wr); F(L.c.throttle);
     F(L.fuel); F(L.fuel_max); F(L.wind_dir); F(L.wind_ph); F(L.probe_used); F(L.probe_outcome);
-    F(hmax); F(hmin); F(rpp); F(rowb); F(LEVEL_BANK * 2 + page0);
+    F(hmax); F(hmin); F(rpp); F(rowb); F(LEVEL_BANK * 2 + page0); F(LEVEL_BANK * 2 + npages - 1);
 #undef F
     if (k != LV_NFIELDS) { fprintf(stderr, "%d fields, lv_rec.h says %d\n", k, LV_NFIELDS); exit(1); }
     for (i = 0; i < k; i++) put32(rec + i * 4, v[i]);

@@ -19,8 +19,9 @@
 #define LEVEL_BANK    40                 /* banks 40.. (8K pages 80..) */
 #define LEVEL_BANKS   51
 #define LV_HDR_PAGES  1                  /* the records, then the heights */
-#define LV_NFIELDS    51                 /* int32 values a record (gen_levels.c's order) */
+#define LV_NFIELDS    52                 /* int32 values a record (gen_levels.c's order) */
 #define LV_REC_SIZE   (LV_NFIELDS * 4)
+#define LV_RANGE_OFF  6144
 #define LV_COUNT      (3 * LV_PER_WORLD)
 
 /* the record's fields (int32 each, little-endian); a height is
@@ -34,6 +35,7 @@ enum {
     LVF_PITCH = LVF_V + 3, LVF_ROLL, LVF_WP, LVF_WR, LVF_THROTTLE,
     LVF_FUEL, LVF_FUEL_MAX, LVF_WIND_DIR, LVF_WIND_PH, LVF_PROBE_USED, LVF_PROBE_OUTCOME,
     LVF_HMAX, LVF_HBASE, LVF_RPP, LVF_ROWB, LVF_PAGE,
+    LVF_RANGE_PAGE,                      /* the rows' highest and lowest heights (units, int16): n each at LV_RANGE_OFF */
     LVF_END
 };
 

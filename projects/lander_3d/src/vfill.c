@@ -140,6 +140,12 @@ static void poly(const VfPoly *p)
         up_fwd = mul16(ax, by) > mul16(ay, bx);
     }
     vf_poly_page(SNAP_PAGE(p->snap));
+    /* its columns' bottoms start at the top (nothing drawn where its lower
+       chain doesn't reach: a fill must never run past the view) */
+    {
+        int16_t x0 = v[l].x < 0 ? 0 : v[l].x, x1 = v[r].x > VW ? VW : v[r].x;
+        if (x1 > x0) memset(&vf_tmp[x0], VF_OFF, (uint16_t)(x1 - x0));
+    }
     /* the lower chain (mode 1), then the upper (mode 0) */
     for (k = 0; k < 2; k++) {
         uint8_t fwd = k ? up_fwd : !up_fwd, mode = k ? 0 : 1;

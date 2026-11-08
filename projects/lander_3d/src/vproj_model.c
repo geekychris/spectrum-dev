@@ -7,7 +7,8 @@
 #include "vproj.h"
 
 int16_t vp_dx0, vp_dz0, vp_cell, vp_camy, vp_cp, vp_sp, vp_i0, vp_j0, vp_hb12;
-uint8_t vp_n, vp_page, vp_rpp, vp_pen0;
+uint8_t vp_n, vp_page, vp_rpp, vp_pen0, vp_r0;
+int16_t vp_xlim[NLINE];
 uint16_t vp_rowb, vp_hbf, vp_cdiv;
 const uint8_t *host_page(uint8_t p);     /* host_ter.c */
 
@@ -40,7 +41,7 @@ void vp_project(void)
         VfVtx *v = vf_v[r];
         for (k = 0; k < NVX; k++) {
             int16_t i = vp_i0 + k;
-            if (j < 0 || j >= vp_n || i < 0 || i >= vp_n) hcur[k] = -32768;
+            if (r < vp_r0 || j < 0 || j >= vp_n || i < 0 || i >= vp_n) hcur[k] = -32768;
             else {
                 uint8_t p = (uint8_t)(j / vp_rpp);
                 const uint8_t *q = host_page(vp_page + p) + (j - p * vp_rpp) * vp_rowb + i * 3;
@@ -52,6 +53,7 @@ void vp_project(void)
             int16_t dy, zp, yp, x;
             uint16_t s;
             int32_t y;
+            if (hcur[k] != -32768 && (dx > vp_xlim[r] || dx < -vp_xlim[r])) hcur[k] = -32768;
             if (hcur[k] == -32768) { v[k].x = VF_BEHIND; continue; }
             dy = hcur[k] - vp_camy;
             zp = sh12(dzc - (int32_t)dy * vp_sp);
@@ -103,6 +105,45 @@ void vo_scr(const V3s *p, VfVtx *o)
 }
 
 void vo_scr_n(const V3s *in, VfVtx *out, uint8_t n) { for (; n; n--) vo_scr(in++, out++); }
+
+uint8_t vo_box(const int8_t *lh, const int16_t *k, const V3s *c, VfVtx *out, V3s *cam)
+{
+    int16_t t[3][2][3];
+    uint8_t a, e, n, near = 0;
+    for (a = 0; a < 3; a++)
+        for (e = 0; e < 2; e++) {
+            int16_t v = lh[e * 3 + a];
+            t[a][e][0] = (int16_t)(((int32_t)k[a] * v) >> 12);
+            t[a][e][1] = (int16_t)(((int32_t)k[3 + a] * v) >> 12);
+            t[a][e][2] = (int16_t)(((int32_t)k[6 + a] * v) >> 12);
+        }
+    for (n = 0; n < 8; n++) {
+        const int16_t *tx = t[0][n & 1], *ty = t[1][(n >> 1) & 1], *tz = t[2][n >> 2];
+        cam[n].x = c->x + tx[0] + ty[0] + tz[0];
+        cam[n].y = c->y + tx[1] + ty[1] + tz[1];
+        cam[n].z = c->z + tx[2] + ty[2] + tz[2];
+        if (cam[n].z < 12) near = 1;
+    }
+    if (!near) vo_scr_n(cam, out, 8);
+    return near;
+}
+
+uint8_t vo_oct(const V3s *m, const int16_t *off, VfVtx *out, V3s *cam)
+{
+    static const int8_t pat[8][2] = { { 0, 1 }, { 1, 0 }, { 1, -1 }, { 0, -2 }, { -1, -2 }, { -2, -1 }, { -2, 0 }, { -1, 1 } };
+    uint8_t k, near = 0;
+    /* (pat: x 0 a, 1 b, -1 -a, -2 -b; z the same) */
+    for (k = 0; k < 8; k++) {
+        int8_t px = pat[k][0], pz = pat[k][1];
+        int16_t x = px >= 0 ? off[px] : -off[-px - 1];
+        int16_t ys = pz >= 0 ? off[2 + 2 * pz] : -off[2 + 2 * (-pz - 1)];
+        int16_t zs = pz >= 0 ? off[3 + 2 * pz] : -off[3 + 2 * (-pz - 1)];
+        cam[k].x = m->x + x; cam[k].y = m->y + ys; cam[k].z = m->z + zs;
+        if (cam[k].z < 12) near = 1;
+    }
+    if (!near) vo_scr_n(cam, out, 8);
+    return near;
+}
 
 void vo_model(const int8_t *v, uint8_t n, const int16_t *k, const V3s *c, V3s *out)
 {

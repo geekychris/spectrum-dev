@@ -52,6 +52,20 @@ int main(void)
         for (k = 0; k < 10; k++) zx_log("ff: isqrt %lu %lu\n", v[k], (uint32_t)isqrt32(v[k]));
     }
     zx_log("ff: fix16 %08lX\n", h);
+    /* fix16_atan.c, fix16_hyp3.c, fix16_exp.c: 1000 pairs */
+    h = 2166136261UL;
+    for (i = 0; i < 1000; i++) {
+        int32_t a = rnd(), b = rnd(), x;
+        mix(fatan2(a >> 8, b >> 8));
+        mix(a3_atan2(a >> 8, b >> 8));
+        x = a >> 15;
+        if (x > 65536L) x = 65536L;
+        if (x < -65536L) x = -65536L;
+        mix(fasin(x));
+        mix(fhypot3(a >> 8, b >> 8, (a ^ b) >> 8));
+        mix(fexp_neg((a < 0 ? -a : a) >> 10));
+    }
+    zx_log("ff: fix16x %08lX\n", h);
     zx_log("ff: done\n");
     for (;;) frame_wait();
 }

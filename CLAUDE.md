@@ -338,3 +338,13 @@ Details: docs/emulator-harness.md.
 - zsdcc built `h = (h ^ p->slot[i].home) * K` (uint32_t h, a uint8_t field through a pointer) with byte 1 of
   `h` replaced by 0, at -SO0 to -SO3; reading the byte into a local first fixed it (Boing Twist's bt_hash: the
   original's self-test hash showed it). Run an original's own self-test on the Z80 when there is one.
+- zsdcc compiled `isr_pressed |= b & ~isr_held;` (volatile globals) as `isr_pressed |= 0`: the
+  `b & ~isr_held` term was dropped and no press was ever latched. Write such updates through locals
+  (Lander 3D's game_sample) and read the `zcc -S` output of interrupt code.
+- LDI/LDIR count BC down: a pointer kept in BC across an LDI copy is gone (Lander 3D's vf_seg).
+- At 28 MHz ZEsarUX's T-states for the Next ran ~1.5-2x what instruction counts predicted
+  (Lander 3D's measured routines): measure with breakpoints (tools/timefn.py) before planning a budget.
+- A computed jump into an unrolled block needs the block within one 256-byte page: `ALIGN 256` inside a
+  PAGE_n/BANK_n section does not align the absolute address; put the block in `data_align_256`.
+- A polygon filled as columns (upper edges down to a buffer the lower edges wrote) must clear that
+  buffer over its columns first: a stale value ran a fill far past the view into resident code.

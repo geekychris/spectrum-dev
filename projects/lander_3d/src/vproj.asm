@@ -16,7 +16,7 @@
 EXTERN _vf_v, _vf_col, l_mulu_32_16x16
 PUBLIC _vp_project, vp_smul_us, vp_sh12, vp_recip_s, vp_scr, vp_dx, vp_yp
 PUBLIC _vp_dx0, _vp_dz0, _vp_cell, _vp_camy, _vp_cp, _vp_sp
-PUBLIC _vp_i0, _vp_j0, _vp_n, _vp_page, _vp_rpp, _vp_rowb, _vp_hb12, _vp_hbf, _vp_cdiv, _vp_pen0
+PUBLIC _vp_r0, _vp_xlim, _vp_i0, _vp_j0, _vp_n, _vp_page, _vp_rpp, _vp_rowb, _vp_hb12, _vp_hbf, _vp_cdiv, _vp_pen0
 
 NVX     equ 14
 NLINE   equ 14
@@ -40,6 +40,9 @@ _vp_hb12: defw 0                ; hbase >> 12, hbase & 0xFFF
 _vp_hbf:  defw 0
 _vp_cdiv: defw 0                ; the slope's step (cell / 3 + 1)
 _vp_pen0: defb 0                ; the lightest ground pen
+_vp_r0:   defb 0                ; the first line drawn (those before: behind)
+_vp_xlim: defs NLINE * 2        ; each line's |dx| beyond which a point is off the view
+vp_xl:    defw 0
 vp_r:     defb 0
 vp_k:     defb 0
 vp_j:     defw 0
@@ -143,6 +146,18 @@ vp_line:
     call smul_us
     ld (vp_dzs),hl
     ld (vp_dzs + 2),de
+    ; this line's limit for |dx|
+    ld a,(vp_r)
+    add a,a
+    ld l,a
+    ld h,0
+    ld de,_vp_xlim
+    add hl,de
+    ld a,(hl)
+    inc hl
+    ld h,(hl)
+    ld l,a
+    ld (vp_xl),hl
     ; this line's heights (vp_hcur), off the map: 0x8000
     call heights
     ; the points
@@ -161,6 +176,28 @@ vp_point:
     or a
     jp z,vp_behind
 vp_on:
+    ; off the view's sides (|dx| beyond this line's limit): as if behind
+    push hl
+    ld hl,(vp_dx)
+    bit 7,h
+    jr z,vpx_pos
+    xor a
+    sub l
+    ld l,a
+    sbc a,a
+    sub h
+    ld h,a
+vpx_pos:
+    ex de,hl
+    ld hl,(vp_xl)
+    or a
+    sbc hl,de
+    pop hl
+    jr nc,vpx_ok
+    ld (iy+0),BEHIND % 256       ; (its cells: none)
+    ld (iy+1),BEHIND / 256
+    jp vp_behind
+vpx_ok:
     ; dy = h - camy
     ld de,(_vp_camy)
     or a
@@ -403,6 +440,11 @@ rs_left:
 
 ; this line's heights into vp_hcur (units; off the map: 0x8000)
 heights:
+    ld a,(_vp_r0)
+    ld b,a
+    ld a,(vp_r)
+    cp b
+    jp c,ht_offline
     ld hl,(vp_j)
     bit 7,h
     jp nz,ht_offline

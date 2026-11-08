@@ -1,8 +1,9 @@
 """SDK module fix16 (and fixmath's isqrt32) (./zx test fix16test), against a
 Python model: 2000 pseudo-random pairs (small, medium, full-range and edge
 values) through fmul, fdiv, a3_angle, fhypot, fsqrt and fsin, hashed; the
-model is the amiga3d engine's 64-bit definitions. isqrt32 on values up to
-2^32 - 1."""
+model is the amiga3d engine's 64-bit definitions. Then 1000 pairs through
+fatan2, a3_atan2, fasin, fhypot3 and fexp_neg (the engine's a3d_fix.c and
+a3d_math.c). isqrt32 on values up to 2^32 - 1."""
 import re
 import sys
 from pathlib import Path
@@ -84,6 +85,71 @@ def fsin(rad):
     return s0 + (((s1 - s0) * f) >> 8)
 
 
+src_atan = (ROOT / "sdk" / "src" / "fix16_atan.c").read_text()
+ATAN = [int(v) for v in re.findall(r"\d+", src_atan[src_atan.index("atan_tab[129] = {") + 17:src_atan.index("};")])]
+
+
+def atan_ratio(num, den):
+    a = abs(num)
+    if den <= 0:
+        return 0
+    a = min(a, den)
+    while den > 0x7FFFF:
+        a >>= 1
+        den >>= 1
+    t = (a * 2048) // den
+    f, i = t & 15, t >> 4
+    r = ATAN[i] + ((((ATAN[i + 1] - ATAN[i]) * f) >> 4) if i < 128 else 0)
+    return -r if num < 0 else r
+
+
+def a3_atan2(x, y):
+    ax, ay = abs(x), abs(y)
+    if not ax and not ay:
+        return 0
+    a = atan_ratio(ax, ay) if ax <= ay else 16384 - atan_ratio(ay, ax)
+    if y < 0:
+        a = 32768 - a
+    if x < 0:
+        a = -a
+    return a & 0xFFFF
+
+
+def fatan2(y, x):
+    ax, ay = abs(x), abs(y)
+    if not ax and not ay:
+        return 0
+    t = atan_ratio(ay, ax) if ay <= ax else 16384 - atan_ratio(ax, ay)
+    if x < 0:
+        t = 32768 - t
+    if y < 0:
+        t = -t
+    return s32((t * 411775) >> 16)
+
+
+def fasin(x):
+    return fatan2(x, fsqrt(65536 - s32((x * x) >> 16)))
+
+
+def fhypot3(a, b, c):
+    x, y, z, sh = abs(a) & 0xFFFFFFFF, abs(b) & 0xFFFFFFFF, abs(c) & 0xFFFFFFFF, 0
+    while (x | y | z) >= 37000:
+        x, y, z, sh = x >> 1, y >> 1, z >> 1, sh + 1
+    return s32(isqrt(x * x + y * y + z * z) << sh)
+
+
+def fexp_neg(x):
+    if x <= 0:
+        return 65536
+    if x > 20 * 65536:
+        return 0
+    k = x // 45426
+    y = x - k * 45426
+    yy = (y * y) >> 16
+    r = 65536 - y + yy // 2 - ((yy * y) >> 16) // 6
+    return r >> k
+
+
 def fix16_hash():
     s = [12345]
 
@@ -116,7 +182,16 @@ def fix16_hash():
         mix(fhypot(a >> 8, b >> 8))
         mix(fsqrt(a & 0x7FFFFFFF))
         mix(fsin(a >> 12))
-    return h[0]
+    hx = h[0]
+    h[0] = 2166136261
+    for _ in range(1000):
+        a, b = rnd(), rnd()
+        mix(fatan2(a >> 8, b >> 8))
+        mix(a3_atan2(a >> 8, b >> 8))
+        mix(fasin(max(-65536, min(65536, a >> 15))))
+        mix(fhypot3(a >> 8, b >> 8, s32(a ^ b) >> 8))
+        mix(fexp_neg((abs(a) if a != -2147483648 else a) >> 10))     # (C's -a of -2^31 stays negative)
+    return hx, h[0]
 
 
 with Emulator(machine="next") as e:
@@ -128,8 +203,13 @@ with Emulator(machine="next") as e:
     check("isqrt32 (fixmath.h): floor(sqrt) up to 2^32 - 1", len(got) == 10 and all(r == math.isqrt(v) for v, r in got),
           str([g for g in got if g[1] != math.isqrt(g[0])]))
     m = re.search(r"ff: fix16 ([0-9A-F]{8})", log)
-    want = f"{fix16_hash():08X}"
+    hx, hy = fix16_hash()
+    want = f"{hx:08X}"
     check(f"fix16: fmul, fdiv, a3_angle, fhypot, fsqrt, fsin over 2000 pairs = the 64-bit model ({want})",
+          m is not None and m.group(1) == want, m.group(1) if m else "missing")
+    m = re.search(r"ff: fix16x ([0-9A-F]{8})", log)
+    want = f"{hy:08X}"
+    check(f"fix16: fatan2, a3_atan2, fasin, fhypot3, fexp_neg over 1000 pairs = the amiga3d engine's ({want})",
           m is not None and m.group(1) == want, m.group(1) if m else "missing")
 
 print(f"{'FAIL' if failures else 'PASS'}: fix16test")

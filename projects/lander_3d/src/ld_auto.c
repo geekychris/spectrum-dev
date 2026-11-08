@@ -5,11 +5,45 @@
  * ld_auto.c - Lander 3D's autopilot (ld_core.c in the original): it flies
  * the title's demo and, in the original, the probe flight that sizes the
  * tank. port: its own file (zsdcc's code for the rules is over 16K: this
- * is linked into page 46 at 0x6000, ld_core.c into bank 20 at 0x0000).
+ * is linked into page 46 at 0x6000, ld_core.c into bank 20 at 0x0000),
+ * with three of the rules' helpers (the slope, the tilt, the nearest pad)
+ * for room.
  */
 #include "ld.h"
 
 static fix fclamp(fix v, fix lo, fix hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+/* ------------------------------------------------------------ helpers (ld_core.c in the original) */
+fix ld_slope_cos(const Terrain *T, fix x, fix z)
+{
+    fix e = T->cell / 2;
+    fix dx = ld_height(T, x + e, z), dz;
+    dx -= ld_height(T, x - e, z);
+    dz = ld_height(T, x, z + e);
+    dz -= ld_height(T, x, z - e);
+    return FDIV(2 * e, fhypot3(dx, 2 * e, dz));
+}
+
+fix ld_tilt(const Craft *c)
+{
+    fix u[3], hh;
+    ld_up(c, u);
+    hh = fhypot(u[0], u[2]);
+    return fatan2(hh, u[1]);
+}
+
+int ld_nearest_pad(const Level *L, int easiest)
+{
+    int k, pick = 0;
+    fix best = 0x7FFFFFFFL;
+    for (k = 0; k < 3; k++) {
+        const Pad *p = &L->T.pads[k];
+        fix d = fhypot(p->x - L->c.p[0], p->z - L->c.p[2]), s = easiest ? FDIV(d, p->r) : d;
+        if (s < best) { best = s; pick = k; }
+    }
+    return pick;
+}
+
 
 /* ------------------------------------------------------------ the autopilot */
 void ld_autopilot(Level *L, LdInput *out)

@@ -29,6 +29,8 @@ const uint16_t ld_palettes[3][32] = {
 
 ViewCam vcam;                            /* (resident: the view's bank isn't in when it is made) */
 uint16_t view_polys;
+uint8_t view_compass;
+HudVals hv;
 static int32_t cam_back = 480, cam_up = 160;
 
 void view_reset(void) { cam_back = 480; cam_up = 160; }

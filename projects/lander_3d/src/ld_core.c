@@ -11,10 +11,11 @@
  * zsdcc and speed keep the values (tools/check_core.sh): `int` is 16 bits,
  * so a few sums are 32-bit; zsdcc's code for a multiply with a call as an
  * operand is unreliable, so such results go through locals; the
- * rotation's sines and cosines are worked out once for the four feet and
- * the bell (the original works them out for each); and contact() is not
- * called while the craft is too high above the ground for any foot to
- * reach it (the result is the same: no touchdown).
+ * rotation's sines and cosines, the up vector and the feet's turned offsets
+ * are kept while the angles stay (the original works them out each time);
+ * contact() is not called while the craft is too high above the ground
+ * for any foot to reach it, and in it a foot above its cell's highest
+ * corner isn't looked up (it can't touch: the result is the same).
  */
 #include <string.h>
 #include "ld.h"
@@ -51,16 +52,6 @@ fix ld_height(const Terrain *T, fix x, fix z)
     return a + ab + ca + m;
 }
 
-fix ld_slope_cos(const Terrain *T, fix x, fix z)
-{
-    fix e = T->cell / 2;
-    fix dx = ld_height(T, x + e, z), dz;
-    dx -= ld_height(T, x - e, z);
-    dz = ld_height(T, x, z + e);
-    dz -= ld_height(T, x, z - e);
-    return FDIV(2 * e, fhypot3(dx, 2 * e, dz));
-}
-
 /* ------------------------------------------------------------ the craft */
 static const fix FEET[4][3] = { { FX(2.3), FX(-2), FX(2.3) }, { FX(-2.3), FX(-2), FX(2.3) },
                                 { FX(2.3), FX(-2), FX(-2.3) }, { FX(-2.3), FX(-2), FX(-2.3) } };
@@ -88,31 +79,34 @@ static void rot(const fix v[3], fix out[3])
     out[2] = t + FMUL(z1, r_cp);
 }
 
+/* port: the last result kept for the same angles (ld_step's every step) */
+static fix up_cache[3], up_pitch = 1, up_roll = 1;
 void ld_up(const Craft *c, fix u[3])
 {
     static const fix up[3] = { 0, FONE, 0 };
-    rot_set(c->pitch, c->roll);
-    rot(up, u);
+    if (c->pitch != up_pitch || c->roll != up_roll || up_pitch == 1) {
+        rot_set(c->pitch, c->roll);
+        rot(up, up_cache);
+        up_pitch = c->pitch;
+        up_roll = c->roll;
+    }
+    u[0] = up_cache[0]; u[1] = up_cache[1]; u[2] = up_cache[2];
 }
 
-fix ld_tilt(const Craft *c)
-{
-    fix u[3], hh;
-    ld_up(c, u);
-    hh = fhypot(u[0], u[2]);
-    return fatan2(hh, u[1]);
-}
-
+/* port: the turned offsets kept while the angles stay */
+static fix foot_off[5][3], foot_pitch = 1, foot_roll = 1;
 void ld_feet(const Craft *c, fix out[5][3])
 {
     uint8_t k, d;
-    rot_set(c->pitch, c->roll);
-    for (k = 0; k < 4; k++) {
-        rot(FEET[k], out[k]);
-        for (d = 0; d < 3; d++) out[k][d] += c->p[d];
+    if (c->pitch != foot_pitch || c->roll != foot_roll || foot_pitch == 1) {
+        rot_set(c->pitch, c->roll);
+        for (k = 0; k < 4; k++) rot(FEET[k], foot_off[k]);
+        rot(BELL, foot_off[4]);
+        foot_pitch = c->pitch;
+        foot_roll = c->roll;
     }
-    rot(BELL, out[4]);
-    for (d = 0; d < 3; d++) out[4][d] += c->p[d];
+    for (k = 0; k < 5; k++)
+        for (d = 0; d < 3; d++) out[k][d] = foot_off[k][d] + c->p[d];
 }
 
 fix ld_agl(const Level *L)
@@ -163,6 +157,26 @@ static void finish(Level *L, int outcome)
                outcome == OUT_CRASHED ? LDE_CRASHED : LDE_LOST);
 }
 
+/* port: the cell ld_height() reads at (x, z) (the same clamp) */
+static void cell_of(const Terrain *T, fix x, fix z, uint8_t *i, uint8_t *j)
+{
+    fix lim = FROMI(T->n - 1) - 1;
+    *i = (uint8_t)FINT(fclamp(FMUL(x + T->half, T->inv_cell), 0, lim));
+    *j = (uint8_t)FINT(fclamp(FMUL(z + T->half, T->inv_cell), 0, lim));
+}
+
+/* port: the highest corner of that cell: ld_height() is never above it */
+static fix cell_max(const Terrain *T, fix x, fix z)
+{
+    fix h[4], m;
+    uint8_t i, j;
+    cell_of(T, x, z, &i, &j);
+    ter_cell(T, i, j, h);
+    m = h[0] > h[1] ? h[0] : h[1];
+    if (h[2] > m) m = h[2];
+    return h[3] > m ? h[3] : m;
+}
+
 /* touchdown: any foot or the bell at or below the ground decides it */
 static fix fs[5][3];                    /* port: static (zsdcc's stack frames) */
 static int contact(Level *L)
@@ -174,7 +188,9 @@ static int contact(Level *L)
     LdResult *res = &L->result;
     ld_feet(c, fs);
     for (k = 0; k < 5; k++) {
-        fix g = ld_height(&L->T, fs[k][0], fs[k][2]), fy = fs[k][1];
+        fix g, fy = fs[k][1];
+        if (fy > cell_max(&L->T, fs[k][0], fs[k][2])) continue;     /* port: above its cell: not touching */
+        g = ld_height(&L->T, fs[k][0], fs[k][2]);
         if (fy <= g) { touching = 1; if (g - fy > pen) pen = g - fy; }
     }
     if (!touching) return 0;
@@ -226,14 +242,12 @@ static int contact(Level *L)
    the corners of the cells it would read for x +- 4, z +- 4 bound it */
 static fix ground_max_near(const Terrain *T, fix x, fix z)
 {
-    fix lim = FROMI(T->n - 1) - 1, f, best = T->hbase, h;
+    fix best = T->hbase, h;
     uint8_t i0, i1, j0, j1, i, j;
-    f = fclamp(FMUL(x - FROMI(4) + T->half, T->inv_cell), 0, lim); i0 = (uint8_t)FINT(f);
-    f = fclamp(FMUL(x + FROMI(4) + T->half, T->inv_cell), 0, lim); i1 = (uint8_t)FINT(f) + 1;
-    f = fclamp(FMUL(z - FROMI(4) + T->half, T->inv_cell), 0, lim); j0 = (uint8_t)FINT(f);
-    f = fclamp(FMUL(z + FROMI(4) + T->half, T->inv_cell), 0, lim); j1 = (uint8_t)FINT(f) + 1;
-    for (j = j0; j <= j1; j++)
-        for (i = i0; i <= i1; i++) {
+    cell_of(T, x - FROMI(4), z - FROMI(4), &i0, &j0);
+    cell_of(T, x + FROMI(4), z + FROMI(4), &i1, &j1);
+    for (j = j0; j <= j1 + 1; j++)
+        for (i = i0; i <= i1 + 1; i++) {
             h = ter_h(T, i, j);
             if (h > best) best = h;
         }
@@ -249,14 +263,6 @@ static fix ground_max_near(const Terrain *T, fix x, fix z)
    code through a pointer is several times slower) and divides by 100
    with div100() (ld.h; the same truncated quotient) */
 static Craft C;
-
-/* x / d truncated, d 2..64: shifts for 2, 4, 8 (the usual sub-steps) */
-static fix divsub(fix x, int d)
-{
-    uint8_t k = d == 2 ? 1 : d == 4 ? 2 : d == 8 ? 3 : 0;
-    if (!k) return x / d;
-    return x < 0 ? -((-x) >> k) : x >> k;
-}
 
 static fix axis(const Level *L, fix w, fix cmd, uint8_t k)
 {
@@ -295,10 +301,12 @@ void ld_step(Level *L, const LdInput *in)
         if (L->fuel <= 0) { L->fuel = 0; push_ev(L, LDE_FUEL_OUT); }
     }
     C.throttle = thr;
-    ld_up(&C, u);
-    t = FMUL(u[0], amax); a0 = FMUL(t, thr);
-    t = FMUL(u[1], amax); a1 = FMUL(t, thr) - W->g;
-    t = FMUL(u[2], amax); a2 = FMUL(t, thr);
+    if (thr) {                           /* port: fmul(t, 0) is 0 */
+        ld_up(&C, u);
+        t = FMUL(u[0], amax); a0 = FMUL(t, thr);
+        t = FMUL(u[1], amax); a1 = FMUL(t, thr) - W->g;
+        t = FMUL(u[2], amax); a2 = FMUL(t, thr);
+    } else { a0 = 0; a1 = -W->g; a2 = 0; }
     wind_at(L, (fix)L->t * LD_DT);
     if (W->drag) {
         fix drag = W->drag;
@@ -308,20 +316,26 @@ void ld_step(Level *L, const LdInput *in)
         a1 -= FMUL(t, C.v[1]);
     }
     /* sub-steps keep the touchdown check honest at any speed */
-    speed = fhypot3(C.v[0], C.v[1], C.v[2]) + div100(amax);
-    subs32 = (div100(speed) + FX(0.25) - 1) >> 14;      /* port: / FX(0.25) (>= 0); 32 bits before the clamp */
-    subs = subs32 < 1 ? 1 : subs32 > 64 ? 64 : (int)subs32;
+    /* port: fhypot3 is at most |x| + |y| + |z|: below about 24 m/s that
+       already gives one sub-step, and the length isn't needed */
+    t = fabsx(C.v[0]) + fabsx(C.v[1]) + fabsx(C.v[2]) + div100(amax);
+    if (t >= 0 && t < FROMI(24)) subs = 1;
+    else {
+        speed = fhypot3(C.v[0], C.v[1], C.v[2]) + div100(amax);
+        subs32 = (div100(speed) + FX(0.25) - 1) >> 14;  /* port: / FX(0.25) (>= 0); 32 bits before the clamp */
+        subs = subs32 < 1 ? 1 : subs32 > 64 ? 64 : (int)subs32;
+    }
     for (s = 0; s < subs; s++) {
         if (subs == 1) {
             C.v[0] += div100(a0); C.v[1] += div100(a1); C.v[2] += div100(a2);
             C.p[0] += div100(C.v[0]); C.p[1] += div100(C.v[1]); C.p[2] += div100(C.v[2]);
         } else {
-            /* x / (100 subs) = (x / 100) / subs, both truncated */
-            C.v[0] += divsub(div100(a0), subs); C.v[1] += divsub(div100(a1), subs); C.v[2] += divsub(div100(a2), subs);
-            C.p[0] += divsub(div100(C.v[0]), subs); C.p[1] += divsub(div100(C.v[1]), subs);
-            C.p[2] += divsub(div100(C.v[2]), subs);
+            int16_t div = LD_STEP_HZ * subs;    /* (fast: above ~24 m/s only) */
+            C.v[0] += a0 / div; C.v[1] += a1 / div; C.v[2] += a2 / div;
+            C.p[0] += C.v[0] / div; C.p[1] += C.v[1] / div; C.p[2] += C.v[2] / div;
         }
-        /* port: no foot can reach the ground from here (ground_max_near) */
+        /* port: no foot can reach the ground from here (ground_max_near;
+           contact() then tests each foot against its cell's highest corner) */
         t = C.p[1] - FROMI(4);
         if (t > L->T.hmax) continue;
         if (t > ground_max_near(&L->T, C.p[0], C.p[2])) continue;
@@ -332,18 +346,6 @@ void ld_step(Level *L, const LdInput *in)
     lim = FMUL(L->T.half, FX(1.15));
     if (fabsx(C.p[0]) > lim || fabsx(C.p[2]) > lim || C.p[1] > FROMI(6000))
         finish(L, OUT_LOST);
-}
-
-int ld_nearest_pad(const Level *L, int easiest)
-{
-    int k, pick = 0;
-    fix best = 0x7FFFFFFFL;
-    for (k = 0; k < 3; k++) {
-        const Pad *p = &L->T.pads[k];
-        fix d = fhypot(p->x - L->c.p[0], p->z - L->c.p[2]), s = easiest ? FDIV(d, p->r) : d;
-        if (s < best) { best = s; pick = k; }
-    }
-    return pick;
 }
 
 /* ------------------------------------------------------------ levels */
@@ -380,6 +382,7 @@ void ld_new_level(Level *L, int world, int level)
     L->T.rpp = (uint8_t)lv_field(r, LVF_RPP);
     L->T.rowb = (uint16_t)lv_field(r, LVF_ROWB);
     L->T.page = (uint8_t)lv_field(r, LVF_PAGE);
+    L->T.range_page = (uint8_t)lv_field(r, LVF_RANGE_PAGE);
     for (k = 0; k < 3; k++) {
         L->c.p[k] = lv_field(r, LVF_P + k);
         L->c.v[k] = lv_field(r, LVF_V + k);

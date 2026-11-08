@@ -15,6 +15,17 @@ typedef struct {
     uint8_t world;
 } ViewCam;
 
+/* what the HUD and the view's compass show, worked out while the rules'
+   bank is in (hud_values) */
+typedef struct {
+    fix agl, vs, hs, tilt, lim_vs, lim_hs, lim_tilt;
+    int32_t pad_dist;
+    uint16_t pad_dir, wind_dir;          /* 16-bit angles from +z towards +x */
+    uint8_t fuel, thr, pad, wind;        /* fuel and throttle in %, the nearest pad, Mars's wind */
+} HudVals;
+extern HudVals hv;                       /* (game.c) */
+extern uint8_t view_compass;             /* 1: the arrow to the nearest pad (not behind the title) */
+
 extern ViewCam vcam;
 extern uint16_t view_polys;              /* polygons drawn last frame (the perf line) */
 void view_reset(void);                   /* the camera's distance back to the start's */
