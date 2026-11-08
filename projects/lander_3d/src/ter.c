@@ -2,12 +2,14 @@
  * ter.c - the level records and the terrain's heights in the memory pages
  * the .nex loads them into (lv_rec.h, made by tools/gen_levels.c), read
  * through MMU slot 2 (0x4000-0x5FFF; the tilemap's page otherwise: ter_done
- * puts it back). Resident: the rules (bank 20) and the view (bank 21) call
- * it. tools/host_ter.c is the same on the host.
+ * puts it back). Resident: the rules (bank 20) and the view (bank 22) call
+ * it; and ld_new_level(), which maps ld_level.c in. tools/host_ter.c is
+ * the same on the host.
  */
 #include <arch/zxn.h>
 #include "ld.h"
 #include "lv_rec.h"
+#include "ld_int.h"
 
 #define SLOT2 ((const uint8_t *)0x4000)
 static uint8_t mapped = 0xFF;
@@ -68,4 +70,18 @@ void ter_range(const Terrain *T, uint8_t j, int16_t *hi, int16_t *lo)
     q = (const int16_t *)(SLOT2 + LV_RANGE_OFF);
     *hi = q[j];
     *lo = q[T->n + j];
+}
+
+/* ld.h ld_new_level(): ld_level.c in bank 24 (the text's) mapped in, then
+   the rules' bank (and page 46) back, their kept answers cleared. From the
+   shell or from the rules' own bank: this is resident */
+void ld_new_level(Level *L, int world, int level)
+{
+    ZXN_WRITE_MMU0(48);
+    ZXN_WRITE_MMU1(49);
+    ld_level_load(L, world, level);
+    ZXN_WRITE_MMU0(40);
+    ZXN_WRITE_MMU1(41);
+    ZXN_WRITE_MMU3(46);
+    ld_caches_reset();
 }

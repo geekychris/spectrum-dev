@@ -106,9 +106,10 @@ Changed (marked `port:` in the code):
   axis from the direction to the craft (the original culls and sorts each
   face); a box in one pen (the legs, the ascent stage's top) is drawn as its
   outline.
-- **The autopilot** (the title's demo, B) decides every 16 steps (0.16 s)
-  instead of every step: it lands all 30 levels either way at a fifth of a
-  frame instead of more than one. The self-test flies it every step.
+- **The autopilot** (the title's demo, B) decides every 32 steps (0.32 s)
+  instead of every step: it lands all 30 levels either way, with nearly the
+  same scores (`tools/ap_rate.c` on the host), at a tenth of a frame
+  instead of more than one. The self-test flies it every step.
 - **High-score table** (the SDK's five entries and initials editor) on the
   title, in turn with the start panel; the original keeps the best score.
 - **The HUD's lines** sit on 8-pixel tile rows (the original's are 12

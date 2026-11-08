@@ -38,9 +38,14 @@ const LdWorld ld_worlds[W_COUNT] = {
 const char *const ld_outcome_names[5] = { "flying", "landed", "offpad", "crashed", "lost" };
 
 /* ------------------------------------------------------------ terrain */
+/* port: the last answer kept (the craft's spot is asked for again by the
+   camera, the HUD, the shadow) */
+static const Terrain *lh_t;
+static fix lh_x, lh_z, lh_h;
 fix ld_height(const Terrain *T, fix x, fix z)
 {
     int n = T->n, i, j;
+    if (T == lh_t && x == lh_x && z == lh_z) return lh_h;
     fix fx = fclamp(FMUL(x + T->half, T->inv_cell), 0, FROMI(n - 1) - 1);
     fix fz = fclamp(FMUL(z + T->half, T->inv_cell), 0, FROMI(n - 1) - 1);
     fix tx, tz, a, b, c, d, h[4], ab, ca, abcd, m;
@@ -52,7 +57,8 @@ fix ld_height(const Terrain *T, fix x, fix z)
     ca = FMUL(c - a, tz);
     abcd = FMUL(a - b - c + d, tx);
     m = FMUL(abcd, tz);
-    return a + ab + ca + m;
+    lh_t = T; lh_x = x; lh_z = z;
+    return lh_h = a + ab + ca + m;
 }
 
 /* ------------------------------------------------------------ the craft */
@@ -122,12 +128,12 @@ void ld_cell_of(const Terrain *T, fix x, fix z, uint8_t *i, uint8_t *j)
    worked out for x +- 8, z +- 8 and kept while the craft is within 4 m of
    where it was (cell_of() only grows with x and z: still a bound) */
 static fix gm_x, gm_z, gm_best;
-uint8_t ld_gm_ok;
+static uint8_t gm_ok;
 static fix ground_max_near(const Terrain *T, fix x, fix z)
 {
     fix best = T->hbase, h, d;
     uint8_t i0, i1, j0, j1, i, j;
-    if (ld_gm_ok) {
+    if (gm_ok) {
         d = x - gm_x;
         if (d <= FROMI(4) && d >= -FROMI(4)) {
             d = z - gm_z;
@@ -144,9 +150,12 @@ static fix ground_max_near(const Terrain *T, fix x, fix z)
     gm_x = x;
     gm_z = z;
     gm_best = best;
-    ld_gm_ok = 1;
+    gm_ok = 1;
     return best;
 }
+
+/* port: a new ground: the kept answers go (ld_new_level) */
+void ld_caches_reset(void) { gm_ok = 0; lh_t = 0; }
 
 #define RATE      FX(1.1)
 #define ALPHA     FX(2.4)

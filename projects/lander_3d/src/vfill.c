@@ -47,6 +47,28 @@ uint8_t vf_add_poly(const VfVtx *v, uint8_t n, uint8_t pen, uint8_t snap_k)
     return 1;
 }
 
+/* a polygon of the corners sv[idx[k] ^ x] (a box's face or outline) */
+uint8_t vf_add_idx(const VfVtx *sv, const uint8_t *idx, uint8_t n, uint8_t x, uint8_t pen, uint8_t snap_k)
+{
+    VfPoly *p;
+    VfVtx *d;
+    if (vf_npoly >= VF_MAXPOLY || vf_npt + n > VF_MAXPT) return 0;
+    p = &vf_poly[vf_npoly++];
+    p->n = n;
+    p->pen = pen;
+    p->snap = snap_k;
+    p->first = vf_npt;
+    d = &vf_pv[vf_npt];
+    vf_npt += n;
+    while (n--) {
+        const VfVtx *q = &sv[*idx++ ^ x];
+        d->x = q->x;
+        d->y = q->y;
+        d++;
+    }
+    return 1;
+}
+
 #ifndef __SDCC
 /* ---------------------------------------------------------------- the host:
    vfill.asm's steps in C */

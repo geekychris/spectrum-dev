@@ -23,8 +23,10 @@ $(OBJDIR)/ld_auto.c.o $(OBJDIR)/sdk/fix16_atan.c.o $(OBJDIR)/sdk/fix16_hyp3.c.o:
 $(OBJDIR)/view.c.o: OPT := -SO2
 $(OBJDIR)/view.c.o: EXTRA_CFLAGS += --codesegBANK_22 --constsegBANK_22 --datasegBANK_22 --bsssegBANK_22
 $(OBJDIR)/vfill.c.o: EXTRA_CFLAGS += --codesegPAGE_47 --constsegPAGE_47
-# the text: bank 24 at 0x0000
-$(OBJDIR)/hud.c.o $(OBJDIR)/screens.c.o $(OBJDIR)/game_out.c.o: EXTRA_CFLAGS += --codesegBANK_24 --constsegBANK_24 --datasegBANK_24 --bsssegBANK_24
+# the text (and a level's start): bank 24 at 0x0000
+$(OBJDIR)/hud.c.o $(OBJDIR)/screens.c.o $(OBJDIR)/game_out.c.o $(OBJDIR)/ld_level.c.o: EXTRA_CFLAGS += --codesegBANK_24 --constsegBANK_24 --datasegBANK_24 --bsssegBANK_24
+# (a level's start, once a level: there because bank 20 is full)
+$(OBJDIR)/ld_level.c.o: EXTRA_CFLAGS += --opt-code-size
 
 # the levels: made by the original's own code (tools/orig) on the host, at
 # build time (gcc in the toolchain image); src/level_data.asm puts the banks

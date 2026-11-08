@@ -14,13 +14,13 @@
 ; IX, IY kept.
 
 EXTERN _vf_v, _vf_col, l_mulu_32_16x16
-PUBLIC _vp_project, vp_smul_us, vp_sh12, vp_recip_s, vp_scr, vp_dx, vp_yp
+PUBLIC _vp_project, _vp_sh12c, vp_smul_us, vp_sh12, vp_recip_s, vp_scr, vp_dx, vp_yp
 PUBLIC _vp_dx0, _vp_dz0, _vp_cell, _vp_camy, _vp_cp, _vp_sp
 PUBLIC _vp_r0, _vp_xlim, _vp_i0, _vp_j0, _vp_n, _vp_page, _vp_rpp, _vp_rowb, _vp_hb12, _vp_hbf, _vp_cdiv, _vp_pen0
 
 NVX     equ 14
-NLINE   equ 11                  ; vfill.h: rows (NFINE fine, then every other line)
-NFINE   equ 8
+NLINE   equ 10                  ; vfill.h: rows (NFINE fine, then every other line)
+NFINE   equ 6
 NONE    equ 0xFF
 BEHIND  equ 0x8000
 
@@ -120,6 +120,10 @@ sh12_ok:
     ld l,a
     ld h,d
     ret
+
+; int16_t vp_sh12c(int32_t v) __z88dk_fastcall: sh12 for C
+_vp_sh12c:
+    jr sh12
 
 ; void vp_project(void)
 _vp_project:

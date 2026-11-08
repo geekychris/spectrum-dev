@@ -36,7 +36,7 @@ uint8_t rules_tick(uint8_t held)
     for (k = 0; k < LD_STEP_HZ / 25; k++) {
         LdInput li;
         if (lander.demo) {
-            if (!ap_wait) { PROF(PR_AP); ld_autopilot(&level, &ap_in); PROF(PR_RULES); ap_wait = 16; }
+            if (!ap_wait) { PROF(PR_AP); ld_autopilot(&level, &ap_in); PROF(PR_RULES); ap_wait = 32; }   /* port: game.c */
             ap_wait--;
             li.throttle = ap_in.throttle;            /* (field by field: zsdcc's struct copies) */
             li.pitch = ap_in.pitch;

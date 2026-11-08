@@ -11,4 +11,9 @@ extern int16_t vp_hb12;
 extern uint8_t vp_r0;                    /* the first line drawn */
 extern int16_t vp_xlim[];                /* each line's |dx| beyond which points are off the view */
 void vp_project(void);
+#ifdef __SDCC
+int16_t vp_sh12c(int32_t v) __z88dk_fastcall;   /* v >> 12, clamped to 16 bits */
+#else
+int16_t vp_sh12c(int32_t v);
+#endif
 #endif

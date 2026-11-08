@@ -89,8 +89,8 @@ static void ground(const Level *L)
 
     cell_u = U(T->cell);
     /* centred a little ahead of the craft (the camera looks along +z) */
-    ci = (int16_t)FINT(fdiv(L->c.p[0] + T->half, T->cell));
-    cj = (int16_t)FINT(fdiv(L->c.p[2] + T->half, T->cell)) + GW / 2;
+    ci = (int16_t)FINT(fmul(L->c.p[0] + T->half, T->inv_cell));
+    cj = (int16_t)FINT(fmul(L->c.p[2] + T->half, T->inv_cell)) + GW / 2;
     j_line0 = cj - GW;
     z_line0 = -half_u + (int32_t)j_line0 * cell_u;
     vf_nlines = NLINE;
@@ -127,11 +127,11 @@ static void ground(const Level *L)
             if (j < 0 || j >= n) { if (vp_r0 == r) vp_r0 = r + 1; continue; }
             ter_range(T, (uint8_t)j, &hi, &lo);
             dy = hi - vp_camy;
-            yp = (int16_t)((mul16(dy, vp_cp) + mul16(dz, vp_sp)) >> 12);
-            zp = (int16_t)((mul16(dz, vp_cp) - mul16(dy, vp_sp)) >> 12);
+            yp = vp_sh12c(mul16(dy, vp_cp) + mul16(dz, vp_sp));
+            zp = vp_sh12c(mul16(dz, vp_cp) - mul16(dy, vp_sp));
             if (vp_r0 == r && (zp <= 0 || mul16(yp, 80) + mul16(zp, 42) < 0)) vp_r0 = r + 1;
             dy = lo - vp_camy;
-            zp = (int16_t)((mul16(dz, vp_cp) - mul16(dy, vp_sp)) >> 12);
+            zp = vp_sh12c(mul16(dz, vp_cp) - mul16(dy, vp_sp));
             if (zp > 0 && zp < 20000) vp_xlim[r] = zp + zp / 5 + vp_cell;
         }
         if (vp_r0) vp_r0--;                  /* the line before the first seen: the wedges under it */
@@ -294,11 +294,11 @@ static void craft(const Level *L, uint8_t snap, uint8_t frame)
         fd[0] = f0; fd[1] = f1; fd[2] = f2; fd[3] = f3;
         for (k = 0; k < 4; k++)
             if (fd[k] < 0 && aff) {
-                VfVtx q[3];
-                q[0] = bell_s[k];
-                q[1] = bell_s[(k + 1) & 3];
-                q[2] = bell_s[4];
-                if (vf_add_poly(q, 3, PEN_LEGS, snap)) view_polys++;
+                uint8_t q[3];
+                q[0] = k;
+                q[1] = (k + 1) & 3;
+                q[2] = 4;
+                if (vf_add_idx(bell_s, q, 3, 0, PEN_LEGS, snap)) view_polys++;
             } else if (fd[k] < 0) {
                 V3s q[3];
                 uint8_t k1 = (k + 1) & 3;
@@ -318,9 +318,7 @@ static void craft(const Level *L, uint8_t snap, uint8_t frame)
                corners one and two steps from the nearest), the same pixels */
             static const uint8_t hexo[6] = { 1, 3, 2, 6, 4, 5 };
             if (!near[b]) {
-                VfVtx fv[6];
-                for (f = 0; f < 6; f++) { const VfVtx *q = &sv[nc ^ hexo[f]]; fv[f].x = q->x; fv[f].y = q->y; }
-                if (vf_add_poly(fv, 6, bx->lit, snap)) view_polys++;
+                if (vf_add_idx(sv, hexo, 6, nc, bx->lit, snap)) view_polys++;
             } else {
                 V3s q[6];
                 for (f = 0; f < 6; f++) { const V3s *r = &cv[nc ^ hexo[f]]; q[f].x = r->x; q[f].y = r->y; q[f].z = r->z; }
@@ -332,10 +330,8 @@ static void craft(const Level *L, uint8_t snap, uint8_t frame)
             uint8_t end = (nc >> a) & 1, bit = (uint8_t)(1 << a);
             uint8_t pen = (a == 0 ? !end : end) ? bx->lit : bx->shade;          /* lit facing -x, +y, +z */
             const uint8_t *fc = face_c[a];
-            if (!near[b]) {
-                VfVtx fv[4];
-                for (f = 0; f < 4; f++) { const VfVtx *q = &sv[fc[f] | (end ? bit : 0)]; fv[f].x = q->x; fv[f].y = q->y; }
-                if (vf_add_poly(fv, 4, pen, snap)) view_polys++;
+            if (!near[b]) {                  /* (fc's corners have bit a clear: | is ^) */
+                if (vf_add_idx(sv, fc, 4, end ? bit : 0, pen, snap)) view_polys++;
             } else {                         /* near the camera: clipped */
                 V3s q[4];
                 for (f = 0; f < 4; f++) { const V3s *r = &cv[fc[f] | (end ? bit : 0)]; q[f].x = r->x; q[f].y = r->y; q[f].z = r->z; }

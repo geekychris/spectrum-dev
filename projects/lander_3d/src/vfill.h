@@ -28,7 +28,7 @@
 /* port: the ground's rows: the nearest NFINE are grid lines j0, j0 + 1, ..;
    beyond them every other line (cells two deep: far detail coarser), as
    far as line j0 + 2 GW + 1. NLINE rows: NLINE - 1 strips */
-#define NFINE    8
+#define NFINE    6
 #define NLINE    (NFINE + (2 * GW + 2 - NFINE) / 2)
 #define VF_LINE(r) ((r) < NFINE ? (r) : 2 * (r) - (NFINE - 1))   /* row r's grid line - j0 */
 #define VF_NONE  0xFF                    /* a cell not drawn */
@@ -61,6 +61,7 @@ extern uint8_t vf_ybuf[VW];              /* each column's highest row drawn + VF
 extern uint8_t vf_snap[VF_SNAPS][VW];
 extern uint8_t vf_tmp[VW], vf_full[VW];  /* a polygon's bottoms; VROWS + VF_OFF everywhere */
 void vf_ground(void);
+uint8_t vf_add_idx(const VfVtx *sv, const uint8_t *idx, uint8_t n, uint8_t x, uint8_t pen, uint8_t snap_k);
 /* a polygon's edge (a.x < b.x): mode 0 fills down to vf_tmp, 1 writes it */
 void vf_seg(const VfVtx *a, const VfVtx *b, uint8_t pen, uint8_t mode);
 #ifdef __SDCC

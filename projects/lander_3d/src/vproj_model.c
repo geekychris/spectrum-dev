@@ -30,6 +30,8 @@ static uint16_t recip_s(int16_t z)
     return b < 0 ? (uint16_t)(s << 1) : (uint16_t)(s >> b);
 }
 
+int16_t vp_sh12c(int32_t v) { return sh12(v); }
+
 void vp_project(void)
 {
     static int16_t hcur[NVX], hprev[NVX];

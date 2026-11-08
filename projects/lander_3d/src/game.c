@@ -14,9 +14,9 @@
  * Q / E the steady throttle, P pause, H help, ENTER start, BREAK (the
  * original's Esc) back to the title; B the autopilot (the original's
  * devbench hook "autopilot").
- * port: the autopilot flying the demo (and B) decides every 16 steps, not
- * every step: it lands all 30 levels either way (tools/check_core.sh's
- * companion test, ap_rate) at a fifth of a frame instead of more than one.
+ * port: the autopilot flying the demo (and B) decides every 32 steps, not
+ * every step: it lands all 30 levels either way, with nearly the same
+ * scores (tools/ap_rate.c), at a tenth of a frame instead of more than one.
  * The game's own self-test (T held at start-up) flies it every step.
  * port: the high-score table and the initials (the original keeps a best
  * score only).
