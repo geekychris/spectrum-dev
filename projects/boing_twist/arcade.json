@@ -2,6 +2,6 @@
   "title": "Boing Twist",
   "ready": "bt: screen TITLE",
   "description": "Twist bands and flip halves of the Boing ball until its picture is whole: 17 pictures, 10 rooms, 4 levels.",
-  "controls": "Q/A band, O/P twist, Z/X half, SPACE flip, U undo, H peek, Kempston",
+  "controls": "QA band, OP twist, ZX half, SPACE flip",
   "picture": "screenshots/play.png"
 }

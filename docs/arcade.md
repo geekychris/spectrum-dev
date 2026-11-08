@@ -7,6 +7,7 @@ Next shows the same list (see the Arcade section of the README).
 |---|---|---|---|
 | ![](images/arcade/blockbre.png) | **[Block Breaker 3D](../projects/block_breaker_3d/README.md)**<br>Breakout down a tunnel: steer the ball into bricks 3 deep. 8 levels, capsules, tough and steel. | Spectrum Next | QAOP/joystick move, SPACE serve, H help |
 | ![](images/arcade/boingpin.png) | **[Boing Pinball](../projects/boing_pinball/README.md)**<br>The Comet Tour table with the Boing ball: bumpers, drop targets, ramp, orbit, missions, multiball. | Spectrum Next | Z/M flippers, SPACE plunger, Q nudge |
+| ![](images/arcade/boingtwi.png) | **[Boing Twist](../projects/boing_twist/README.md)**<br>Twist bands and flip halves of the Boing ball until its picture is whole: 17 pictures, 10 rooms, 4 levels. | Spectrum Next | QA band, OP twist, ZX half, SPACE flip |
 | ![](images/arcade/bulliond.png) | **[Bullion Dash](../projects/bullion_dash/README.md)**<br>Grab the gold, dig holes to trap the guards, climb out. 150 levels and a level editor. | 48K | QAOP, FIRE+O/P dig, E editor, Kempston |
 | ![](images/arcade/emberkee.png) | **[Emberkeep](../projects/emberkeep/README.md)**<br>Explore dark caverns by lantern light: take the runes, keep the oil up, reach the portal. | Spectrum Next | QAOP/cursor move, SPACE begin, Kempston |
 | ![](images/arcade/frankthe.png) | **[Frank the Frog](../projects/frank_the_frog/README.md)**<br>Hop Frank across the traffic and the river's logs and rafts into the four ponds. | 48K | Q/A/O/P hop, SPACE start, Kempston |
