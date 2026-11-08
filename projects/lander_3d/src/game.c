@@ -255,6 +255,12 @@ static void input(void)
             ed_place = hs_rank((uint32_t)lander.score);
             if (ed_place >= 0 && lander.score > 0) {
                 hs_edit_begin(&ed);
+                /* the keys held now (the fire that got here) aren't presses
+                   for the editor: the interrupt's sampler (from now on,
+                   game_sample()) and the reads see them as already down */
+                input_sample();
+                input_read();
+                input_read();
                 set_state(LS_ENTRY);
             } else to_title();
         }

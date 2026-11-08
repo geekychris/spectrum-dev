@@ -161,13 +161,22 @@ static void octagon(int32_t cx, int32_t cy, int32_t cz, int16_t r, uint8_t pen, 
     V3s p[8], m;
     VfVtx sv[8];
     int16_t off[6];
-    off[0] = (int16_t)(mul16(r, 6270) >> 14);       /* r sin, r cos 22.5 (Q14) */
-    off[1] = (int16_t)(mul16(r, 15137) >> 14);
-    off[2] = (int16_t)(mul16(off[0], vcam.sp) >> 12);
-    off[3] = (int16_t)(mul16(off[0], vcam.cp) >> 12);
-    off[4] = (int16_t)(mul16(off[1], vcam.sp) >> 12);
-    off[5] = (int16_t)(mul16(off[1], vcam.cp) >> 12);
     xform(cx, cy, cz, &m);
+    /* port: wholly behind the camera or off the view's sides, top or
+       bottom (its points are within r of the middle; the view is within
+       |x|, |y| < z): nothing to draw */
+    {
+        int32_t zr = (int32_t)m.z + r;
+        if (zr < NEAR_Z || (int32_t)m.x - r > zr || (int32_t)m.x + r < -zr || (int32_t)m.y - r > zr ||
+            (int32_t)m.y + r < -zr)
+            return;
+    }
+    off[0] = vp_sh12c(mul16(r, 1567));              /* r sin, r cos 22.5 (Q12) */
+    off[1] = vp_sh12c(mul16(r, 3784));
+    off[2] = vp_sh12c(mul16(off[0], vcam.sp));
+    off[3] = vp_sh12c(mul16(off[0], vcam.cp));
+    off[4] = vp_sh12c(mul16(off[1], vcam.sp));
+    off[5] = vp_sh12c(mul16(off[1], vcam.cp));
     if (!vo_oct(&m, off, sv, p)) {           /* (vobj.asm) */
         if (vf_add_poly(sv, 8, pen, snap)) view_polys++;
         return;
