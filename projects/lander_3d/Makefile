@@ -39,6 +39,11 @@ $(LEVELS)/stamp: tools/gen_levels.c src/lv_rec.h src/flight_hash.h $(wildcard to
 	$(BUILD)/gen_levels $(LEVELS) > $(LEVELS)/levels.txt
 	touch $@
 $(OBJDIR)/level_data.asm.o: $(LEVELS)/stamp
+# the original's flight hashes, for test.py, directly in build/ (what the
+# shared build cache keeps)
+all: $(BUILD)/levels_expect.txt
+$(BUILD)/levels_expect.txt: $(LEVELS)/stamp
+	cp $(LEVELS)/expect.txt $@
 
 # the sprite patterns and the music (the original's font and MOD), also made
 # at build time: build/gen (gfx_data.h, music_song.c, the banks' data)

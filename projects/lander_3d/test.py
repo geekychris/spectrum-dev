@@ -3,7 +3,7 @@
 1. The rules on the Z80N: with T held at start-up the game flies three of
    flight_hash.h's flights (the autopilot on the Moon, a pilot's inputs on
    Mars and the asteroid) and logs their state hashes, which must be the
-   original's (build/levels/expect.txt, made by the original's code).
+   original's (build/levels_expect.txt, made by the original's code).
 2. A game, recorded from reset: the title (the autopilot's demo, the
    original's music on two TurboSound chips), Kempston right / left / fire
    starts the Moon; SPACE gives full thrust, W tips forward, E sets the
@@ -30,7 +30,7 @@ NEX = HERE / "build" / "lander_3d.nex"
 SHOTS = HERE / "screenshots"
 REC = HERE / "build" / "game.json"
 EXPECT = {tuple(int(v) for v in m[:3]): m[3:] for m in
-          (line.split()[1:] for line in (HERE / "build" / "levels" / "expect.txt").read_text().splitlines())}
+          (line.split()[1:] for line in (HERE / "build" / "levels_expect.txt").read_text().splitlines())}
 failures = []
 
 

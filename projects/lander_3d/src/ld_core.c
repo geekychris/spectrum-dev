@@ -154,8 +154,42 @@ static fix ground_max_near(const Terrain *T, fix x, fix z)
     return best;
 }
 
+/* port: the original's bound itself (x +- 4, z +- 4), for when the kept
+   one doesn't settle it (low flight); kept while the cells are the same */
+static uint8_t g4_i0 = 0xFF, g4_j0, g4_i1, g4_j1;
+static fix g4_best;
+static fix ground_max_4(const Terrain *T, fix x, fix z)
+{
+    fix best = T->hbase, h;
+    uint8_t i0, i1, j0, j1, i, j;
+    ld_cell_of(T, x - FROMI(4), z - FROMI(4), &i0, &j0);
+    ld_cell_of(T, x + FROMI(4), z + FROMI(4), &i1, &j1);
+    if (i0 == g4_i0 && j0 == g4_j0 && i1 == g4_i1 && j1 == g4_j1) return g4_best;
+    for (j = j0; j <= j1 + 1; j++)
+        for (i = i0; i <= i1 + 1; i++) {
+            h = ter_h(T, i, j);
+            if (h > best) best = h;
+        }
+    g4_i0 = i0; g4_j0 = j0; g4_i1 = i1; g4_j1 = j1;
+    return g4_best = best;
+}
+
+/* port: the lowest any foot (or the bell, always above them) can be below
+   the craft's middle: the feet (+-2.3, -2, +-2.3) turned as ld_feet() does,
+   y = (x sin r + y cos r) cos p - z sin p, at its lowest (cos p, cos r > 0
+   within 75 degrees), less 0.01 m for the roundings of contact()'s own
+   products (a few 1/65536 m). From ld_rot_set()'s sines */
+static fix foot_low(void)
+{
+    fix a = FMUL(FX(2.3), r_sr), b = FMUL(FX(2), r_cr), c = FMUL(FX(2.3), r_sp), y1;
+    if (a < 0) a = -a;
+    if (c < 0) c = -c;
+    y1 = -a - b;
+    return FMUL(y1, r_cp) - c - FX(0.01);
+}
+
 /* port: a new ground: the kept answers go (ld_new_level) */
-void ld_caches_reset(void) { gm_ok = 0; lh_t = 0; }
+void ld_caches_reset(void) { gm_ok = 0; lh_t = 0; g4_i0 = 0xFF; }
 
 #define RATE      FX(1.1)
 #define ALPHA     FX(2.4)
@@ -164,28 +198,47 @@ void ld_caches_reset(void) { gm_ok = 0; lh_t = 0; }
 
 /* port: ld_step() works on a copy of the craft in static memory (zsdcc's
    code through a pointer is several times slower) and divides by 100
-   with div100() (ld.h; the same truncated quotient) */
-static Craft C;
+   with div100() (ld.h; the same truncated quotient); on the Z80 its
+   attitude and integration are ld_step.asm (the C below on the host) */
+Craft ld_sc;
+#define C ld_sc
 
-/* port: the clamps and |a| as compares, err * 6 as sums (zsdcc: the same
-   values, without its 32-bit multiply and calls) */
-static fix axis(const Level *L, fix w, fix cmd, uint8_t k)
+#ifdef __SDCC
+void ls_axes(const LdInput *in);
+void ls_angles(void);
+void ls_integrate(const fix *a);
+#else
+/* ld_step.asm's steps: the original's axis() with the assist on and fuel
+   left (the clamps as compares, err * 6 as sums: the same values), for
+   both axes; the angles; the integration of a sub-step of 1/100 s */
+static fix ls_axis(fix w, fix cmd, uint8_t k)
 {
     fix a, t;
-    if (L->fuel <= 0) return w;
-    if (L->assist) {
-        a = FMUL(cmd, RATE) - w;             /* err */
-        t = a + a;
-        a = t + t + t;                       /* err * 6 */
-        if (a < -ALPHA) a = -ALPHA;
-        else if (a > ALPHA) a = ALPHA;
-        if (a > FX(0.2)) C.rcs[k] = 1;
-        else if (a < -FX(0.2)) C.rcs[k] = -1;
-        return w + div100(a);
-    }
-    if (cmd) C.rcs[k] = cmd > 0 ? 1 : -1;
-    return w + div100(FMUL(cmd, ALPHA));
+    if (cmd < -FONE) cmd = -FONE; else if (cmd > FONE) cmd = FONE;
+    a = FMUL(cmd, RATE) - w;
+    t = a + a;
+    a = t + t + t;
+    if (a < -ALPHA) a = -ALPHA;
+    else if (a > ALPHA) a = ALPHA;
+    if (a > FX(0.2)) C.rcs[k] = 1;
+    else if (a < -FX(0.2)) C.rcs[k] = -1;
+    return w + div100(a);
 }
+static void ls_axes(const LdInput *in) { C.wp = ls_axis(C.wp, in->pitch, 0); C.wr = ls_axis(C.wr, in->roll, 1); }
+static fix ls_angle(fix t, fix *rate)
+{
+    t += div100(*rate);
+    if (t <= -MAX_TILT) { t = -MAX_TILT; *rate = 0; } else if (t >= MAX_TILT) { t = MAX_TILT; *rate = 0; }
+    return t;
+}
+static void ls_angles(void) { C.pitch = ls_angle(C.pitch, &C.wp); C.roll = ls_angle(C.roll, &C.wr); }
+static void ls_integrate(const fix *a)
+{
+    uint8_t k;
+    for (k = 0; k < 3; k++) C.v[k] += div100(a[k]);
+    for (k = 0; k < 3; k++) C.p[k] += div100(C.v[k]);
+}
+#endif
 
 static const fix rcs_burn[3] = { 0, RCS_FUEL / 100, 2 * RCS_FUEL / 100 };     /* div100(n RCS_FUEL) */
 static const fix amax100[W_COUNT] = { FX(4.4) / 100, FX(9.0) / 100, FX(1.5) / 100 };   /* div100(amax) */
@@ -194,7 +247,8 @@ static fix burn_thr = -1, burn_thr100, lost_half = -1, lost_lim;
 void ld_step(Level *L, const LdInput *in)
 {
     const LdWorld *W = &ld_worlds[L->world];
-    fix thr, u[3], a0, a1, a2, speed, burn, amax = W->amax, t, lim;
+    static fix acc[3];                   /* (ls_integrate's) */
+    fix thr, u[3], speed, burn, amax = W->amax, t, lim, low = 0;
     int32_t subs32;
     int subs, s;
 
@@ -207,18 +261,11 @@ void ld_step(Level *L, const LdInput *in)
     if (thr < 0 || L->fuel <= 0) thr = 0;
     else if (thr > FONE) thr = FONE;
     C.rcs[0] = C.rcs[1] = 0;
-    t = in->pitch;
-    if (t < -FONE) t = -FONE; else if (t > FONE) t = FONE;
-    C.wp = axis(L, C.wp, t, 0);
-    t = in->roll;
-    if (t < -FONE) t = -FONE; else if (t > FONE) t = FONE;
-    C.wr = axis(L, C.wr, t, 1);
-    t = C.pitch + div100(C.wp);
-    if (t <= -MAX_TILT) { t = -MAX_TILT; C.wp = 0; } else if (t >= MAX_TILT) { t = MAX_TILT; C.wp = 0; }
-    C.pitch = t;
-    t = C.roll + div100(C.wr);
-    if (t <= -MAX_TILT) { t = -MAX_TILT; C.wr = 0; } else if (t >= MAX_TILT) { t = MAX_TILT; C.wr = 0; }
-    C.roll = t;
+    /* the original's axis(): with no fuel the rates stay. port: the assist
+       is always on (ld_new_level(); the original's switch for it isn't
+       ported), so its other branch is left out */
+    if (L->fuel > 0) ls_axes(in);
+    ls_angles();
     /* port: div100 of the throttle kept while it stays; the thrusters'
        share is one of three constants */
     if (thr != burn_thr) { burn_thr = thr; burn_thr100 = div100(thr); }
@@ -230,22 +277,28 @@ void ld_step(Level *L, const LdInput *in)
     C.throttle = thr;
     if (thr) {                           /* port: fmul(t, 0) is 0 */
         ld_up(&C, u);
-        t = FMUL(u[0], amax); a0 = FMUL(t, thr);
-        t = FMUL(u[1], amax); a1 = FMUL(t, thr) - W->g;
-        t = FMUL(u[2], amax); a2 = FMUL(t, thr);
-    } else { a0 = 0; a1 = -W->g; a2 = 0; }
-    wind_at(L, (fix)L->t * LD_DT);
+        t = FMUL(u[0], amax); acc[0] = FMUL(t, thr);
+        t = FMUL(u[1], amax); acc[1] = FMUL(t, thr) - W->g;
+        t = FMUL(u[2], amax); acc[2] = FMUL(t, thr);
+    } else { acc[0] = 0; acc[1] = -W->g; acc[2] = 0; }
+    if (L->params.wind) wind_at(L, (fix)L->t * LD_DT);     /* port: no wind: L->wind stays 0 (wind_at's) */
     if (W->drag) {
         fix drag = W->drag;
-        a0 += FMUL(drag, L->wind[0] - C.v[0]);
-        a2 += FMUL(drag, L->wind[1] - C.v[2]);
+        acc[0] += FMUL(drag, L->wind[0] - C.v[0]);
+        acc[2] += FMUL(drag, L->wind[1] - C.v[2]);
         t = FMUL(drag, FX(0.3));
-        a1 -= FMUL(t, C.v[1]);
+        acc[1] -= FMUL(t, C.v[1]);
     }
     /* sub-steps keep the touchdown check honest at any speed */
     /* port: fhypot3 is at most |x| + |y| + |z|: below about 24 m/s that
        already gives one sub-step, and the length isn't needed */
-    t = fabsx(C.v[0]) + fabsx(C.v[1]) + fabsx(C.v[2]) + amax100[L->world];
+    {
+        fix v0 = C.v[0], v1 = C.v[1], v2 = C.v[2];
+        if (v0 < 0) v0 = -v0;
+        if (v1 < 0) v1 = -v1;
+        if (v2 < 0) v2 = -v2;
+        t = v0 + v1 + v2 + amax100[L->world];
+    }
     if (t >= 0 && t < FROMI(24)) subs = 1;
     else {
         speed = fhypot3(C.v[0], C.v[1], C.v[2]) + amax100[L->world];
@@ -253,19 +306,21 @@ void ld_step(Level *L, const LdInput *in)
         subs = subs32 < 1 ? 1 : subs32 > 64 ? 64 : (int)subs32;
     }
     for (s = 0; s < subs; s++) {
-        if (subs == 1) {
-            C.v[0] += div100(a0); C.v[1] += div100(a1); C.v[2] += div100(a2);
-            C.p[0] += div100(C.v[0]); C.p[1] += div100(C.v[1]); C.p[2] += div100(C.v[2]);
-        } else {
+        if (subs == 1) ls_integrate(acc);
+        else {
             int16_t div = LD_STEP_HZ * subs;    /* (fast: above ~24 m/s only) */
-            C.v[0] += a0 / div; C.v[1] += a1 / div; C.v[2] += a2 / div;
+            C.v[0] += acc[0] / div; C.v[1] += acc[1] / div; C.v[2] += acc[2] / div;
             C.p[0] += C.v[0] / div; C.p[1] += C.v[1] / div; C.p[2] += C.v[2] / div;
         }
-        /* port: no foot can reach the ground from here (ground_max_near;
+        /* port: no foot can reach the ground from here (its lowest point
+           against ground_max_near, then the original's x +- 4 bound;
            contact() then tests each foot against its cell's highest corner) */
         t = C.p[1] - FROMI(4);
         if (t > L->T.hmax) continue;
+        if (!low) { ld_rot_set(C.pitch, C.roll); low = foot_low(); }   /* (the angles stay over the sub-steps) */
+        t = C.p[1] + low;
         if (t > ground_max_near(&L->T, C.p[0], C.p[2])) continue;
+        if (t > ground_max_4(&L->T, C.p[0], C.p[2])) continue;
         memcpy(&L->c, &C, sizeof(C));
         if (ld_contact(L)) return;
     }

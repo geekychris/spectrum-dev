@@ -1,6 +1,6 @@
 ; fastdiv.asm - int32_t div100(int32_t x) __z88dk_fastcall: x / 100 truncated
 ; toward zero, as C's (the rules divide by their 100 steps a second about 15
-; times a step; z88dk's 32-bit division is ~1,500 T-states, this ~450).
+; times a step; z88dk's 32-bit division is ~1,500 T-states, this ~350).
 ;
 ; |x| one byte at a time, high first: with r the remainder so far (< 100),
 ; (r * 256 + b) / 100 = qa[r] + (ra[r] + b) / 100, where r * 256 = 100 qa[r]
@@ -31,80 +31,162 @@ dv_neg:                         ; DEHL = -DEHL
     ld d,a
     ret
 dv_pos:
-dv_u:                           ; DEHL = DEHL / 100 (unsigned)
+dv_u:                           ; DEHL = DEHL / 100 (unsigned): the bytes inline
+    ld (dv_x),hl
     ld c,0                      ; r
-    ld a,d
-    call dv_byte
-    ld d,a
-    ld a,e
-    call dv_byte
-    ld e,a
-    ld a,h
-    call dv_byte
-    ld h,a
-    ld a,l
-    call dv_byte
-    ld l,a
-    ret
-
-; A = the next byte b, C = r: A = (r * 256 + b) / 100, C = its remainder
-dv_byte:
-    push hl
-    ld b,a                      ; b
+    ld b,d                      ; byte 3
     ld h,dv_ra / 256
     ld l,c
     ld a,(hl)                   ; ra[r]
     inc h
-    ld c,(hl)                   ; qa[r] (dv_qa = dv_ra + 256)
+    ld c,(hl)                   ; qa[r]
     add a,b                     ; t = ra + b (carry: >= 256)
-    jr c,dv_big
+    jr c,dv_big3
     cp 200
-    jr nc,dv_2
+    jr nc,dv_23
     cp 100
-    jr nc,dv_1
-    ld b,c                      ; t < 100: + 0
-    ld c,a
-    ld a,b
-    pop hl
-    ret
-dv_1:
-    sub 100
+    jr c,dv_03
+    sub 100                     ; + 1
     inc c
-    ld b,c
-    ld c,a
-    ld a,b
-    pop hl
-    ret
-dv_big:                         ; t = 256 + A
+    jr dv_03
+dv_23:
+    sub 200                     ; + 2
+    inc c
+    inc c
+    jr dv_03
+dv_big3:                       ; t = 256 + A
     cp 44
-    jr nc,dv_3
-    add a,56                    ; t - 200
+    jr nc,dv_33
+    add a,56                    ; t - 200: + 2
     inc c
     inc c
+    jr dv_03
+dv_33:
+    sub 44                      ; t - 300: + 3
+    inc c
+    inc c
+    inc c
+dv_03:                         ; C = the quotient byte, A = the remainder
+    ld b,c
+    ld c,a
+    ld d,b
+    ld b,e                      ; byte 2
+    ld h,dv_ra / 256
+    ld l,c
+    ld a,(hl)                   ; ra[r]
+    inc h
+    ld c,(hl)                   ; qa[r]
+    add a,b                     ; t = ra + b (carry: >= 256)
+    jr c,dv_big2
+    cp 200
+    jr nc,dv_22
+    cp 100
+    jr c,dv_02
+    sub 100                     ; + 1
+    inc c
+    jr dv_02
+dv_22:
+    sub 200                     ; + 2
+    inc c
+    inc c
+    jr dv_02
+dv_big2:                       ; t = 256 + A
+    cp 44
+    jr nc,dv_32
+    add a,56                    ; t - 200: + 2
+    inc c
+    inc c
+    jr dv_02
+dv_32:
+    sub 44                      ; t - 300: + 3
+    inc c
+    inc c
+    inc c
+dv_02:                         ; C = the quotient byte, A = the remainder
+    ld b,c
+    ld c,a
+    ld e,b
+    ld a,(dv_x + 1)
+    ld b,a                      ; byte 1
+    ld h,dv_ra / 256
+    ld l,c
+    ld a,(hl)                   ; ra[r]
+    inc h
+    ld c,(hl)                   ; qa[r]
+    add a,b                     ; t = ra + b (carry: >= 256)
+    jr c,dv_big1
+    cp 200
+    jr nc,dv_21
+    cp 100
+    jr c,dv_01
+    sub 100                     ; + 1
+    inc c
+    jr dv_01
+dv_21:
+    sub 200                     ; + 2
+    inc c
+    inc c
+    jr dv_01
+dv_big1:                       ; t = 256 + A
+    cp 44
+    jr nc,dv_31
+    add a,56                    ; t - 200: + 2
+    inc c
+    inc c
+    jr dv_01
+dv_31:
+    sub 44                      ; t - 300: + 3
+    inc c
+    inc c
+    inc c
+dv_01:                         ; C = the quotient byte, A = the remainder
     ld b,c
     ld c,a
     ld a,b
-    pop hl
-    ret
-dv_2:
-    sub 200
+    ld (dv_x + 1),a
+    ld a,(dv_x)
+    ld b,a                      ; byte 0
+    ld h,dv_ra / 256
+    ld l,c
+    ld a,(hl)                   ; ra[r]
+    inc h
+    ld c,(hl)                   ; qa[r]
+    add a,b                     ; t = ra + b (carry: >= 256)
+    jr c,dv_big0
+    cp 200
+    jr nc,dv_20
+    cp 100
+    jr c,dv_00
+    sub 100                     ; + 1
+    inc c
+    jr dv_00
+dv_20:
+    sub 200                     ; + 2
     inc c
     inc c
+    jr dv_00
+dv_big0:                       ; t = 256 + A
+    cp 44
+    jr nc,dv_30
+    add a,56                    ; t - 200: + 2
+    inc c
+    inc c
+    jr dv_00
+dv_30:
+    sub 44                      ; t - 300: + 3
+    inc c
+    inc c
+    inc c
+dv_00:                         ; C = the quotient byte, A = the remainder
     ld b,c
     ld c,a
     ld a,b
-    pop hl
+    ld (dv_x),a
+    ld hl,(dv_x)
     ret
-dv_3:
-    sub 44                      ; t - 300
-    inc c
-    inc c
-    inc c
-    ld b,c
-    ld c,a
-    ld a,b
-    pop hl
-    ret
+
+SECTION bss_user
+dv_x:   defw 0
 
 SECTION rodata_align_256
 ALIGN 256
