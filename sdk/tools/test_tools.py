@@ -179,6 +179,17 @@ check("runimg: runs at most MAX_RUN long", MAX_RUN == 25 and img[2 + 1] <= 25)
 check("runimg: mirrored, column c at x - c", run_decode(img, 100, True) == {(100 - x, y): o for (x, y), o in want.items()})
 check("runimg: an empty image", run_encode([[0]], [[False]]) == bytes([0, 0]))
 
+# l2ring: a picture's column runs and row runs both give it back; long runs split; the void off it
+import l2ring  # noqa: E402
+pic = [[(x // 7 + y // 5) % 4 if x < 600 else 3 for x in range(700)] for y in range(300)]
+data = l2ring.encode(pic, [0x1FF, 0x038, 0x007, 0x1C0], 2, -5, 7)
+bc, br, pal, void, ox, oy = l2ring.decode(data)
+check("l2ring: decode(encode) by columns and by rows = the picture, its palette and numbers",
+      bc == pic and br == pic and pal == [0x1FF, 0x038, 0x007, 0x1C0] and (void, ox, oy) == (2, -5, 7))
+check("l2ring: whole 8K pages, runs <= 255 (a row of 100 3s)", len(data) % 8192 == 0 and br[0][600:] == [3] * 100)
+scr = l2ring.screen(pic, 2, 650, -10)
+check("l2ring: screen() shows the void off the picture", scr[0][0] == 2 and scr[10][0] == 3 and scr[10][60] == 2)
+
 # gridpack: Bullion Dash's levels file packs into its committed levels_data.c, smaller than zxrle
 import gridpack  # noqa: E402
 from levelpack import parse  # noqa: E402

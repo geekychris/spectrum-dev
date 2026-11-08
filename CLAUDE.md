@@ -348,3 +348,19 @@ Details: docs/emulator-harness.md.
   PAGE_n/BANK_n section does not align the absolute address; put the block in `data_align_256`.
 - A polygon filled as columns (upper edges down to a buffer the lower edges wrote) must clear that
   buffer over its columns first: a stale value ran a fill far past the view into resident code.
+- z80asm only warns ("integer range") when an 8-bit operand overflows: `ld d,CS_SIZE` with
+  CS_SIZE = 521 assembled as 9 and Rolling Steel's cache slots overlapped (course 1 passed by luck).
+  Read the build's integer range warnings for .asm files. A macro parameter named like a register
+  (`a`) is substituted into `or a` too: give parameters names like `p_a`.
+- NextReg 0x15 bits 4-2 = 110 / 111 are blend modes, not a layer order: "tilemap over sprites
+  over Layer 2" (U S L) is 0x13 (with sprites on and over the border).
+- `tm_init()` doesn't define tile 0, and bank 5 still holds the ULA screen there: an undefined
+  tile 0 covers the screen. Define it blank (Rolling Steel's hud.c).
+- A banked C file's initialised globals are in its bank (`int course_count = 6;` with
+  --datasegBANK_14): another bank reading it gets garbage. Uninitialised ones stay resident unless
+  --bssseg moves them.
+- The build cache restores `build/` without execute bits: keep host programs a test compiles
+  (e.g. tools/hostsim.c) in `build-trace/`.
+- Exact 32-bit physics (Rolling Steel): an odometer that adds |move| + 1 for every change of the
+  ball's position bounds how far it can have moved since a triangle's test, so a sphere, plane or
+  edge test that failed with more slack than that is still failing: skip it, same result.

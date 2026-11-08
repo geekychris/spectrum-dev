@@ -251,6 +251,19 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   `fhypot3`/`fexp_neg`, a faster `fmul` (by operand size), `a3_sin` with a
   16-bit multiply. zsdcc dropped a term of `v |= b & ~w` on volatiles.
 
+- **Rolling Steel** (Next, 2 MB): the 3DO version's physics (phys.c: a
+  spinning sphere against ~2,000 course triangles, Coulomb friction, PhysX's
+  rules) in Z80N asm with its 32-bit arithmetic exact, game.c under zsdcc;
+  the attract demos of courses 1-3 hash the same as the original's C on the
+  host at every change of state (test.py). Courses drawn on the host from
+  the original's geometry, lighting and fog at its default view, scrolled as
+  a 320x256 Layer 2 ring (pixel-exact); crushers, sweeper arms, crumbling
+  tiles, balls and debris as depth-sorted 4-bit sprites; tilemap HUD with the
+  copper switching to a darkened second palette; the original's themes and
+  effects as TurboSound streams; SDK high scores. Exact shortcuts (an
+  odometer-based triangle cache, 16-bit fast paths) took a step from ~4 to
+  ~1 frame; it still runs at ~58% of real time, ~4.5 fps.
+
 - **Orbit Docking** (Next): the original's amiga3d rules on fix16.h, bit for
   bit (the Next flies the original's long autopilot game to its
   tests/vectors.h hash; host check over every station); the cockpit view

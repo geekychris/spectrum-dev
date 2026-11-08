@@ -1,62 +1,58 @@
-; The course picture into Layer 2 (320 x 256, column-major) as it scrolls:
-; a column or a row at a time, from the run-length picture made by
-; tools/gen_course.py (gen_course.picture): runs of (length, colour) down
-; each column and along each row, a directory of 3-byte pointers (page from
-; the first, offset in the page) to each column's and each row's runs.
+; l2ring.h: a big picture on Layer 2 (320 x 256, column-major), a column or
+; a row at a time, from the run-length picture sdk/tools/l2ring.py makes:
+; runs of (length, colour) down each column and along each row, a directory
+; of 3-byte pointers (page from the first, offset in the page) to each
+; column's and each row's runs. l2ring.c scrolls with these.
 ;
 ; Layer 2 is a ring: picture column x is Layer 2 column x mod 320, picture
-; row y is Layer 2 row y mod 256 (the hardware scroll does the rest, view.c).
-; Outside the picture is the void's colour.
+; row y is Layer 2 row y mod 256. Outside the picture is the void's colour.
 ;
 ; Slots: the runs are read through slot 2 (0x4000), Layer 2 is written
-; through slot 1 (0x2000); both are put back (10 and 29) afterwards.
+; through slot 1 (0x2000); both get back what they held.
 
 SECTION code_user
-PUBLIC _lv_setup, _lv_col, _lv_row
-PUBLIC _lv_w, _lv_h, _lv_ox, _lv_oy, _lv_void, _lv_page
+PUBLIC _lr_open, _lr_col, _lr_row
+PUBLIC _lr_w, _lr_h, _lr_ox, _lr_oy, _lr_void, _lr_page, _lr_l2page
 
-defc L2_PAGE = 18               ; Layer 2's first 8K page (bank 9)
-defc SLOT1_HOME = 29            ; the rules' bank, second half
-defc SLOT2_HOME = 10
-
-; void lv_setup(uint8_t page): the picture starting at that 8K page
-_lv_setup:
+; void lr_open(uint8_t page): the picture starting at that 8K page
+_lr_open:
+    call lr__save
     ld hl,2
     add hl,sp
     ld a,(hl)
-    ld (_lv_page),a
+    ld (_lr_page),a
     nextreg 0x52,a
     ld hl,(0x4000)
-    ld (_lv_w),hl
+    ld (_lr_w),hl
     ld hl,(0x4002)
-    ld (_lv_h),hl
+    ld (_lr_h),hl
     ld hl,(0x4004)
-    ld (_lv_ox),hl
+    ld (_lr_ox),hl
     ld hl,(0x4006)
-    ld (_lv_oy),hl
+    ld (_lr_oy),hl
     ld a,(0x4008)
-    ld (_lv_void),a
+    ld (_lr_void),a
     ld a,(0x4009)               ; colours: the directory follows the palette
     ld l,a
     ld h,0
     add hl,hl
     ld de,10
     add hl,de
-    ld (lv_dir),hl
-    nextreg 0x52,SLOT2_HOME
+    ld (lr__dir),hl
+    call lr__home2
     ret
 
 ; HL = byte offset in the picture (< 64K) -> mapped in slot 2, HL = address
-lv_map:
+lr__map:
     ld a,h
     rlca
     rlca
     rlca
     and 7
     ld b,a
-    ld a,(_lv_page)
+    ld a,(_lr_page)
     add a,b
-    ld (lv_cur),a
+    ld (lr__cur),a
     nextreg 0x52,a
     ld a,h
     and 0x1F
@@ -65,22 +61,22 @@ lv_map:
     ret
 
 ; HL = the runs of directory entry DE (column x, or W + y for a row), mapped
-lv_entry:
+lr__entry:
     ld h,d
     ld l,e
     add hl,hl
     add hl,de                   ; 3 * entry
-    ld de,(lv_dir)
+    ld de,(lr__dir)
     add hl,de
-    call lv_map
+    call lr__map
     ld b,(hl)                   ; page from the first
-    call lv_inc
+    call lr__inc
     ld e,(hl)
-    call lv_inc
+    call lr__inc
     ld d,(hl)
-    ld a,(_lv_page)
+    ld a,(_lr_page)
     add a,b
-    ld (lv_cur),a
+    ld (lr__cur),a
     nextreg 0x52,a
     ex de,hl
     ld a,h
@@ -89,22 +85,23 @@ lv_entry:
     ret
 
 ; inc HL through the picture's pages (slot 2)
-lv_inc:
+lr__inc:
     inc hl
     ld a,h
     cp 0x60
     ret nz
     ld h,0x40
-    ld a,(lv_cur)
+    ld a,(lr__cur)
     inc a
-    ld (lv_cur),a
+    ld (lr__cur),a
     nextreg 0x52,a
     ret
 
 ; ---------------------------------------------------------------------
-; void lv_col(uint16_t c, int16_t x, int16_t y0): Layer 2 column c (0..319)
+; void lr__col(uint16_t c, int16_t x, int16_t y0): Layer 2 column c (0..319)
 ; = picture column x, rows y0 .. y0 + 255
-_lv_col:
+_lr_col:
+    call lr__save
     push ix
     ld ix,4
     add ix,sp
@@ -118,8 +115,8 @@ _lv_col:
     add hl,hl
     add hl,hl
     add hl,hl
-    ld a,h                      ; c >> 5
-    add a,L2_PAGE
+    ld a,(_lr_l2page)
+    add a,h                     ; + c >> 5
     nextreg 0x51,a
     ld a,(ix + 4)               ; y0 & 255: the first row's place
     ld (lc_lo),a
@@ -128,7 +125,7 @@ _lv_col:
     ld h,(ix + 3)
     bit 7,h
     jp nz,lc_void
-    ld de,(_lv_w)
+    ld de,(_lr_w)
     or a
     sbc hl,de
     jp nc,lc_void
@@ -137,7 +134,7 @@ _lv_col:
     ld (lc_y),hl
     bit 7,h
     jr nz,lc_neg
-    ld de,(_lv_h)
+    ld de,(_lr_h)
     or a
     sbc hl,de
     jp nc,lc_void
@@ -166,7 +163,7 @@ lc_go:
     xor a
     sub l
     ld b,a                      ; -y0 (1..255)
-    ld a,(_lv_void)
+    ld a,(_lr_void)
 lc_v1:
     ld (de),a
     inc e
@@ -182,7 +179,7 @@ lc_top:
     push de
     ld e,(ix + 2)
     ld d,(ix + 3)
-    call lv_entry               ; HL = runs
+    call lr__entry               ; HL = runs
     pop de
     ld bc,(lc_y)                ; rows still to skip
 lc_skip:
@@ -213,26 +210,26 @@ lc_sk_whole:
     sbc a,0
     ld b,a
     pop hl
-    call lv_inc
-    call lv_inc
+    call lr__inc
+    call lr__inc
     jr lc_skip
 lc_sk_part:
     ; y falls in this run: len - skip rows of it remain
     ld a,l                      ; remaining (1..255)
     pop hl
-    push af                     ; (lv_inc changes A)
-    call lv_inc
+    push af                     ; (lr__inc changes A)
+    call lr__inc
     ld c,(hl)                   ; colour
-    call lv_inc
+    call lr__inc
     pop af
     ld b,a
     jr lc_emit
 lc_out0:
     ; at a run start
     ld b,(hl)
-    call lv_inc
+    call lr__inc
     ld c,(hl)
-    call lv_inc
+    call lr__inc
 lc_emit:
     ; B rows of colour C, but no more than left
     push hl
@@ -271,7 +268,7 @@ lc_e2:
     ld c,(ix + 4)
     ld b,(ix + 5)
     add hl,bc                   ; y of the next row
-    ld bc,(_lv_h)
+    ld bc,(_lr_h)
     or a
     sbc hl,bc
     pop hl
@@ -279,21 +276,20 @@ lc_e2:
     ; void to the end
     ld bc,(lc_left)
     ld b,c
-    ld a,(_lv_void)
+    ld a,(_lr_void)
 lc_v2:
     ld (de),a
     inc e
     djnz lc_v2
 lc_done:
-    nextreg 0x51,SLOT1_HOME
-    nextreg 0x52,SLOT2_HOME
+    call lr__home
     pop ix
     ret
 lc_void:
     ld a,(lc_hi)
     ld h,a
     ld l,0
-    ld a,(_lv_void)
+    ld a,(_lr_void)
     ld b,0
 lc_v3:
     ld (hl),a
@@ -302,9 +298,10 @@ lc_v3:
     jr lc_done
 
 ; ---------------------------------------------------------------------
-; void lv_row(uint16_t c0, int16_t x0, int16_t y): Layer 2 row y & 255 of
+; void lr__row(uint16_t c0, int16_t x0, int16_t y): Layer 2 row y & 255 of
 ; columns c0 .. c0 + 319 (mod 320) = picture row y, columns x0 .. x0 + 319
-_lv_row:
+_lr_row:
+    call lr__save
     push ix
     ld ix,4
     add ix,sp
@@ -322,7 +319,7 @@ _lv_row:
     ld h,(ix + 5)
     bit 7,h
     jp nz,lr_allvoid
-    ld bc,(_lv_h)
+    ld bc,(_lr_h)
     or a
     sbc hl,bc
     jp nc,lr_allvoid
@@ -359,18 +356,18 @@ _lv_row:
 lr_in:
     ; x0 >= w: all void
     ld hl,(lr_x)
-    ld bc,(_lv_w)
+    ld bc,(_lr_w)
     or a
     sbc hl,bc
     jp nc,lr_rest
     ; the row's runs: entry W + y
     push de
-    ld hl,(_lv_w)
+    ld hl,(_lr_w)
     ld e,(ix + 4)
     ld d,(ix + 5)
     add hl,de
     ex de,hl
-    call lv_entry
+    call lr__entry
     pop de
     ; skip to column x (x < w)
     ld bc,(lr_x)
@@ -399,24 +396,24 @@ lr_skw:
     sbc a,0
     ld b,a
     pop hl
-    call lv_inc
-    call lv_inc
+    call lr__inc
+    call lr__inc
     jr lr_skip
 lr_skp:
     ld a,l
     pop hl
     push af
-    call lv_inc
+    call lr__inc
     ld c,(hl)
-    call lv_inc
+    call lr__inc
     pop af
     ld b,a
     jr lr_emit
 lr_at:
     ld b,(hl)
-    call lv_inc
+    call lr__inc
     ld c,(hl)
-    call lv_inc
+    call lr__inc
 lr_emit:
     ; B columns of colour C (no more than left); x advances
     push hl
@@ -460,7 +457,7 @@ lr_e2:
     ; past the picture's right edge?
     push hl
     ld hl,(lr_x)
-    ld bc,(_lv_w)
+    ld bc,(_lr_w)
     or a
     sbc hl,bc
     pop hl
@@ -469,8 +466,7 @@ lr_rest:
     ld bc,(lr_left)
     call lr_voids
 lr_done:
-    nextreg 0x51,SLOT1_HOME
-    nextreg 0x52,SLOT2_HOME
+    call lr__home
     pop ix
     ret
 lr_allvoid:
@@ -484,7 +480,7 @@ lr_voids:
     or c
     ret z
 lrv_l:
-    ld a,(_lv_void)
+    ld a,(_lr_void)
     ld (de),a
     inc d
     ld a,d
@@ -533,22 +529,50 @@ lr_page:
     add hl,hl
     add hl,hl
     add hl,hl
-    ld a,h
-    add a,L2_PAGE
+    ld a,(_lr_l2page)           ; (B is the caller's count, C its colour)
+    add a,h
     nextreg 0x51,a
     ld a,(lr_lo)
     ld e,a
     ret
 
+; MMU slots 1 and 2 as the caller had them, and back
+lr__save:
+    ld bc,0x243B
+    ld a,0x51
+    out (c),a
+    inc b
+    in a,(c)
+    ld (lr__m1),a
+    dec b
+    ld a,0x52
+    out (c),a
+    inc b
+    in a,(c)
+    ld (lr__m2),a
+    ret
+lr__home:
+    ld a,(lr__m1)
+    nextreg 0x51,a
+lr__home2:
+    ld a,(lr__m2)
+    nextreg 0x52,a
+    ret
+
+SECTION data_user
+_lr_l2page: defb 18             ; Layer 2's first 8K page (NextReg 0x12 = 9)
+
 SECTION bss_user
-_lv_w:    defs 2
-_lv_h:    defs 2
-_lv_ox:   defs 2
-_lv_oy:   defs 2
-_lv_void: defs 1
-_lv_page: defs 1
-lv_dir:   defs 2
-lv_cur:   defs 1
+lr__m1:   defs 1
+lr__m2:   defs 1
+_lr_w:    defs 2
+_lr_h:    defs 2
+_lr_ox:   defs 2
+_lr_oy:   defs 2
+_lr_void: defs 1
+_lr_page: defs 1
+lr__dir:   defs 2
+lr__cur:   defs 1
 lc_hi:    defs 1
 lc_lo:    defs 1
 lc_y:     defs 2

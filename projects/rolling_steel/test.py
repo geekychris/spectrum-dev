@@ -32,7 +32,7 @@ import test_rsmath  # noqa: E402
 NEX = HERE / "build" / "rolling_steel.nex"
 SHOTS = HERE / "screenshots"
 REC = HERE / "build" / "bot-game.json"
-RULE_STEPS = 7926                        # the attract demos of courses 1-3 (and the title before course 4)
+RULE_STEPS = 16192                       # the attract demos of all six courses, back to the title
 failures = []
 
 
@@ -81,9 +81,9 @@ with Emulator(machine="next") as e:
     until(e, "rs: ready", 300)
     e.release()
     last = want[-1]
-    ok = until(e, f"rs: hash step={last[0]} ", 40000)
+    ok = until(e, f"rs: hash step={last[0]} ", 60000)
     got = re.findall(r"rs: hash step=(\d+) state=(\d+) level=(\d+) h=([0-9A-F]+)", e.log(0))
-    print(f"  {len(want)} changes of state in {RULE_STEPS} steps (courses 1-3 by the autopilot)")
+    print(f"  {len(want)} changes of state in {RULE_STEPS} steps (all six courses by the autopilot)")
     check("the Next's race hashes = the original's, at every change of state",
           ok and got[:len(want)] == want, f"first difference: {next(((a, b) for a, b in zip(want, got) if a != b), None)}")
 
@@ -107,7 +107,7 @@ with Emulator(machine="next") as e:
     e.screenshot(SHOTS / "play.png")
     m = re.findall(r"run course=1 t=\d+ progress=(\d+)", e.log(0))
     e.press("B")
-    check("B: the autopilot on", until(e, "rs: autopilot 1", 20))
+    check("B: the autopilot on", until(e, "rs: autopilot 1", 80))
     mark = len(e.log(0))
     e.run(400)
     e.screenshot(SHOTS / "autopilot.png")
@@ -119,7 +119,7 @@ with Emulator(machine="next") as e:
     e.screenshot(SHOTS / "clear.png")
     check("on to course 2", until(e, "rs: state 1 level=2", 400))
     e.press("B")
-    check("B: the autopilot off", until(e, "rs: autopilot 0", 20))
+    check("B: the autopilot off", until(e, "rs: autopilot 0", 80))
     # off the edge: the course runs up and right, so down and left is the void
     e.hold("A O")
     ok = until(e, "death FELL OFF", 1500)

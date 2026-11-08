@@ -6,6 +6,7 @@ import sys
 import numpy as np
 import os
 import rscourse
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sdk", "tools"))
 import rsview
 from rsview import FX
 
@@ -191,41 +192,16 @@ def rgb333(c):
     return (round(r * 7 / 31) << 6) | (round(g * 7 / 31) << 3) | round(b * 7 / 31)
 
 
-def runs_of(line):
-    """(length 1..255, colour) runs of a sequence of colour indices"""
-    out = bytearray()
-    i, n = 0, len(line)
-    while i < n:
-        j = i
-        while j < n and j - i < 255 and line[j] == line[i]:
-            j += 1
-        out += bytes([j - i, int(line[i])])
-        i = j
-    return out
-
-
 def picture(cv):
-    """a course picture as palette indices, run-length coded down each
-    column and along each row (the Next fills new columns from the one and
-    new rows from the other as it scrolls), with the palette"""
+    """a course picture as palette indices for sdk/include/l2ring.h (the Next
+    fills new columns and rows from its column and row runs as it scrolls),
+    with the palette; its origin in screen pixels as ox, oy"""
+    import l2ring
     cols9 = np.vectorize(rgb333)(cv.col)
     pal = sorted(set(int(v) for v in np.unique(cols9)))
-    assert len(pal) < 0xE3, len(pal)          # 0xE3 is Layer 2's transparent colour
     lut = {v: i for i, v in enumerate(pal)}
     idx = np.vectorize(lut.get)(cols9).astype(np.uint8)
-    h, w = idx.shape
-    void = lut[rgb333(BG)]
-    head = struct.pack("<HHhhBB", w, h, cv.ox, cv.oy, void, len(pal))
-    head += struct.pack(f"<{len(pal)}H", *pal)
-    dir_at = len(head)
-    data_at = dir_at + 3 * (w + h)
-    body = bytearray()
-    dirs = bytearray()
-    for line in [idx[:, x] for x in range(w)] + [idx[y, :] for y in range(h)]:
-        o = data_at + len(body)
-        dirs += bytes([o >> 13]) + struct.pack("<H", o & 0x1FFF)
-        body += runs_of(line)
-    return pad_page(head + dirs + body), idx, pal
+    return l2ring.encode(idx, pal, lut[rgb333(BG)], cv.ox, cv.oy), idx, pal
 
 
 FIRST_PAGE = 36                          # 8K page; below: program, Layer 2, code banks (main.c)

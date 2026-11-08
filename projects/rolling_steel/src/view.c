@@ -20,21 +20,15 @@
 #include "zxlog.h"
 #include "game.h"
 #include "view.h"
+#include "l2ring.h"
 #include "data.h"
 #include "sprite_data.h"
 #include "palfx.h"
 #include "hud.h"
 
-/* l2view.asm */
-extern void lv_setup(uint8_t page);
-extern void lv_col(uint16_t c, int16_t x, int16_t y0);
-extern void lv_row(uint16_t c0, int16_t x0, int16_t y);
-extern int16_t lv_w, lv_h, lv_ox, lv_oy;
-extern uint8_t lv_void, lv_page;
 
-int16_t view_x, view_y;                  /* the picture's pixel at the screen's top left */
+int16_t view_x, view_y;                  /* the picture's pixel at the screen's top left (lr_x, lr_y) */
 static uint8_t shown = 0xFF;             /* course whose picture is up */
-uint16_t view_cols, view_rows;           /* filled since the start (perf) */
 
 /* port: the projection of render.c's proj() at the default view, in
    picture pixels: x = p.x * 2925 >> 20, y = -(p.y * 3355 + p.z * 2349) * 2925 >> 32
@@ -44,69 +38,27 @@ void view_project(const V3 *p, int16_t *x, int16_t *y)
 {
     long t, a;
     a = (p->x >> 4) * 2925L;
-    *x = (int16_t)(a >> 16) - lv_ox;
+    *x = (int16_t)(a >> 16) - lr_ox;
     t = (p->y >> 2) * 3355L;
     a = (p->z >> 2) * 2349L;
     t = (t + a) >> 10;                   /* the view's up, Q12 */
     a = (t >> 4) * 2925L;
-    *y = -(int16_t)(a >> 16) - lv_oy;
-}
-
-static uint16_t ring_col(int16_t x)      /* Layer 2 column of picture column x */
-{
-    int16_t c = x % 320;
-    return (uint16_t)(c < 0 ? c + 320 : c);
-}
-
-static void scroll_regs(void)
-{
-    uint16_t c = ring_col(view_x);
-    ZXN_WRITE_REG(0x16, c & 255);
-    ZXN_WRITE_REG(0x71, c >> 8);
-    ZXN_WRITE_REG(0x17, (uint8_t)view_y);
-}
-
-static void redraw(void)
-{
-    int16_t x;
-    for (x = view_x; x < view_x + 320; x++) lv_col(ring_col(x), x, view_y);
-    view_cols += 320;
+    *y = -(int16_t)(a >> 16) - lr_oy;
 }
 
 void view_course(uint8_t level)
 {
-    lv_setup(pic_page[level]);
+    lr_open(pic_page[level]);
+    lr_redraw();
     shown = level;
 }
 
-/* the camera at picture pixel (cx, cy): the screen's centre */
+/* the camera at picture pixel (cx, cy): the screen's centre (sdk l2ring.h) */
 void view_goto(int16_t cx, int16_t cy)
 {
-    int16_t nx = cx - 160, ny = cy - 128, x;
-    int16_t dx = nx - view_x, dy = ny - view_y;
-    if (dx > 64 || dx < -64 || dy > 64 || dy < -64) {
-        view_x = nx;
-        view_y = ny;
-        redraw();
-        scroll_regs();
-        return;
-    }
-    /* new columns first (at the old rows), then new rows across the new columns */
-    if (dx > 0) {
-        for (x = view_x + 320; x < nx + 320; x++) lv_col(ring_col(x), x, view_y);
-    } else if (dx < 0) {
-        for (x = nx; x < view_x; x++) lv_col(ring_col(x), x, view_y);
-    }
-    view_cols += dx < 0 ? -dx : dx;
-    view_x = nx;
-    if (dy > 0) {
-        for (x = view_y + 256; x < ny + 256; x++) lv_row(ring_col(nx), nx, x);
-    } else if (dy < 0) {
-        for (x = ny; x < view_y; x++) lv_row(ring_col(nx), nx, x);
-    }
-    view_rows += dy < 0 ? -dy : dy;
-    view_y = ny;
-    scroll_regs();
+    lr_goto(cx - 160, cy - 128);
+    view_x = lr_x;
+    view_y = lr_y;
 }
 
 void view_init(void)
@@ -120,7 +72,6 @@ void view_init(void)
     ZXN_WRITE_REG(0x18, 0);
     ZXN_WRITE_REG(0x18, 255);
     z80_outp(0x123B, 0x02);              /* Layer 2 visible */
-    view_x = -10000;
 }
 
 /* the course's picture palette (kept here: the flash and the HUD's shade
@@ -130,11 +81,7 @@ uint8_t view_npal, view_palgen;          /* palgen: counts palette loads */
 
 void view_palette(void)
 {
-    ZXN_WRITE_MMU2(lv_page);
-    view_npal = *(const uint8_t *)0x4009;
-    if (view_npal > 64) view_npal = 64;
-    memcpy(view_pal, (const void *)0x400A, view_npal * 2);
-    ZXN_WRITE_MMU2(10);
+    view_npal = lr_palette(view_pal, 64);
     palfx_load(PAL_L2, 0, view_npal, view_pal);
     view_palgen++;
 }
@@ -150,7 +97,6 @@ void view_frame(void)
         view_course(G.level);
         view_palette();
         objects_load(G.level);
-        view_x = -10000;
     }
     view_project(&p->cam.focus, &x, &y);
     if (p->shake > 0) {

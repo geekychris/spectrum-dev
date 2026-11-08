@@ -27,6 +27,7 @@
 #include "zxlog.h"
 #include "game.h"
 #include "view.h"
+#include "l2ring.h"
 #include "hud.h"
 #include "sound.h"
 #include "rshash.h"
@@ -124,7 +125,7 @@ int main(void)
         zx_log("rs: mathtest n=2000 h=%08lX\n", rsmath_selftest(2000));
     trace = key_down(IN_KEY_SCANCODE_d);
     hashing = trace || key_down(IN_KEY_SCANCODE_h);
-    hs_init(2000);
+    hs_init(1000);                           /* 5000 .. 1000: a course or two gets you in */
     zx_log("rs: ready kempston=%u\n", input_kempston);
     game_init();
     for (;;) {
@@ -196,12 +197,12 @@ int main(void)
         hud_frame();
         if (perf_frames >= 100) {
             zx_log("rs: perf frames=%u real=%u loops=%u steps=%u cols=%u rows=%u\n", perf_frames, perf_real,
-                   perf_loops, perf_steps, view_cols, view_rows);
+                   perf_loops, perf_steps, lr_cols, lr_rows);
             zx_log("rs: phys tri=%u sph=%u plane=%u edge=%u segfull=%u contact=%u\n", pc_tri, pc_sph, pc_plane,
                    pc_edge, pc_segfull, pc_contact);
             pc_tri = pc_sph = pc_plane = pc_edge = pc_segax = pc_segfull = pc_contact = 0;
             perf_frames = perf_loops = perf_steps = perf_real = 0;
-            view_cols = view_rows = 0;
+            lr_cols = lr_rows = 0;
         }
     }
     return 0;

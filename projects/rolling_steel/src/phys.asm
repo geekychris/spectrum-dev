@@ -1220,24 +1220,122 @@ w_vert:
 ; A = 1 if > 0, 2 if < 0, 0 if 0; keeps s, |eu| + |ev|, |fu| + |fv| for ce_k
 cross2w:
     ld (c2_t),hl
-    ; eu = wF.u - wT.u, ev = wF.v - wT.v
-    LDX32 0
-    ld bc,(c2_t)
-    call sub_bc
-    ST32 ce_eu
-    LDX32 4
-    ld bc,(c2_t)
+    xor a
+    ld (c2_slow),a
+    ld a,(ce_k)
+    add a,a
+    add a,a
+    ld (ce_k4),a
+    add a,a
+    add a,a
+    ld hl,ce_raw
+    add hl,a
+    ld (c2_r),hl                ; eu ev fu fv of edge k go here (edge_far)
+    ; eu = wF.u - wT.u
+    ld hl,(c2_t)
+    call c2_diff
+    ld a,0
+    call c2_put
+    ; ev = wF.v - wT.v
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    ld hl,(c2_t)
+    ld bc,4
+    add hl,bc
+    call c2_diff
+    ld a,2
+    call c2_put
+    ; fu = wF.u, fv = wF.v
+    ld l,(ix - 4)
+    ld h,(ix - 3)
+    ex de,hl
+    ld l,(ix - 2)
+    ld h,(ix - 1)
+    ld a,4
+    call c2_put
+    ld e,(ix + 0)
+    ld d,(ix + 1)
+    ld l,(ix + 2)
+    ld h,(ix + 3)
+    ld a,6
+    call c2_put
+    ld a,(c2_slow)
+    or a
+    jr nz,c2w_slow
+    ld hl,(c2_q)                ; eu >> 2
+    ld de,(c2_q + 6)            ; fv >> 2
+    call m_smul16
+    ST32 ce_t
+    ld hl,(c2_q + 2)            ; ev >> 2
+    ld de,(c2_q + 4)            ; fu >> 2
+    call m_smul16
+    call m_neg32
+    ADD32 ce_t
+    jp ce_done
+c2w_slow:
+    ld hl,(c2_r)                ; the raw values (c2_r has moved past them)
+    ld bc,-16
+    add hl,bc
+    ld de,ce_eu
+    ld bc,16
+    ldir
+    jp ce_slow
+
+; HL:DE (high, low) = the long at IX - the long at HL
+c2_diff:
+    ld c,(hl)
+    inc hl
+    ld b,(hl)
+    inc hl
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    push de
+    ld l,(ix + 0)
+    ld h,(ix + 1)
+    or a
+    sbc hl,bc
+    ex de,hl
+    ld l,(ix + 2)
+    ld h,(ix + 3)
+    pop bc
+    sbc hl,bc
+    ret
+
+; store HL:DE at (c2_r) (moving on) and its >> 2 in 16 bits at c2_q + A (or c2_slow)
+c2_put:
+    push af
+    ld bc,(c2_r)
+    ld a,e
+    ld (bc),a
     inc bc
+    ld a,d
+    ld (bc),a
     inc bc
+    ld a,l
+    ld (bc),a
     inc bc
+    ld a,h
+    ld (bc),a
     inc bc
-    call sub_bc
-    ST32 ce_ev
-    LDX32 0
-    ST32 ce_fu
-    LDX32 4
-    ST32 ce_fv
-    jp ce_tail
+    ld (c2_r),bc
+    call ht_q2
+    pop bc                      ; B = the slot
+    jr c,c2p_slow
+    ld a,b
+    ex de,hl
+    ld hl,c2_q
+    add hl,a
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    ret
+c2p_slow:
+    ld a,1
+    ld (c2_slow),a
+    ret
 
 ; the sign of cross2(e_u, e_v, f_u, f_v) for the edge from the point at HL
 ; (an au/bu/cu variable; its v follows 8 bytes on) to the one at DE:
@@ -5238,6 +5336,9 @@ ce_fu:  defs 4
 ce_fv:  defs 4                  ; (eu ev fu fv together: ce_tail)
 ce_t:   defs 4
 c2_t:   defs 2
+c2_r:   defs 2
+c2_q:   defs 8
+c2_slow: defs 1
 ht_w:   defs 24                 ; p - a, p - b, p - c in (u, v)
 ce_k:   defs 1
 ce_k4:  defs 1
