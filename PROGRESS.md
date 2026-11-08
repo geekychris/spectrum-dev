@@ -246,10 +246,20 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   reciprocal table); pads, shadow and lander over it, clipped by snapshots
   of the columns; Layer 2 at half height by copper doubling. Tilemap HUD,
   sprite big text in the original's 16x16 font, the original's MOD through
-  modplay, high scores. Logic 25 Hz (fixed timestep), picture 4-9 fps
-  (below the 12 aimed at). SDK: fix16 `fatan2`/`fasin`/`a3_atan2`/
-  `fhypot3`/`fexp_neg`, a faster `fmul` (by operand size), `a3_sin` with a
-  16-bit multiply. zsdcc dropped a term of `v |= b & ~w` on volatiles.
+  modplay, high scores. Logic 25 Hz (fixed timestep). SDK: fix16 `fatan2`/
+  `fasin`/`a3_atan2`/`fhypot3`/`fexp_neg`, a faster `fmul` (by operand
+  size). zsdcc dropped a term of `v |= b & ~w` on volatiles.
+  Speed pass (2026-11-08): the picture from 4-9 fps to 12-14 high up, 13-14
+  behind the title, 9-11 coming down, 7.5-8 low over a pad (camera close),
+  10-16 falling: a frame profiler by raster line (`PROF=1`,
+  `tools/frame_prof.py`); beyond the 6 nearest rows the ground uses every
+  other grid line; the lander's corners by the perspective's first-order
+  map; pads off the view culled; the step's attitude and integration in
+  Z80N asm (66K to 43K T-states a step, still the original's hashes), the
+  autopilot every 32 steps (`tools/ap_rate.c`: all 30 levels still land),
+  kept answers for repeated inputs. Low flight is held by the fills of the
+  near cells and pads and by the rules (~20% of the CPU). SDK: `a3_sin`/
+  `a3_cos` in Z80N asm (`next/fix16_sin.asm`, fix16test at all angles).
 
 - **Rolling Steel** (Next, 2 MB): the 3DO version's physics (phys.c: a
   spinning sphere against ~2,000 course triangles, Coulomb friction, PhysX's

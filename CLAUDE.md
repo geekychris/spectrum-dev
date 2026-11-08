@@ -361,6 +361,15 @@ Details: docs/emulator-harness.md.
   --bssseg moves them.
 - The build cache restores `build/` without execute bits: keep host programs a test compiles
   (e.g. tools/hostsim.c) in `build-trace/`.
+- The build cache keeps only the files directly in `build/`: a test reading `build/levels/...` failed
+  after a restore. Copy what a test needs to `build/` (Lander 3D's `build/levels_expect.txt`).
+- `far` (and `near` in some versions) is an SDCC keyword: a variable named `far` is a syntax error.
+- A breakpoint on banked code (tools/timefn.py) also stops in the other banks mapped at that
+  address, and its timings are garbage then. Time a frame's parts with raster-line marks instead
+  (Lander 3D's src/prof.h: NextReg 0x1E/0x1F + frames counted by the interrupt; read the sums signed).
+- The SDK's `input_sample()` keeps its own last view of the keys: started (or resumed) while a key is
+  held, it latches that key as a new press. Call it and `input_read()` before handing the keys to an
+  editor (Lander 3D's initials took the fire that opened them once the frame rate rose).
 - Exact 32-bit physics (Rolling Steel): an odometer that adds |move| + 1 for every change of the
   ball's position bounds how far it can have moved since a triangle's test, so a sphere, plane or
   edge test that failed with more slack than that is still failing: skip it, same result.

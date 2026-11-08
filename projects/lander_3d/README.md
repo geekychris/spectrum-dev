@@ -99,13 +99,17 @@ Changed (marked `port:` in the code):
   below the view and points far off its sides are left out.
 - **The ground window** is 6 cells each side of the craft (the original's
   `ground_win` is 9 on the classic Amiga, 20 on AmigaOS 4); beyond it the
-  plain, as the original's.
+  plain, as the original's. Its 6 nearest rows are the grid's lines;
+  beyond them every other line (cells two deep, shaded by the same slope
+  rule), as far as the window goes: the far ground coarser.
 - **Half height**: the original's 320 x 216 view at 0.8 (256 wide), drawn
   92 rows high, the copper showing each row twice.
 - **The lander** is drawn as boxes: the faces facing the camera chosen per
   axis from the direction to the craft (the original culls and sorts each
   face); a box in one pen (the legs, the ascent stage's top) is drawn as its
-  outline.
+  outline. Away from the camera its corners go on the screen by the
+  perspective's first-order map at the craft's middle (`vo_aff_box`: under
+  half a pixel from projecting each). Pads wholly off the view are skipped.
 - **The autopilot** (the title's demo, B) decides every 32 steps (0.32 s)
   instead of every step: it lands all 30 levels either way, with nearly the
   same scores (`tools/ap_rate.c` on the host), at a tenth of a frame
@@ -117,11 +121,14 @@ Changed (marked `port:` in the code):
 - **zsdcc**: a few of the original's expressions are rewritten (the same
   values): 32-bit sums where its `int` is 32 bits, a multiply by a call's
   result through a local, divisions by 100 by `div100` (`src/fastdiv.asm`),
-  the step on a copy of the craft. Speed-ups that keep the values: the
-  rotation's sines kept while the angles stay, the touchdown test skipped
-  while no foot can reach the ground (the cells' highest corners below),
-  the products skipped at zero throttle, the 3-D length skipped while an
-  L1 bound already gives one sub-step.
+  the step on a copy of the craft, whose attitude and integration are
+  Z80N assembly on the Next (`src/ld_step.asm`; the C is the host's
+  reference). Speed-ups that keep the values: the rotation's sines, the
+  up vector, the thrust's products and the ground's height at a spot kept
+  while their inputs stay; the touchdown test skipped while the lowest foot
+  is above the highest ground it could reach; the products skipped at zero
+  throttle; the 3-D length skipped while an L1 bound already gives one
+  sub-step; the clamps as compares.
 
 ## Next features used
 
@@ -129,7 +136,7 @@ What it uses beyond a 48K/128K Spectrum, and why:
 
 | feature | used for | why it's needed |
 |---|---|---|
-| **28 MHz and the Z80N `MUL`** | the original's rules (16.16 fixed point, 100 steps a second, the autopilot), the grid's projection (camera turn, reciprocal-table perspective), the lander's corners | the rules alone are ~45-60K T-states a step, 100 steps a second; a frame's maths would take seconds at 3.5 MHz |
+| **28 MHz and the Z80N `MUL`** | the original's rules (16.16 fixed point, 100 steps a second, the autopilot), the grid's projection (camera turn, reciprocal-table perspective), the lander's corners | the rules alone are ~43K T-states a step, 100 steps a second; a frame's maths would take seconds at 3.5 MHz |
 | **barrel shifts** (`BSLA`, `BSRA`, `BSRL`) | the projection's 12- and 5-bit shifts of 32-bit products | a shift loop each would cost more than the multiply |
 | **Layer 2, 256 x 192 x 8 bpp, double buffered** | the ground, the pads, the lander, the sky, in the original's 32 pens | filled shapes in many colours anywhere |
 | **copper** | Layer 2's Y scroll (NextReg 0x17) every other line: 92 rows drawn show 184 | half the rows to fill |
@@ -144,20 +151,34 @@ What it uses beyond a 48K/128K Spectrum, and why:
 ## Frame rate
 
 The rules always run at the original's 25 ticks a second. The picture is
-redrawn when it can: **4-9 frames a second** while flying (6-9 high up,
-about 4 while the autopilot flies low over the ground, down to ~3 by a
-pad close to the camera; the test logs it), 6-7 behind the title. A frame is about 13 lines of up to 14
-grid points, ~2,000-4,000 column runs, and 15-20 polygons. Where the time
-goes (`tools/timefn.py`, `tools/profile.py`): the ground's columns about a
-third, the grid's projection a fifth, the lander, pads and their polygons
-a fifth, the rules a fifth. The original runs at 25 fps on a 68020 at
-14 MHz.
+redrawn when it can; the test logs it (ZEsarUX, 28 MHz):
+
+| | frames a second |
+|---|---|
+| the title (the demo) | 13-14 |
+| flying high (the autopilot) | 12-14 |
+| coming down | 9-11 |
+| low over a pad, the camera close | 7.5-8 |
+| falling, no thrust | 10-16 |
+
+(Before the speed pass: 4-9 flying, about 4 low, 6-7 behind the title.)
+What limits it (`tools/frame_prof.py` times a frame's sections in a build
+made with `PROF=1`): low over the ground, filling the big near cells and
+the pads (there about 40% of the drawing is the pixel writes, 11 T-states
+a pixel down a column, and a third the work of each column of each run),
+and the rules: about a fifth of the CPU whatever the picture, 100 steps a
+second of the original's 16.16 maths (~43K T-states a step) and the
+autopilot's decisions. Higher up: the ground's columns ~22%, the grid's
+projection ~16%, the rules ~18%, the lander ~12%, the polygons ~11%. The
+original runs at 25 fps on a 68020 at 14 MHz.
 
 ## How it's built
 
-- **Rules** (`src/ld_core.c` bank 20, `src/ld_auto.c` page 46): the
-  original's, on `fix16.h`; `src/ter.c` reads a level's heights from its
-  pages; `src/fastdiv.asm` divides by 100.
+- **Rules** (`src/ld_core.c`, `src/ld_step.asm`, `src/ld_land.c` bank 20,
+  `src/ld_auto.c` page 46, `src/ld_level.c` bank 24): the original's, on
+  `fix16.h`: the step, the touchdown, the autopilot, a level's start (mapped
+  in by `ld_new_level()` in `src/ter.c`); `src/ter.c` reads a level's
+  heights from its pages; `src/fastdiv.asm` divides by 100.
 - **Levels** (`tools/gen_levels.c`, run by the Makefile): the original's
   `ld_new_level()` with the probe for each world and level, written as
   records (`src/lv_rec.h`) and 3-byte heights, `rpp` rows a page.
@@ -186,11 +207,17 @@ a fifth, the rules a fifth. The original runs at 25 fps on a 68020 at
   matches.
 
 `sh tools/check_core.sh` compares the rules with the original's on the
-host. `tools/host_view.c` draws the view on the host (the asm's C models).
+host. `tools/ap_rate.c` flies the autopilot, at the game's decision rate,
+over all 30 levels. `tools/host_view.c` draws the view on the host (the
+asm's C models). `tools/frame_prof.py` times a frame's sections (see Frame
+rate).
 
 ## Known issues
 
-- The frame rate is below the 12 aimed at (see above).
+- Low over the ground the frame rate is below the 12 aimed at (7.5-8,
+  see above).
+- Now and then one line of the view shows black across it for a frame
+  (seen in the emulator's screenshots, before the speed pass too).
 - At high altitude most of the view is the plain: the window of the grid
   follows the craft (as the original's), 6 cells each side.
 - Very near the camera, grid points far off the screen are clamped: the
