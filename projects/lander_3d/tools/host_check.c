@@ -12,7 +12,7 @@
 #include <string.h>
 #include "ld.h"
 #include "lv_rec.h"
-#include "flight_hash.h"
+#include "../src/flight_hash.h"
 
 void host_ter_load(const char *dir);
 static Level L;

@@ -12,8 +12,8 @@ FIX="$SDK/src/fix16.c $SDK/src/fix16_tab.c $SDK/src/fix16_atan.c $SDK/src/fix16_
 printf '#include <stdint.h>\nuint32_t mulu16(uint16_t a, uint16_t b) { return (uint32_t)a * b; }\n' > "$T/mulu16.c"
 cc -O2 -Iorig -Iorig/amiga3d -I. gen_levels.c orig/ld_core.c orig/amiga3d/a3d_math.c orig/amiga3d/a3d_fix.c -o "$T/gen"
 "$T/gen" "$T/levels" > /dev/null
-cc -O2 -I../src -I$SDK/include -I. host_check.c host_ter.c ../src/ld_core.c $FIX -o "$T/port"
-cc -O2 -DFIX16_Z80_C -I../src -I$SDK/include -I. host_check.c host_ter.c ../src/ld_core.c $FIX "$T/mulu16.c" -o "$T/port_z80"
+cc -O2 -I../src -I$SDK/include host_check.c host_ter.c ../src/ld_core.c ../src/ld_auto.c $FIX -o "$T/port"
+cc -O2 -DFIX16_Z80_C -I../src -I$SDK/include host_check.c host_ter.c ../src/ld_core.c ../src/ld_auto.c $FIX "$T/mulu16.c" -o "$T/port_z80"
 ok=1
 "$T/port" "$T/levels" || ok=0
 "$T/port_z80" "$T/levels" | tail -1 || ok=0

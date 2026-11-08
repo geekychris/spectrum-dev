@@ -25,6 +25,8 @@ int main(void)
     for (n = 0; n < 2000000; n++) {
         int32_t a = rnd(), b = rnd();
         int64_t q;
+        if ((n & 15) == 0) b = (n & 16) ? 65536 : -65536;       /* fmul's shortcuts: exactly 1.0, 0 */
+        if ((n & 31) == 1) a = (n & 64) ? 65536 : (n & 32) ? 0 : -65536;
         if (fmul(a, b) != (fix)(((int64_t)a * b) >> 16)) { if (bad++ < 5) printf("fmul %ld %ld\n", (long)a, (long)b); }
         if (b != 0) {
             q = ((int64_t)a * 65536) / b;

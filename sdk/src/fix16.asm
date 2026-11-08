@@ -1,6 +1,6 @@
 ; fix16.h on the Z80: mulu16, fmul and fdiv. The 16 x 16 multiplies are
 ; z88dk's l_mulu_32_16x16 (the Z80N's MUL on the Next, shift-and-add on a
-; 48K). Uses the alternate registers (the SDK's interrupt saves them).
+; 48K): fmul takes one to four of them, by the operands' sizes. Uses the alternate registers (the SDK's interrupt saves them).
 
 SECTION code_user
 
@@ -22,61 +22,182 @@ _mulu16:
     jp l_mulu_32_16x16          ; DEHL = a * b
 
 
-; fix fmul(fix a, fix b): bits 16..47 of the signed 64-bit product.
-;   acc = (al*bl >> 16) + al*bh + ah*bl + (ah*bh << 16), all mod 2^32,
-;   then for each negative operand the other's low half off the high word
+; fix fmul(fix a, fix b): bits 16..47 of the signed 64-bit product, i.e.
+; floor(a * b / 65536) mod 2^32. On the magnitudes: P = |a| * |b| from as
+; few 16 x 16 products as their sizes need (one when both are below 65536,
+; two when one is, four otherwise; none when one is 0 or exactly 65536),
+; R = P >> 16 (mod 2^32), and for a negative product -(R + (P's low 16 bits
+; != 0)), which is the floor.
+;   P = al*bl + (al*bh + ah*bl) << 16 + ah*bh << 32
 _fmul:
     ld hl,2
     add hl,sp
     ld de,fm_al
     ld bc,8
     ldir                        ; fm_al fm_ah fm_bl fm_bh
+    ld a,(fm_ah+1)
+    ld hl,fm_bh+1
+    xor (hl)
+    ld (fd_sign),a              ; bit 7: the product is negative
+    ld hl,fm_al
+    call fd_abs                 ; |a|
+    ld hl,fm_bl
+    call fd_abs                 ; |b|
+    ld hl,(fm_ah)
+    ld a,h
+    or l
+    jp nz,fm_abig
+    ; |a| < 65536
+    ld hl,(fm_al)
+    ld a,h
+    or l
+    jp z,fm_zero
+    ld hl,(fm_bh)
+    ld a,h
+    or l
+    jp nz,fm_a16_bbig
+    ld hl,(fm_al)               ; both < 65536: P = al * bl
+    ld de,(fm_bl)
+    call l_mulu_32_16x16        ; DEHL
+    ld (fm_acc),hl              ; the fraction
+    ex de,hl                    ; HL = R low, DE = R high = 0
+    ld de,0
+    jp fm_sign
+fm_a16_bbig:                    ; P = al * bl + al * bh << 16
+    ld a,h                      ; |b| = 65536 exactly: R = |a|
+    or a
+    jr nz,fm_a16_b
+    dec l
+    jr nz,fm_a16_b
+    ld hl,(fm_bl)
+    ld a,h
+    or l
+    jr nz,fm_a16_b
+    ld hl,(fm_al)
+    ld de,0
+    jp fm_exact
+fm_a16_b:
+    ld hl,(fm_al)
+    ld de,(fm_bh)
+    jp fm_two
+fm_abig:                        ; |a| >= 65536
+    ld hl,(fm_bh)
+    ld a,h
+    or l
+    jp nz,fm_bothbig
+    ld hl,(fm_bl)               ; |b| < 65536
+    ld a,h
+    or l
+    jp z,fm_zero
+    ld hl,(fm_ah)               ; |a| = 65536 exactly: R = |b|
+    ld a,h
+    or a
+    jr nz,fm_b16_a
+    dec l
+    jr nz,fm_b16_a
+    ld hl,(fm_al)
+    ld a,h
+    or l
+    jr nz,fm_b16_a
+    ld hl,(fm_bl)
+    ld de,0
+    jp fm_exact
+fm_b16_a:                       ; P = al * bl + ah * bl << 16
+    ld hl,(fm_ah)
+    ld de,(fm_bl)
+fm_two:                         ; X = HL * DE, at bit 16 of P: R = X + (al * bl) >> 16
+    call l_mulu_32_16x16
+    ld (fm_t),hl
+    ld (fm_t+2),de
     ld hl,(fm_al)
     ld de,(fm_bl)
-    call l_mulu_32_16x16
-    ld (fm_acc),de              ; al*bl >> 16
-    ld hl,0
-    ld (fm_acc+2),hl
+    call l_mulu_32_16x16        ; DEHL = al * bl
+    ld (fm_acc),hl              ; the fraction
+    ld hl,(fm_t)
+    add hl,de
+    ld de,(fm_t+2)
+    jp nc,fm_sign
+    inc de
+    jp fm_sign
+fm_bothbig:
+    ld a,h                      ; |b| = 65536 exactly: R = |a|
+    or a
+    jr nz,fm_four
+    dec l
+    jr nz,fm_four
+    ld hl,(fm_bl)
+    ld a,h
+    or l
+    jr nz,fm_four
+    ld hl,(fm_al)
+    ld de,(fm_ah)
+    jp fm_exact
+fm_four:                        ; the four products
     ld hl,(fm_al)
     ld de,(fm_bh)
     call l_mulu_32_16x16
-    call fm_add                 ; + al*bh
+    ld (fm_t),hl
+    ld (fm_t+2),de              ; al * bh
     ld hl,(fm_ah)
     ld de,(fm_bl)
-    call l_mulu_32_16x16
-    call fm_add                 ; + ah*bl
-    ld hl,(fm_ah)
-    ld de,(fm_bh)
-    call l_mulu_32_16x16        ; HL = low half of ah*bh
-    ld de,(fm_acc+2)
-    add hl,de
-    ld a,(fm_bh+1)              ; b < 0: high -= al
-    rla
-    jr nc,fm_apos
-    ld de,(fm_al)
-    or a
-    sbc hl,de
-fm_apos:
-    ld a,(fm_ah+1)              ; a < 0: high -= bl
-    rla
-    jr nc,fm_done
-    ld de,(fm_bl)
-    or a
-    sbc hl,de
-fm_done:
-    ex de,hl                    ; DE = high
-    ld hl,(fm_acc)              ; HL = low
-    ret
-
-fm_add:                         ; fm_acc += DEHL
-    push de
-    ld de,(fm_acc)
-    add hl,de
-    ld (fm_acc),hl
-    pop hl
-    ld de,(fm_acc+2)
+    call l_mulu_32_16x16        ; + ah * bl
+    ld bc,(fm_t)
+    add hl,bc
+    ld (fm_t),hl
+    ld hl,(fm_t+2)
     adc hl,de
-    ld (fm_acc+2),hl
+    ld (fm_t+2),hl
+    ld hl,(fm_ah)
+    ld de,(fm_bh)
+    call l_mulu_32_16x16        ; + (ah * bh) << 16: its low half
+    ld de,(fm_t+2)
+    add hl,de
+    ld (fm_t+2),hl
+    ld hl,(fm_al)
+    ld de,(fm_bl)
+    call l_mulu_32_16x16        ; + (al * bl) >> 16
+    ld (fm_acc),hl              ; the fraction
+    ld hl,(fm_t)
+    add hl,de
+    ld de,(fm_t+2)
+    jp nc,fm_sign
+    inc de
+fm_sign:                        ; DEHL = R; the fraction in fm_acc
+    ld a,(fd_sign)
+    rla
+    ret nc
+    ld bc,(fm_acc)
+    ld a,b
+    or c
+    jr z,fm_neg
+    inc l                       ; R + 1
+    jr nz,fm_neg
+    inc h
+    jr nz,fm_neg
+    inc de
+fm_neg:                         ; DEHL = -DEHL
+    xor a
+    sub l
+    ld l,a
+    ld a,0
+    sbc a,h
+    ld h,a
+    ld a,0
+    sbc a,e
+    ld e,a
+    ld a,0
+    sbc a,d
+    ld d,a
+    ret
+fm_exact:                       ; DEHL = R exactly (no fraction)
+    ld a,(fd_sign)
+    rla
+    ret nc
+    jr fm_neg
+fm_zero:
+    ld hl,0
+    ld d,h
+    ld e,l
     ret
 
 
@@ -262,4 +383,5 @@ fm_ah:  defw 0
 fm_bl:  defw 0
 fm_bh:  defw 0
 fm_acc: defw 0, 0
+fm_t:   defw 0, 0
 fd_sign: defb 0

@@ -26,6 +26,7 @@ void host_ter_load(const char *dir)
 }
 
 static const uint8_t *page(int p) { return mem + (p - LEVEL_BANK * 2) * 8192; }
+const uint8_t *host_page(uint8_t p) { return page(p); }
 
 int32_t lv_field(uint8_t r, uint8_t f)
 {

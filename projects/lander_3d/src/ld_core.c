@@ -68,10 +68,13 @@ static const fix BELL[3] = { 0, FX(-1.5), 0 };
 
 /* a body vector rotated by pitch (about x) after roll (about z); port: the
    sines and cosines set once (rot_set) for several vectors */
-static fix r_cr, r_sr, r_cp, r_sp;
+static fix r_cr, r_sr, r_cp, r_sp, r_pitch = 1, r_roll = 1;    /* (1: not an angle a step leaves) */
 static void rot_set(fix pitch, fix roll)
 {
-    r_cr = fcos(roll); r_sr = fsin(roll); r_cp = fcos(pitch); r_sp = fsin(pitch);
+    /* port: kept while the angle stays (it does once the rates are below
+       1/100 of a unit: the step adds rate / 100, truncated) */
+    if (roll != r_roll || r_roll == 1) { r_cr = fcos(roll); r_sr = fsin(roll); r_roll = roll; }
+    if (pitch != r_pitch || r_pitch == 1) { r_cp = fcos(pitch); r_sp = fsin(pitch); r_pitch = pitch; }
 }
 static void rot(const fix v[3], fix out[3])
 {
@@ -242,71 +245,92 @@ static fix ground_max_near(const Terrain *T, fix x, fix z)
 #define RCS_FUEL  FX(0.06)
 #define MAX_TILT  FX(1.30900)           /* 75 degrees */
 
-static fix axis(Level *L, fix w, fix cmd, int k)
+/* port: ld_step() works on a copy of the craft in static memory (zsdcc's
+   code through a pointer is several times slower) and divides by 100
+   with div100() (ld.h; the same truncated quotient) */
+static Craft C;
+
+/* x / d truncated, d 2..64: shifts for 2, 4, 8 (the usual sub-steps) */
+static fix divsub(fix x, int d)
+{
+    uint8_t k = d == 2 ? 1 : d == 4 ? 2 : d == 8 ? 3 : 0;
+    if (!k) return x / d;
+    return x < 0 ? -((-x) >> k) : x >> k;
+}
+
+static fix axis(const Level *L, fix w, fix cmd, uint8_t k)
 {
     if (L->fuel <= 0) return w;
     if (L->assist) {
         fix err = FMUL(cmd, RATE) - w, a = fclamp(err * 6, -ALPHA, ALPHA);
-        if (fabsx(a) > FX(0.2)) L->c.rcs[k] = a > 0 ? 1 : -1;
-        return w + a / LD_STEP_HZ;
+        if (fabsx(a) > FX(0.2)) C.rcs[k] = a > 0 ? 1 : -1;
+        return w + div100(a);
     }
-    if (cmd) L->c.rcs[k] = cmd > 0 ? 1 : -1;
-    return w + FMUL(cmd, ALPHA) / LD_STEP_HZ;
+    if (cmd) C.rcs[k] = cmd > 0 ? 1 : -1;
+    return w + div100(FMUL(cmd, ALPHA));
 }
 
 void ld_step(Level *L, const LdInput *in)
 {
-    Craft *c = &L->c;
     const LdWorld *W = &ld_worlds[L->world];
-    fix thr, u[3], a[3], speed, burn, amax = W->amax, t;
+    fix thr, u[3], a0, a1, a2, speed, burn, amax = W->amax, t, lim;
     int32_t subs32;
     int subs, s;
 
     L->t++;
     if (L->outcome) return;
+    memcpy(&C, &L->c, sizeof(C));
     thr = fclamp(in->throttle, 0, FONE);
     if (L->fuel <= 0) thr = 0;
-    c->rcs[0] = c->rcs[1] = 0;
-    c->wp = axis(L, c->wp, fclamp(in->pitch, -FONE, FONE), 0);
-    c->wr = axis(L, c->wr, fclamp(in->roll, -FONE, FONE), 1);
-    c->pitch = fclamp(c->pitch + c->wp / LD_STEP_HZ, -MAX_TILT, MAX_TILT);
-    c->roll = fclamp(c->roll + c->wr / LD_STEP_HZ, -MAX_TILT, MAX_TILT);
-    if (fabsx(c->pitch) >= MAX_TILT) c->wp = 0;
-    if (fabsx(c->roll) >= MAX_TILT) c->wr = 0;
-    burn = thr / LD_STEP_HZ + (fix)((c->rcs[0] != 0) + (c->rcs[1] != 0)) * RCS_FUEL / LD_STEP_HZ;
+    C.rcs[0] = C.rcs[1] = 0;
+    C.wp = axis(L, C.wp, fclamp(in->pitch, -FONE, FONE), 0);
+    C.wr = axis(L, C.wr, fclamp(in->roll, -FONE, FONE), 1);
+    C.pitch = fclamp(C.pitch + div100(C.wp), -MAX_TILT, MAX_TILT);
+    C.roll = fclamp(C.roll + div100(C.wr), -MAX_TILT, MAX_TILT);
+    if (fabsx(C.pitch) >= MAX_TILT) C.wp = 0;
+    if (fabsx(C.roll) >= MAX_TILT) C.wr = 0;
+    burn = div100(thr) + div100((fix)((C.rcs[0] != 0) + (C.rcs[1] != 0)) * RCS_FUEL);
     if (L->fuel > 0) {
         L->fuel -= burn;
         if (L->fuel <= 0) { L->fuel = 0; push_ev(L, LDE_FUEL_OUT); }
     }
-    c->throttle = thr;
-    ld_up(c, u);
-    t = FMUL(u[0], amax); a[0] = FMUL(t, thr);
-    t = FMUL(u[1], amax); a[1] = FMUL(t, thr) - W->g;
-    t = FMUL(u[2], amax); a[2] = FMUL(t, thr);
+    C.throttle = thr;
+    ld_up(&C, u);
+    t = FMUL(u[0], amax); a0 = FMUL(t, thr);
+    t = FMUL(u[1], amax); a1 = FMUL(t, thr) - W->g;
+    t = FMUL(u[2], amax); a2 = FMUL(t, thr);
     wind_at(L, (fix)L->t * LD_DT);
     if (W->drag) {
         fix drag = W->drag;
-        a[0] += FMUL(drag, L->wind[0] - c->v[0]);
-        a[2] += FMUL(drag, L->wind[1] - c->v[2]);
+        a0 += FMUL(drag, L->wind[0] - C.v[0]);
+        a2 += FMUL(drag, L->wind[1] - C.v[2]);
         t = FMUL(drag, FX(0.3));
-        a[1] -= FMUL(t, c->v[1]);
+        a1 -= FMUL(t, C.v[1]);
     }
     /* sub-steps keep the touchdown check honest at any speed */
-    speed = fhypot3(c->v[0], c->v[1], c->v[2]) + amax / LD_STEP_HZ;
-    subs32 = (speed / LD_STEP_HZ + FX(0.25) - 1) / FX(0.25);       /* port: 32 bits before the clamp */
+    speed = fhypot3(C.v[0], C.v[1], C.v[2]) + div100(amax);
+    subs32 = (div100(speed) + FX(0.25) - 1) >> 14;      /* port: / FX(0.25) (>= 0); 32 bits before the clamp */
     subs = subs32 < 1 ? 1 : subs32 > 64 ? 64 : (int)subs32;
     for (s = 0; s < subs; s++) {
-        int d;
-        int16_t div = LD_STEP_HZ * subs;
-        for (d = 0; d < 3; d++) c->v[d] += a[d] / div;
-        for (d = 0; d < 3; d++) c->p[d] += c->v[d] / div;
+        if (subs == 1) {
+            C.v[0] += div100(a0); C.v[1] += div100(a1); C.v[2] += div100(a2);
+            C.p[0] += div100(C.v[0]); C.p[1] += div100(C.v[1]); C.p[2] += div100(C.v[2]);
+        } else {
+            /* x / (100 subs) = (x / 100) / subs, both truncated */
+            C.v[0] += divsub(div100(a0), subs); C.v[1] += divsub(div100(a1), subs); C.v[2] += divsub(div100(a2), subs);
+            C.p[0] += divsub(div100(C.v[0]), subs); C.p[1] += divsub(div100(C.v[1]), subs);
+            C.p[2] += divsub(div100(C.v[2]), subs);
+        }
         /* port: no foot can reach the ground from here (ground_max_near) */
-        if (c->p[1] - FROMI(4) > L->T.hmax) continue;
-        if (c->p[1] - FROMI(4) > ground_max_near(&L->T, c->p[0], c->p[2])) continue;
+        t = C.p[1] - FROMI(4);
+        if (t > L->T.hmax) continue;
+        if (t > ground_max_near(&L->T, C.p[0], C.p[2])) continue;
+        memcpy(&L->c, &C, sizeof(C));
         if (contact(L)) return;
     }
-    t = FMUL(L->T.half, FX(1.15));
-    if (fabsx(c->p[0]) > t || fabsx(c->p[2]) > t || c->p[1] > FROMI(6000))
+    memcpy(&L->c, &C, sizeof(C));
+    lim = FMUL(L->T.half, FX(1.15));
+    if (fabsx(C.p[0]) > lim || fabsx(C.p[2]) > lim || C.p[1] > FROMI(6000))
         finish(L, OUT_LOST);
 }
 
@@ -320,119 +344,6 @@ int ld_nearest_pad(const Level *L, int easiest)
         if (s < best) { best = s; pick = k; }
     }
     return pick;
-}
-
-/* ------------------------------------------------------------ the autopilot */
-void ld_autopilot(Level *L, LdInput *out)
-{
-    Craft *c = &L->c;
-    const LdWorld *W = &ld_worlds[L->world];
-    const Terrain *T = &L->T;
-    const Pad *pad;
-    fix dx, dz, dist, h, hi = -0x7FFFFFFFL, clearance, vmax, aH, vh, vdes[2], kh, ax, ay, az, vy_des, amag, ux, uy, uz, maxT;
-    fix roll_t, pitch_t, q, cx = c->p[0], cy = c->p[1], cz = c->p[2], amax = W->amax, lim_hs = W->lim_hs;
-    fix lim_vs = W->lim_vs, pr;
-    int k;
-
-    if (L->ap_target < 0) L->ap_target = ld_nearest_pad(L, 1);
-    pad = &T->pads[L->ap_target];
-    pr = pad->r;
-    dx = pad->x - cx;
-    dz = pad->z - cz;
-    dist = fhypot(dx, dz);
-    h = cy - FX(2) - pad->y;
-    for (k = 0; k <= 8; k++) {
-        fix lim = dist > FROMI(140) ? FDIV(FROMI(140), dist) : FONE;
-        fix t = FMUL(FROMI(k) / 8, lim), g, gx, gz;
-        gx = FMUL(dx, t);
-        gz = FMUL(dz, t);
-        g = ld_height(T, cx + gx, cz + gz);
-        if (g > hi) hi = g;
-    }
-    clearance = cy - FX(2) - hi;
-    vmax = FMUL(amax, FX(3.2));
-    q = FROMI(4) + FMUL(dist, FX(0.14));
-    if (q < vmax) vmax = q;
-    aH = FMUL(amax, FX(0.40674));                 /* sin 24 degrees */
-    vh = vmax;
-    q = FMUL(dist, FX(0.28));
-    if (q < vh) vh = q;
-    q = FMUL(FX(0.6), aH);
-    q = fsqrt(FMUL(q, dist));
-    if (q < vh) vh = q;
-    if (dist > FX(0.01)) {
-        q = FDIV(dx, dist); vdes[0] = FMUL(q, vh);
-        q = FDIV(dz, dist); vdes[1] = FMUL(q, vh);
-    } else vdes[0] = vdes[1] = 0;
-    if (L->ap_down) {
-        fix cap = FMUL(lim_hs, FX(0.35)), m = fhypot(vdes[0], vdes[1]);
-        if (m > cap) {
-            q = FDIV(cap, m); vdes[0] = FMUL(vdes[0], q);
-            q = FDIV(cap, m); vdes[1] = FMUL(vdes[1], q);
-        }
-    }
-    kh = L->ap_down ? FX(1.4) : FX(0.9);
-    ax = FMUL(vdes[0] - c->v[0], kh);
-    az = FMUL(vdes[1] - c->v[2], kh);
-    /* hold a cruise height while far; descend once over the pad (with
-     * hysteresis, so gusts don't send it back up) */
-    {
-        fix six = FROMI(6), half_r = FMUL(pr, FX(0.45));
-        if (dist < (six < half_r ? six : half_r)) L->ap_down = 1;
-        else if (dist > FMUL(pr, FX(0.85))) L->ap_down = 0;
-    }
-    if (!L->ap_down) {
-        fix cruise;
-        if (dist < FROMI(60)) cruise = FROMI(14);
-        else {
-            q = FMUL(dist, FX(0.08));
-            cruise = q > FROMI(25) ? q : FROMI(25);
-        }
-        vy_des = fclamp(FMUL(cruise - clearance, FX(0.35)), FROMI(-4), FROMI(6));
-    } else {
-        fix hi_lim = FMUL(lim_vs, FX(0.55)) + FMUL(h, FX(0.05));
-        vy_des = -fclamp(FMUL(h, FX(0.12)) + FX(0.6), FX(0.6), hi_lim);
-        if (h < FROMI(6)) {
-            fix v1 = FMUL(lim_vs, FX(0.45)), v2 = FX(0.4) + FMUL(h, FX(0.15));
-            vy_des = -(v1 < v2 ? v1 : v2);
-        }
-    }
-    if (L->ap_down && h < FROMI(8) && vy_des < 0) {
-        q = fhypot(c->v[0], c->v[2]);
-        if (q > FMUL(lim_hs, FX(0.5))) vy_des = 0;
-    }
-    if (L->ap_down && h < FROMI(10) && vy_des < 0) {
-        q = FMUL(pr, FX(0.5));
-        if (dist > q) vy_des = 0;
-    }
-    ay = FMUL(vy_des - c->v[1], FX(1.6)) + W->g;
-    amag = fhypot3(ax, ay, az);
-    if (amag < 1) amag = 1;
-    ux = FDIV(ax, amag); uy = FDIV(ay, amag); uz = FDIV(az, amag);
-    if (h < FX(1.5)) maxT = FX(0.05236);
-    else if (h < FROMI(6)) {
-        q = W->lim_tilt - FX(0.01745);
-        maxT = FX(0.15708) < q ? FX(0.15708) : q;
-    } else maxT = FX(0.48869);                      /* 3, 9 (or the limit - 1), 28 degrees */
-    q = fcos(maxT);
-    if (uy < q) {
-        fix hh = fhypot(ux, uz), s = fsin(maxT);
-        if (hh < 1) hh = 1;
-        q = FDIV(ux, hh); ux = FMUL(q, s);
-        q = FDIV(uz, hh); uz = FMUL(q, s);
-        uy = fcos(maxT);
-    }
-    {
-        fix den = FMUL(amax, uy);
-        out->throttle = den > 0 ? fclamp(FDIV(ay > 0 ? ay : 0, den), 0, FONE) : FONE;
-    }
-    /* the attitude that points the thrust that way: u = [-sin r, cos r cos p, cos r sin p] */
-    roll_t = fasin(fclamp(-ux, -FONE, FONE));
-    pitch_t = fatan2(uz, uy);
-    q = FMUL(pitch_t - c->pitch, FX(2.8));
-    out->pitch = fclamp(q - FMUL(c->wp, FX(0.4)), -FONE, FONE);
-    q = FMUL(roll_t - c->roll, FX(2.8));
-    out->roll = fclamp(q - FMUL(c->wr, FX(0.4)), -FONE, FONE);
 }
 
 /* ------------------------------------------------------------ levels */

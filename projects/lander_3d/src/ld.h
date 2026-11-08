@@ -32,6 +32,12 @@
 #define FDIV(a, b) fdiv((a), (b))
 
 #define LD_STEP_HZ  100
+/* port: x / 100 (truncated toward 0), fastdiv.asm on the Z80 */
+#if defined(__SDCC)
+extern int32_t div100(int32_t x) __z88dk_fastcall;
+#else
+static inline int32_t div100(int32_t x) { return x / 100; }
+#endif
 #define LD_DT       (FONE / LD_STEP_HZ)
 #define LD_MAX_N    97
 

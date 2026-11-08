@@ -24,7 +24,7 @@
 #include <string.h>
 #include "ld.h"
 #include "../src/lv_rec.h"
-#include "flight_hash.h"
+#include "../src/flight_hash.h"
 
 static Level L;
 static unsigned char banks[LEVEL_BANKS * 16384];
