@@ -110,9 +110,10 @@ The rules are exact, and they are heavy: a step of the marble against ~2,000
 course triangles is a few thousand 32-bit operations, and a steel chaser
 nearby does the same. Measured by `test.py` with the autopilot on course 1:
 
-- **The rules run at about 29 steps a second: 58% of the original's 50.**
-  The game keeps the original's timing in steps, so it plays in slow motion.
-- **About 4.5 pictures a second.** The loop runs as many steps as frames went
+- **The rules run at about 28-29 steps a second: 56-58% of the original's
+  50.** The game keeps the original's timing in steps, so it plays in slow
+  motion.
+- **3.5-4.5 pictures a second.** The loop runs as many steps as frames went
   by (up to 8), then one picture.
 
 A step costs ~0.9-1.3 frames of the 28 MHz Z80N, about 4x less than the
