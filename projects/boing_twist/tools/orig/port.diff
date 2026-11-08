@@ -1,0 +1,16 @@
+--- tools/orig/bt_core.c
++++ src/bt_core.c
+@@ -199,8 +199,11 @@
+     h = (h ^ (uint32_t)p->bands) * 16777619u;
+     h = (h ^ (uint32_t)p->segs) * 16777619u;
+     for (i = 0; i < n; i++) {
+-        h = (h ^ p->slot[i].home) * 16777619u;
+-        h = (h ^ p->slot[i].orient) * 16777619u;
++        /* port: the bytes read first: zsdcc built h ^ slot.home with byte 1 of h
++           replaced by 0 (the self-test's hash came out wrong) */
++        uint8_t hm = p->slot[i].home, ot = p->slot[i].orient;
++        h = (h ^ hm) * 16777619u;
++        h = (h ^ ot) * 16777619u;
+     }
+     return h;
+ }

@@ -162,12 +162,11 @@ def song():
                     a.noise(2, 1, 8 - 3 * t)
                 else:
                     a.off(2)
-                # chip 1: the chord, its third and fifth stabbed on the off-beats
+                # chip 1: the chord's third held, its fifth stabbed on the off-beats
+                b.tone(0, period(midi_hz(third + 12)), 7 if step or t > 1 else 9)
                 if step % 2 == 1 and t < STEP - 3:
-                    b.tone(0, period(midi_hz(third + 12)), env(t, STEP - 3, 9, 6))
                     b.tone(1, period(midi_hz(fifth + 12)), env(t, STEP - 3, 9, 6))
                 else:
-                    b.off(0)
                     b.off(1)
                 a.frame()
                 b.frame()
