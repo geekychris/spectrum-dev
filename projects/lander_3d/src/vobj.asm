@@ -749,3 +749,316 @@ SECTION rodata_compiler
 ; the 8 points (view.c octagon()): x (0 a, 1 b, 0x80: negative), z (the same)
 oct_pat:
     defb 0, 1,  1, 0,  1, 0x80,  0, 0x81,  0x80, 0x81,  0x81, 0x80,  0x81, 0,  0x80, 1
+
+; ---------------------------------------------------------------- affine
+; view.c's first-order map: m = { mx0 mx1 mx2, my0 my1 my2, cx, cy } (int16):
+; a model offset v (int8 x y z) goes to x = cx + (v . mx) >> 8,
+; y = cy + v . my (view.c affine() keeps the sums within 16 bits)
+;   void vo_aff_box(const int8_t *lohi, const int16_t *m, VfVtx *out)
+;       a box's 8 corners (bit 0 x, 1 y, 2 z: its hi end) from its six
+;       ends' offsets
+;   void vo_aff_pts(const int8_t *v, uint8_t n, const int16_t *m, VfVtx *out)
+;       n points
+
+PUBLIC _vo_aff_box, _vo_aff_pts
+
+SECTION bss_user
+va_lh:  defw 0
+va_m:   defw 0
+va_out: defw 0
+va_p:   defw 0
+va_n:   defb 0
+va_e:   defs 16                 ; x: the base and 3 steps, then y
+va_c:   defs 32                 ; the corners' x sums, then their y sums
+va_q:   defw 0
+
+SECTION PAGE_47
+
+; HL = A * DE (int8 x int16, signed; the product fits 16 bits)
+am_mul:
+    ld b,a
+    xor d
+    ld c,a                      ; bit 7: the product's sign
+    ld a,b
+    bit 7,a
+    jr z,am_vp
+    neg
+am_vp:
+    ld b,a                      ; |v|
+    bit 7,d
+    jr z,am_mp
+    xor a
+    sub e
+    ld e,a
+    sbc a,a
+    sub d
+    ld d,a                      ; |m|
+am_mp:
+    ld a,d
+    ld d,b
+    mul d,e                     ; |v| * low
+    ex de,hl
+    ld e,a
+    ld d,b
+    mul d,e                     ; |v| * high (its low byte)
+    ld a,h
+    add a,e
+    ld h,a
+    bit 7,c
+    ret z
+    xor a
+    sub l
+    ld l,a
+    sbc a,a
+    sub h
+    ld h,a
+    ret
+
+; DE = (HL), HL += 2
+am_ld:
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ret
+
+_vo_aff_box:
+    ld hl,2
+    add hl,sp
+    call am_ld
+    ld (va_lh),de
+    call am_ld
+    ld (va_m),de
+    call am_ld
+    ld (va_out),de
+    call va_cxy
+    push ix
+    ; x: the base lo . mx and the steps (hi - lo)[a] mx[a]; then y
+    ld ix,(va_lh)
+    ld hl,(va_m)
+    ld de,va_e
+    call va_base
+    ld ix,(va_lh)
+    ld hl,(va_m)
+    ld de,6
+    add hl,de
+    ld de,va_e + 8
+    call va_base
+    ; the corners: corner c = the corner without c's top bit + that axis's step
+    ld hl,va_e
+    ld de,va_c
+    call va_corners
+    ld hl,va_e + 8
+    ld de,va_c + 16
+    call va_corners
+    ; out: x = cx + sx >> 8, y = cy + sy
+    ld ix,(va_out)
+    ld hl,va_c
+    ld b,8
+vab_o:
+    push bc
+    call am_ld                  ; DE = sx
+    push hl
+    ld a,d                      ; >> 8 (arithmetic)
+    ld l,a
+    rla
+    sbc a,a
+    ld h,a
+    ld de,(va_cx)
+    add hl,de
+    ld (ix+0),l
+    ld (ix+1),h
+    pop hl
+    push hl
+    ld de,14
+    add hl,de                   ; sy: 16 bytes after sx (HL is 2 past it)
+    call am_ld
+    ex de,hl
+    ld de,(va_cy)
+    add hl,de
+    ld (ix+2),l
+    ld (ix+3),h
+    ld de,4
+    add ix,de
+    pop hl
+    pop bc
+    djnz vab_o
+    pop ix
+    ret
+
+; IX = lohi, HL = &row (3 int16), DE = out: out[0] = lo . row,
+; out[1..3] = (hi[a] - lo[a]) row[a]
+va_base:
+    ld (va_p),de
+    inc de
+    inc de
+    ld (va_q),de
+    ld de,0
+    ld (va_acc),de
+    ld b,3
+vbb_a:
+    push bc
+    call am_ld                  ; DE = row[a], HL = &row[a + 1]
+    push hl
+    push de
+    ld a,(ix+0)                 ; lo[a] row[a] into the base
+    call am_mul
+    ld de,(va_acc)
+    add hl,de
+    ld (va_acc),hl
+    pop de
+    ld a,(ix+3)
+    sub (ix+0)                  ; hi - lo (a box is under 128 units)
+    call am_mul
+    ld de,(va_q)
+    ex de,hl
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    inc hl
+    ld (va_q),hl
+    pop hl
+    inc ix
+    pop bc
+    djnz vbb_a
+    ld hl,(va_acc)
+    ex de,hl
+    ld hl,(va_p)
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    ret
+
+; HL = the base and 3 steps (int16), DE = out (8 int16): the corners' sums
+va_corners:
+    push de
+    pop ix
+    call am_ld
+    ld (ix+0),e                 ; c0 = base
+    ld (ix+1),d
+    ld b,d
+    ld c,e                      ; BC = base
+    call am_ld                  ; DE = step x
+    push hl
+    ex de,hl
+    add hl,bc
+    ld (ix+2),l                 ; c1 = c0 + x
+    ld (ix+3),h
+    pop hl
+    call am_ld                  ; DE = step y
+    push hl
+    ld h,b
+    ld l,c
+    add hl,de
+    ld (ix+4),l                 ; c2 = c0 + y
+    ld (ix+5),h
+    ld l,(ix+2)
+    ld h,(ix+3)
+    add hl,de
+    ld (ix+6),l                 ; c3 = c1 + y
+    ld (ix+7),h
+    pop hl
+    call am_ld                  ; DE = step z: c4..c7 = c0..c3 + z
+    ld b,4
+vbc_z:
+    ld l,(ix+0)
+    ld h,(ix+1)
+    add hl,de
+    ld (ix+8),l
+    ld (ix+9),h
+    inc ix
+    inc ix
+    djnz vbc_z
+    ret
+
+_vo_aff_pts:
+    ld hl,2
+    add hl,sp
+    call am_ld
+    ld (va_lh),de
+    ld a,(hl)
+    ld (va_n),a
+    inc hl
+    call am_ld
+    ld (va_m),de
+    call am_ld
+    ld (va_out),de
+    call va_cxy
+    push ix
+    ld ix,(va_lh)
+vap_pt:
+    ld hl,(va_m)
+    call va_dot                 ; v . mx
+    ld a,h
+    ld l,a
+    rla
+    sbc a,a
+    ld h,a
+    ld de,(va_cx)
+    add hl,de
+    push hl
+    ld hl,(va_m)
+    ld de,6
+    add hl,de
+    call va_dot                 ; v . my
+    ld de,(va_cy)
+    add hl,de
+    ex de,hl
+    ld hl,(va_out)
+    pop bc
+    ld (hl),c
+    inc hl
+    ld (hl),b
+    inc hl
+    ld (hl),e
+    inc hl
+    ld (hl),d
+    inc hl
+    ld (va_out),hl
+    inc ix
+    inc ix
+    inc ix
+    ld hl,va_n
+    dec (hl)
+    jr nz,vap_pt
+    pop ix
+    ret
+
+; HL = &m row: HL = v (IX: int8 x y z) . row
+va_dot:
+    call am_ld                  ; DE = row[0]
+    push hl
+    ld a,(ix+0)
+    call am_mul
+    ld (va_acc),hl
+    pop hl
+    call am_ld
+    push hl
+    ld a,(ix+1)
+    call am_mul
+    ld de,(va_acc)
+    add hl,de
+    ld (va_acc),hl
+    pop hl
+    call am_ld
+    ld a,(ix+2)
+    call am_mul
+    ld de,(va_acc)
+    add hl,de
+    ret
+
+; va_cx, va_cy = m[6], m[7]
+va_cxy:
+    ld hl,(va_m)
+    ld de,12
+    add hl,de
+    call am_ld
+    ld (va_cx),de
+    call am_ld
+    ld (va_cy),de
+    ret
+
+SECTION bss_user
+va_acc: defw 0
+va_cx:  defw 0
+va_cy:  defw 0

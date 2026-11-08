@@ -25,7 +25,12 @@
 #define VROWS    92                      /* rows drawn (184 lines shown) */
 #define GW       6                       /* ground cells each side of the middle: port: the original has 9 (68k), 20 (AmigaOS 4) */
 #define NVX      (2 * GW + 2)            /* grid points a line */
-#define NLINE    (2 * GW + 2)            /* grid lines: NLINE - 1 strips */
+/* port: the ground's rows: the nearest NFINE are grid lines j0, j0 + 1, ..;
+   beyond them every other line (cells two deep: far detail coarser), as
+   far as line j0 + 2 GW + 1. NLINE rows: NLINE - 1 strips */
+#define NFINE    8
+#define NLINE    (NFINE + (2 * GW + 2 - NFINE) / 2)
+#define VF_LINE(r) ((r) < NFINE ? (r) : 2 * (r) - (NFINE - 1))   /* row r's grid line - j0 */
 #define VF_NONE  0xFF                    /* a cell not drawn */
 #define VF_SNAPS 4
 #define VF_MAXPOLY 48

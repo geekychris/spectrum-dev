@@ -34,11 +34,14 @@ void vp_project(void)
 {
     static int16_t hcur[NVX], hprev[NVX];
     uint8_t r, k;
-    int16_t dz = vp_dz0;
-    for (r = 0; r < NLINE; r++, dz += vp_cell) {
-        int16_t j = vp_j0 + r, dx = vp_dx0;
-        int32_t dzc = (int32_t)dz * vp_cp, dzs = (int32_t)dz * vp_sp;
+    int16_t dz;
+    for (r = 0; r < NLINE; r++) {
+        int16_t j = vp_j0 + VF_LINE(r), dx = vp_dx0;
+        int32_t dzc, dzs;
         VfVtx *v = vf_v[r];
+        dz = vp_dz0 + VF_LINE(r) * vp_cell;
+        dzc = (int32_t)dz * vp_cp;
+        dzs = (int32_t)dz * vp_sp;
         for (k = 0; k < NVX; k++) {
             int16_t i = vp_i0 + k;
             if (r < vp_r0 || j < 0 || j >= vp_n || i < 0 || i >= vp_n) hcur[k] = -32768;
@@ -71,7 +74,7 @@ void vp_project(void)
             for (k = 0; k < NVX - 1; k++) {
                 int16_t ha = hprev[k], hb = hprev[k + 1], hc = hcur[k + 1], hd = hcur[k], slope, pen;
                 if (ha == -32768 || hb == -32768 || hc == -32768 || hd == -32768) { col[k] = VF_NONE; continue; }
-                slope = ((ha + hd) - (hb + hc)) + ((ha + hb) - (hc + hd)) / 2;
+                slope = ((ha + hd) - (hb + hc)) + ((ha + hb) - (hc + hd)) / (r >= NFINE ? 4 : 2);
                 pen = 2 - slope / (int16_t)vp_cdiv;
                 if (pen < 0) pen = 0;
                 if (pen > 5) pen = 5;
@@ -154,6 +157,28 @@ void vo_model(const int8_t *v, uint8_t n, const int16_t *k, const V3s *c, V3s *o
         out->x = (int16_t)(c->x + (a >> 12));
         out->y = (int16_t)(c->y + (b >> 12));
         out->z = (int16_t)(c->z + (d >> 12));
+    }
+}
+
+/* vo_aff_box, vo_aff_pts: view.c's first-order map m = { mx[3], my[3], cx, cy } */
+void vo_aff_pts(const int8_t *v, uint8_t n, const int16_t *m, VfVtx *out)
+{
+    for (; n; n--, v += 3, out++) {
+        int16_t sx = (int16_t)(v[0] * m[0] + v[1] * m[1] + v[2] * m[2]);
+        out->x = (int16_t)(m[6] + (sx >> 8));
+        out->y = (uint16_t)(m[7] + v[0] * m[3] + v[1] * m[4] + v[2] * m[5]);
+    }
+}
+
+void vo_aff_box(const int8_t *lohi, const int16_t *m, VfVtx *out)
+{
+    uint8_t c;
+    for (c = 0; c < 8; c++) {
+        int8_t v[3];
+        v[0] = lohi[(c & 1) ? 3 : 0];
+        v[1] = lohi[(c & 2) ? 4 : 1];
+        v[2] = lohi[(c & 4) ? 5 : 2];
+        vo_aff_pts(v, 1, m, &out[c]);
     }
 }
 #endif

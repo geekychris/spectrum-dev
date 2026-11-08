@@ -5,6 +5,12 @@
  * looking at the picture without the emulator.
  *
  *   host_view LEVELDIR OUTPREFIX world level steps every
+ *
+ * Built from projects/lander_3d (build/levels made by the game's build):
+ *   S=../../sdk/src; cc -O2 -Isrc -I../../sdk/include tools/host_view.c
+ *     tools/host_ter.c src/view.c src/vfill.c src/vcam.c src/vproj_model.c
+ *     src/ld_core.c src/ld_land.c src/ld_auto.c $S/fix16.c $S/fix16_tab.c
+ *     $S/fix16_atan.c $S/fix16_hyp3.c -o host_view
  */
 #include <stdio.h>
 #include <stdlib.h>

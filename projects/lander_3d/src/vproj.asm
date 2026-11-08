@@ -19,7 +19,8 @@ PUBLIC _vp_dx0, _vp_dz0, _vp_cell, _vp_camy, _vp_cp, _vp_sp
 PUBLIC _vp_r0, _vp_xlim, _vp_i0, _vp_j0, _vp_n, _vp_page, _vp_rpp, _vp_rowb, _vp_hb12, _vp_hbf, _vp_cdiv, _vp_pen0
 
 NVX     equ 14
-NLINE   equ 14
+NLINE   equ 11                  ; vfill.h: rows (NFINE fine, then every other line)
+NFINE   equ 8
 NONE    equ 0xFF
 BEHIND  equ 0x8000
 
@@ -146,7 +147,7 @@ vp_line:
     call smul_us
     ld (vp_dzs),hl
     ld (vp_dzs + 2),de
-    ; this line's limit for |dx|
+    ; this row's limit for |dx|
     ld a,(vp_r)
     add a,a
     ld l,a
@@ -281,18 +282,25 @@ vp_next:
     ld de,vp_hprev
     ld bc,NVX * 2
     ldir
-    ld hl,(vp_dz)
-    ld de,(_vp_cell)
-    add hl,de
-    ld (vp_dz),hl
-    ld hl,(vp_j)
-    inc hl
-    ld (vp_j),hl
     ld a,(vp_r)
     inc a
     ld (vp_r),a
     cp NLINE
-    jp c,vp_line
+    jr nc,vp_done
+    ld hl,(vp_dz)
+    ld de,(_vp_cell)
+    add hl,de
+    ld bc,(vp_j)
+    inc bc
+    cp NFINE
+    jr c,vp_step1
+    add hl,de                   ; beyond the fine rows: every other line
+    inc bc
+vp_step1:
+    ld (vp_dz),hl
+    ld (vp_j),bc
+    jp vp_line
+vp_done:
     ld a,10                     ; slot 2: the tilemap's page again
     nextreg 0x52,a
     pop iy
@@ -610,6 +618,16 @@ ce_loop:
 ce_s2p:
     sra h
     rr l                        ; s2 / 2, toward 0
+    ld a,(vp_r)
+    cp NFINE
+    jr c,ce_s2f
+    bit 7,h                     ; cells two deep: s2 / 4 (the same slope, the same pen)
+    jr z,ce_s2q
+    inc hl
+ce_s2q:
+    sra h
+    rr l
+ce_s2f:
     push hl
     ld hl,(ce_a)
     ld bc,(ce_d)

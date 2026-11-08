@@ -20,7 +20,9 @@ NAMES = ["other", "rules", "hud values", "camera", "ground setup", "projection",
 
 
 def report(title, log):
-    rows = [[int(v) for v in m.split()] for m in re.findall(r"ld: prof ([\d ]+) loops=", log)]
+    # (signed: a frame boundary can make a section's sum dip below 0 by a
+    # few lines; the next section has them)
+    rows = [[(int(v) + 32768) % 65536 - 32768 for v in m.split()] for m in re.findall(r"ld: prof ([\d ]+) loops=", log)]
     loops = sum(int(v) for v in re.findall(r"ld: prof [\d ]+ loops=(\d+)", log))
     fps = [int(v) / 10 for v in re.findall(r"perf fps10=(\d+)", log)]
     if not rows or not loops:

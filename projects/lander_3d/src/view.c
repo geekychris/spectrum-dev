@@ -118,10 +118,11 @@ static void ground(const Level *L)
        the lowest ground, the widest): no picture there */
     {
         uint8_t r, n = (uint8_t)T->n;
-        int16_t dz = vp_dz0, hi, lo, dy, yp, zp;
+        int16_t dz, hi, lo, dy, yp, zp;
         vp_r0 = 0;
-        for (r = 0; r < NLINE; r++, dz += vp_cell) {
-            int16_t j = j_line0 + r;
+        for (r = 0; r < NLINE; r++) {
+            int16_t j = j_line0 + VF_LINE(r);
+            dz = vp_dz0 + VF_LINE(r) * vp_cell;
             vp_xlim[r] = 32000;
             if (j < 0 || j >= n) { if (vp_r0 == r) vp_r0 = r + 1; continue; }
             ter_range(T, (uint8_t)j, &hi, &lo);
@@ -140,11 +141,13 @@ static void ground(const Level *L)
     ter_done();
 }
 
-/* the strip a world z (units) lies in: vf_ybuf before it = what is nearer */
+/* the strip a world z (units) lies in: vf_ybuf before it = what is nearer
+   (the rows from NFINE are every other grid line) */
 static uint8_t strip_of(int32_t wz)
 {
     int32_t s = (wz - z_line0) / cell_u;
     if (wz < z_line0) return 0;
+    if (s >= NFINE - 1) s = NFINE - 1 + (s - (NFINE - 1)) / 2;
     return s > NLINE - 1 ? NLINE - 1 : (uint8_t)s;
 }
 
@@ -204,6 +207,36 @@ static const uint8_t face_c[3][4] = { { 0, 2, 6, 4 }, { 0, 1, 5, 4 }, { 0, 1, 3,
 static VfVtx bsv[7][8];                  /* the boxes' corners on the screen, in camera space */
 static V3s bcv[7][8];
 static V3s bell_c[5];
+static VfVtx bell_s[5];
+
+/* the projection's first-order map at the craft's middle c (camera space):
+   x = 128 + 160 X / Z, y16 = 21472 - 20480 Y / Z (vproj.asm's vp_scr), so
+   a turned offset (dX, dY, dZ) moves the point by 160 / Z (dX - X dZ / Z)
+   and -20480 / Z (dY - Y dZ / Z). af_m (vobj.asm vo_aff_*): those of a
+   model unit along each axis (k turns them, Q12; x in 1/256 pixel, y in
+   vfill's 1/256 row), then the middle on the screen. From AFFINE_Z, with
+   |X|, |Y| <= Z, the second-order part is under half a pixel over the
+   craft (offsets up to 36 units an axis) and the sums fit 16 bits (k's
+   columns are unit vectors) */
+#define AFFINE_Z 140
+static int16_t af_m[8];
+static void affine(const int16_t *k, const V3s *c)
+{
+    int16_t s = (int16_t)(655360L / c->z), rx = (int16_t)(((int32_t)c->x << 12) / c->z);
+    int16_t ry = (int16_t)(((int32_t)c->y << 12) / c->z), t;
+    VfVtx v;
+    uint8_t j;
+    vo_scr(c, &v);
+    af_m[6] = v.x;
+    af_m[7] = (int16_t)v.y;
+    for (j = 0; j < 3; j++) {
+        t = k[j] - (int16_t)(mul16(rx, k[6 + j]) >> 12);
+        af_m[j] = (int16_t)(mul16(s, t) >> 16);
+        t = k[3 + j] - (int16_t)(mul16(ry, k[6 + j]) >> 12);
+        af_m[3 + j] = (int16_t)(-mul16(s, t) >> 17);
+    }
+}
+
 static void craft(const Level *L, uint8_t snap, uint8_t frame)
 {
     const Craft *c = &L->c;
@@ -211,7 +244,7 @@ static void craft(const Level *L, uint8_t snap, uint8_t frame)
     int16_t cp = (int16_t)(a3_cos((uint16_t)a3_angle(c->pitch)) >> 4), sp = (int16_t)(a3_sin((uint16_t)a3_angle(c->pitch)) >> 4);
     int16_t cr = (int16_t)(a3_cos((uint16_t)a3_angle(c->roll)) >> 4), sr = (int16_t)(a3_sin((uint16_t)a3_angle(c->roll)) >> 4);
     int16_t R[9], K[9], bz[7], d[3];
-    uint8_t near[7], order[7], i, k, a, f;
+    uint8_t near[7], order[7], i, k, a, f, aff;
     V3s ctr;
     /* R = Rx(pitch) Rz(roll); K = the camera's pitch x R (Q12) */
     R[0] = cr; R[1] = -sr; R[2] = 0;
@@ -229,24 +262,44 @@ static void craft(const Level *L, uint8_t snap, uint8_t frame)
        against its distance: the same for every face) */
     for (a = 0; a < 3; a++)
         d[a] = (int16_t)((mul16(K[a], ctr.x) + mul16(K[3 + a], ctr.y) + mul16(K[6 + a], ctr.z)) >> 8);
-    /* the boxes' corners (vobj.asm), then far to near by their depth */
+    /* the boxes' corners, then far to near by their depth.
+       port: away from the camera the corners go on the screen by the
+       projection's first-order map at the middle (affine(): within half a
+       pixel there); near it, each through the perspective (vobj.asm) */
+    aff = ctr.z >= AFFINE_Z && ctr.x <= ctr.z && ctr.x >= -ctr.z && ctr.y <= ctr.z && ctr.y >= -ctr.z;
+    if (aff) affine(K, &ctr);
     for (i = 0; i < 7; i++) {
         int16_t z;
-        near[i] = vo_box(&boxes[i].lo[0], K, &ctr, bsv[i], bcv[i]);
-        z = bcv[i][0].z + bcv[i][7].z;
+        const Box *bx = &boxes[i];
+        if (aff) {
+            vo_aff_box(&bx->lo[0], af_m, bsv[i]);
+            near[i] = 0;
+            z = (int16_t)((mul16(K[6], bx->lo[0] + bx->hi[0]) + mul16(K[7], bx->lo[1] + bx->hi[1]) +
+                           mul16(K[8], bx->lo[2] + bx->hi[2])) >> 12);
+        } else {
+            near[i] = vo_box(&bx->lo[0], K, &ctr, bsv[i], bcv[i]);
+            z = bcv[i][0].z + bcv[i][7].z;
+        }
         for (k = i; k > 0 && bz[k - 1] < z; k--) { bz[k] = bz[k - 1]; order[k] = order[k - 1]; }
         bz[k] = z;
         order[k] = i;
     }
     /* the bell first (under the descent stage); its faces' normals are
        (0,-1,-1) (1,-1,0) (0,-1,1) (-1,-1,0) */
-    vo_model(&bell_v[0][0], 5, K, &ctr, bell_c);
+    if (aff) vo_aff_pts(&bell_v[0][0], 5, af_m, bell_s);
+    else vo_model(&bell_v[0][0], 5, K, &ctr, bell_c);
     {
         int16_t f0 = -d[1] - d[2], f1 = d[0] - d[1], f2 = d[2] - d[1], f3 = -d[0] - d[1];
         int16_t fd[4];
         fd[0] = f0; fd[1] = f1; fd[2] = f2; fd[3] = f3;
         for (k = 0; k < 4; k++)
-            if (fd[k] < 0) {
+            if (fd[k] < 0 && aff) {
+                VfVtx q[3];
+                q[0] = bell_s[k];
+                q[1] = bell_s[(k + 1) & 3];
+                q[2] = bell_s[4];
+                if (vf_add_poly(q, 3, PEN_LEGS, snap)) view_polys++;
+            } else if (fd[k] < 0) {
                 V3s q[3];
                 uint8_t k1 = (k + 1) & 3;
                 q[0].x = bell_c[k].x; q[0].y = bell_c[k].y; q[0].z = bell_c[k].z;

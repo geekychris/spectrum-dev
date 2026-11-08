@@ -22,7 +22,7 @@ EXTERN l_mulu_32_16x16
 PUBLIC _vf_ground, _vf_ybuf, _vf_snap, _vf_tmp, _vf_full, _vf_seg, _vf_poly_page
 
 NVX     equ 14
-NLINE   equ 14
+NLINE   equ 11                  ; (vfill.h)
 VROWS   equ 92
 OFF     equ 32                  ; the row offset
 NONE    equ 0xFF
