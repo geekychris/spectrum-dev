@@ -29,6 +29,7 @@
 #include "pens.h"
 #include "vproj.h"
 #include "vobj.h"
+#include "prof.h"
 
 #define U(f)       ((int32_t)((f) >> 12))      /* fix metres -> engine units */
 #define NEAR_Z     12
@@ -134,6 +135,7 @@ static void ground(const Level *L)
         }
         if (vp_r0) vp_r0--;                  /* the line before the first seen: the wedges under it */
     }
+    PROF(PR_PROJ);
     vp_project();
     ter_done();
 }
@@ -368,7 +370,9 @@ void view_draw(const Level *L, uint8_t frame)
     vf_sky = L->world == W_MARS ? PEN_SKY : 0;
     vf_plain = PEN_GROUND + 4;
     stars(L->world);
+    PROF(PR_GSET);
     ground(L);
+    PROF(PR_OBJS);
     /* the pads, each over what is behind its near edge */
     for (k = 0; k < 3; k++) {
         const Pad *p = &L->T.pads[k];
@@ -378,10 +382,12 @@ void view_draw(const Level *L, uint8_t frame)
         octagon(x, y + 3, z, (int16_t)(r * 3 / 4), PEN_PAD, k);
     }
     /* the shadow, straight down, and the lander */
+    PROF(PR_CRAFT);
     sc = 3;
     vf_snap_at[sc] = strip_of(U(L->c.p[2]));
     octagon(U(L->c.p[0]), vcam.shadow_y + 3, U(L->c.p[2]), 40, PEN_SHADOW, sc);
     craft(L, sc, frame);
     if (view_compass) compass();
+    PROF(PR_SKY);
     vf_draw();
 }

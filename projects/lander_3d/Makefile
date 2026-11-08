@@ -4,13 +4,18 @@ ZX_SDK ?= ../../sdk
 # the song made at build time (below)
 EXTRA_OBJS := build/obj/music_song.c.o
 EXTRA_CFLAGS := -Ibuild/gen
+# PROF=1: the frame's sections timed (src/prof.h, tools/frame_prof.py)
+ifdef PROF
+EXTRA_CFLAGS += -DLD_PROF
+endif
 include $(ZX_SDK)/project.mk
 
 # memory map: see src/main.c; the banked parts' link addresses are in zpragma.inc
 # the rules: bank 20 at 0x0000
-$(OBJDIR)/ld_core.c.o $(OBJDIR)/game_rules.c.o: EXTRA_CFLAGS += --codesegBANK_20 --constsegBANK_20 --datasegBANK_20
-# (the shell's part there isn't hot: smaller code, the bank is full)
-$(OBJDIR)/game_rules.c.o: EXTRA_CFLAGS += --opt-code-size
+$(OBJDIR)/ld_core.c.o $(OBJDIR)/ld_land.c.o $(OBJDIR)/game_rules.c.o: EXTRA_CFLAGS += --codesegBANK_20 --constsegBANK_20 --datasegBANK_20
+# (the touchdown, a level's start and the shell's part aren't hot: smaller
+# code, the bank is full)
+$(OBJDIR)/ld_land.c.o $(OBJDIR)/game_rules.c.o: EXTRA_CFLAGS += --opt-code-size
 # the autopilot and fix16's arc tangents and 3-D lengths: page 46 at 0x6000
 # (resident memory is full; only the rules and the shell with them call them)
 $(OBJDIR)/ld_auto.c.o $(OBJDIR)/sdk/fix16_atan.c.o $(OBJDIR)/sdk/fix16_hyp3.c.o: EXTRA_CFLAGS += --codesegPAGE_46 --constsegPAGE_46 --datasegPAGE_46

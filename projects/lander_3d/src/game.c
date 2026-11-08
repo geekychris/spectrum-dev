@@ -37,6 +37,7 @@
 #include "sound.h"
 #include "pens.h"
 #include "game_rules.h"
+#include "prof.h"
 
 Lander lander;
 Level level;
@@ -61,9 +62,37 @@ static uint8_t held, pressed, kpressed;
 
 /* the frame interrupt: the keys and joysticks, presses latched (a tap
    shorter than a pass of the loop still counts) */
+#ifdef LD_PROF
+uint16_t prof_sum[PR_N];
+static uint16_t prof_line0, prof_lastl, prof_frames, prof_lastf;
+static uint8_t prof_cur;
+static uint16_t raster(void) { return (uint16_t)ZXN_READ_REG(0x1E) << 8 | ZXN_READ_REG(0x1F); }
+void prof_mark(uint8_t id) __z88dk_fastcall
+{
+    static uint16_t l, f, d;
+    intrinsic_di();
+    l = raster();
+    f = prof_frames;
+    intrinsic_ei();
+    if (l < prof_line0) l += 312;
+    l -= prof_line0;
+    d = l - prof_lastl;
+    prof_lastl = l;
+    l = f - prof_lastf;
+    prof_lastf = f;
+    while (l--) d += 312;
+    prof_sum[prof_cur] += d;
+    prof_cur = id;
+}
+#endif
+
 void game_sample(void)
 {
     uint8_t b, k = 0;
+#ifdef LD_PROF
+    prof_line0 = raster();
+    prof_frames++;
+#endif
     if (lander.state == LS_ENTRY) input_sample();   /* the initials editor's letters, latched */
     in2_scan();
     b = in2_bits(SRC);
@@ -284,7 +313,9 @@ void game_frame(uint8_t frames)
     steps = acc >> 1;
     acc &= 1;
     fps_ticks += steps;
+    PROF(PR_RULES);
     while (steps--) tick();
+    PROF(PR_HUDV);
     /* port: the HUD's values every other pass (they are text) */
     if (lander.state != LS_TITLE && lander.state != LS_ENTRY && ((fps_loops & 1) || lander.state != LS_PLAY)) {
         LOGIC();
@@ -292,13 +323,16 @@ void game_frame(uint8_t frames)
     }
     if (!lander.help && lander.state != LS_ENTRY) {
         LOGIC();
+        PROF(PR_CAM);
         view_camera(&level);
         view_compass = lander.state != LS_TITLE;
         VIEW();
         view_draw(&level, (uint8_t)lander.frame);
     }
+    PROF(PR_TEXT);
     HUD();
     screens_draw();
+    PROF(PR_OTHER);
     fps_loops++;
     fps_frames += frames;
     while (frames--) snd_tick();
@@ -306,6 +340,14 @@ void game_frame(uint8_t frames)
         zx_log("ld: perf fps10=%u ticks=%u frames=%u polys=%u agl=%ld state=%u ay=%u,%u,%u\n",
                (uint16_t)(fps_loops * 500u / fps_frames), fps_ticks, fps_frames, view_polys, FINT(hv.agl), lander.state, snd_reg(0, 8) & 15, snd_reg(1, 8) & 15,
                snd_reg(2, 8) & 15);
+#ifdef LD_PROF
+        {
+            uint8_t q;
+            zx_log("ld: prof");
+            for (q = 0; q < PR_N; q++) { zx_log(" %u", prof_sum[q]); prof_sum[q] = 0; }
+            zx_log(" loops=%u\n", fps_loops);
+        }
+#endif
         fps_frames = fps_loops = fps_ticks = 0;
     }
 }

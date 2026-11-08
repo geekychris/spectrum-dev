@@ -11,6 +11,7 @@
 #include <string.h>
 #include "vfill.h"
 #include "fixmath.h"
+#include "prof.h"
 #ifdef __SDCC
 #include <arch/zxn.h>
 #include "nextgfx.h"
@@ -177,7 +178,9 @@ void vf_draw(void)
 #endif
     for (k = 0; k < vf_nstars; k++)
         if (vf_star_y[k] < hz) VF_FB[(uint16_t)vf_star_y[k] * VW + vf_star_x[k]] = vf_star_pen[k];
+    PROF(PR_GROUND);
     vf_ground();
+    PROF(PR_POLYS);
     for (k = 0; k < vf_npoly; k++) poly(&vf_poly[k]);
 #ifdef __SDCC
     ZXN_WRITE_MMU0(vf_bank0 * 2);
