@@ -331,3 +331,10 @@ Details: docs/emulator-harness.md.
   `input_letter_pressed()` (latched), not `key_down()`.
 - Fixed-step catch-up: cap the ticks per loop high enough for the slowest picture (Tank Duel:
   12 frames), or the game runs slower than the original when the picture is slow.
+- Layer 2's write paging (port 0x123B, NextReg 0x13 = any 16K bank) splits 0x0000-0x3FFF: reads come from
+  the MMU, writes go to the bank. Never `memset` through it: z88dk's memset is an LDIR from dst to dst + 1,
+  which reads back whatever is mapped for reading (Boing Twist's texture filled with noise); use texview's
+  `tv_fill`. Keep variables out of 0x0000-0x3FFF while the window is open.
+- zsdcc built `h = (h ^ p->slot[i].home) * K` (uint32_t h, a uint8_t field through a pointer) with byte 1 of
+  `h` replaced by 0, at -SO0 to -SO3; reading the byte into a local first fixed it (Boing Twist's bt_hash: the
+  original's self-test hash showed it). Run an original's own self-test on the Z80 when there is one.

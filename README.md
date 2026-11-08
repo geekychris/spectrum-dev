@@ -214,6 +214,7 @@ They are part of `./zx selftest`.
 | [Warden Keep](projects/warden_keep/README.md) | Next `.nex`: a Filmation-style isometric room on 320x256 Layer 2 from the original's geometry, objects as sprite groups in its painter's order, tilemap screens, TurboSound | ![](docs/images/warden_keep.gif) |
 | [Orb Hunter](projects/orb_hunter/README.md) | Next `.nex`: flip-screen cavern platformer; rooms on 320x256 Layer 2, everything moving as 4-bit sprites, the original's rules from a code bank over the ROM, TurboSound MOD | ![](docs/images/orb_hunter.gif) |
 | [Orbit Docking](projects/orbit_docking/README.md) | Next `.nex`: dock with a spinning station in real-time 3D; the original's 16.16 rules bit for bit (its autopilot game's hash on the Next), each plane of the station projected as a turned and scaled shape (Z80N `MUL`), Layer 2 polygons at half height by the copper, sprite instruments, tilemap HUD, TurboSound | ![](docs/images/orbit_docking.gif) |
+| [Boing Twist](projects/boing_twist/README.md) | Next `.nex`: a twisty puzzle on the Boing ball; the original's rules (its self-test hash on the Next), the textured, lit ball drawn from per-pixel tables made on the host from its camera (sdk `texview`, Layer 2 write paging), twists and flips as turns of the texture, 17 pictures and 10 rooms, copper line doubling, tilemap text, TurboSound | ![](docs/images/boing_twist.gif) |
 
 How the two machines compare as targets, and what each game uses:
 [docs/48k-vs-next.md](docs/48k-vs-next.md).
@@ -227,7 +228,7 @@ Q14 sine, 2D point rotation), the 48K modules `bitline.h` (lines into any bitmap
 `dots48.h`, `hmap48.h` (heightmap terrain), `gauge48.h`, `attrtint.h` (colour for
 moving objects), `font5.h`, `modplay.h`
 (MOD music), `nextgfx.h` (Layer 2 in both modes, sprites, palettes,
-TurboSound, DMA), the Next modules `l2rle.h` (RLE pictures), `nextspr.h`
+TurboSound, DMA), the Next modules `l2rle.h` (RLE pictures), `texview.h` (pictures drawn through per-pixel tables made on the host), `nextspr.h`
 (sprite groups and masking), `isosort.h`, `nextcopper.h`, `nexttile.h`
 (tilemap text), `palfx.h`, `aystream.h` (TurboSound streams), `nextsplit.h`
 (copper split screens), `input2.h` (two-player input), `zxrle.h`, `gridpack.h`
@@ -279,7 +280,7 @@ card. NextZXOS is never included (its licence wants the whole distribution).
 | `emulator/ext/zxh.{c,h}`, `emulator/patches/` | our ZEsarUX extension and patches |
 | `tools/zxdev/` | Python package: `emu.py` (Emulator), `zrcp.py`, `session.py`, `control.py`, `cli.py`, `mcp_server.py`, `devbench.py` + `web/`, `symbols.py`, `keys.py`; `tests/` |
 | `sdk/` | `project.mk`, the game layer (`zxgame.h`, `nextgfx.h`), `zx_log`, `zx_print_at`, template |
-| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `bullion_dash`, `emberkeep`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `warden_keep`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`, `lunar_rider`, `orb_hunter`, `orbit_docking`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestgrid`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `scrolltest`, `fix16test`), each with a `test.py` |
+| `projects/` | games (`nova_defense`, `frank_the_frog`, `miner_meteor`, `bullion_dash`, `emberkeep`, `sky_knights`, `rock_blaster`, `uranus_lander`, `stakattack`, `boing_pinball`, `spectral_keep`, `rotoball`, `marble_tilt`, `warden_keep`, `scairy_fun`, `block_breaker_3d`, `planet_chomp`, `stack_tower`, `lunar_rider`, `orb_hunter`, `orbit_docking`, `boing_twist`), the `arcade` menu, examples (`hello48`, `hellonext`, `inputtest`, `asm48`) and SDK tests (`sdktest`, `sdktest48gfx`, `sdktestroom`, `sdktestgrid`, `sdktestnext`, `nextlibtest`, `nextruntest`, `splittest`, `geomtest`, `scrolltest`, `fix16test`, `texviewtest`), each with a `test.py` |
 | `docs/` | harness, DevBench, images |
 | `third_party/zesarux/` | fetched by setup, not committed |
 

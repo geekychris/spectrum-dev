@@ -223,6 +223,18 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   HUD, radar sprites, TurboSound effects, high scores. 5-11 fps (about 8).
   SDK: `l2line`, `muldiv16`.
 
+- **Boing Twist** (Next): the original's puzzle core (`bt_core.c`; one
+  expression rewritten around a zsdcc miscompile of `h ^ slot.home`) runs
+  the original's self-test to its tests/vectors.h hash on the Next; the
+  textured, lit ball from per-pixel view tables made on the host from the
+  original's camera and light (new sdk `texview`: Layer 2 write paging, an
+  unrolled 68 T-state loop; test projects/texviewtest), the pieces put
+  together into the texture in asm rows, twists by DMA row turns, flips from
+  a second texture laid out round the flip axis; all 17 pictures and 10
+  rooms, copper line doubling, tilemap text, the original's effects and a
+  tune on TurboSound, high scores. Logic 50 Hz, 30-37 fps while moving, 42
+  on the title; a bot solves by the keys in the test.
+
 - **Orbit Docking** (Next): the original's amiga3d rules on fix16.h, bit for
   bit (the Next flies the original's long autopilot game to its
   tests/vectors.h hash; host check over every station); the cockpit view
@@ -390,7 +402,7 @@ graphics on 48K, no FPU, 16.16 fixed point is slow on a Z80):
 - **Next**: Rolling Steel, Planet Chomp, Rotoball, Canyon Rescue, Block
   Breaker 3D, Marble Tilt, Harbour Crane, Orbit Docking, Stack Tower, Boing
   Pinball, Terra Strike, Ridge Runner, Drone Courier, Canyon Rail, Ace Pilot 2.
-- **Poor fit**: Lander 3D, ScAIry Fun (done anyway: ~6.5 fps), Boing Twist, Sphere Siege.
+- **Poor fit**: Lander 3D, ScAIry Fun (done anyway: ~6.5 fps), Boing Twist (done anyway: host-made view tables, 30+ fps), Sphere Siege.
 
 Suggested first steps: a small `sdk/` game layer (frame loop, input,
 attribute/pixel sprite blitter for 48K; Layer 2 + hardware sprites for Next;

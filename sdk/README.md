@@ -21,6 +21,7 @@
 | `tools/gridpack.py` | many tile grids of one size (levels) with tile ids < 16 -> one set for `gridpack.h`: a binary arithmetic coder with fixed probabilities chosen by each tile's neighbours (before, above), shared by all grids; reads a `levelpack.py` level file; `pack` / `unpack` (the reference decoder) / `c_source` as a module. Bullion Dash's 150 levels: 33.6 KB of nibbles -> 7.9 KB (zxrle: ~20 KB) |
 | `tools/levelpack.py` | ASCII rooms (a `size`, a `legend` of character -> tile id, `room NAME` + rows) -> zxrle-packed C maps, names and a header for `tmap_load`; `parse` / `pack_rooms` as a module (`--help`) |
 | `tools/zxrle.py` | `pack` / `unpack` for `zxrle.h` (PackBits-style runs and literals) |
+| `tools/texview.py` | views for `texview.h`: `Stream` (rows of (u, v, shade) records in 8K pages), `from_pixels` (a convex shape's pixels in any order), `model` (what `tv_draw` writes, for tests) |
 | `tools/runimg.py` | `encode` / `decode` for `l2wrun.h`: column runs of pen offsets (shapes drawn on the host for every view, e.g. Stack Tower's 3D bricks) |
 | `tools/fatimg.py` | SD card images: read a FAT12/16 image (with or without an MBR) into a tree, change it (`drop`, `put`), write a FAT16 image with an MBR (8.3 + long names, reproducible); `ls` / `cat` from the command line |
 | `tools/nextbasic.py` | text -> tokenised (Next)BASIC (as NextZXOS stores it, dot commands kept as text), +3DOS headers for programs and code (`plus3dos_basic`, `plus3dos_code`) |
@@ -30,7 +31,7 @@
 
 Linked from `build/zxsdk.lib`: a program only carries the modules it calls
 (one object per file, so files are split where a game might want only
-part). Tests: `projects/sdktest` (48K/128K), `projects/nextruntest` (`l2wrun`, `dma_copy_pages`, `sprtext`), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest`, `projects/splittest` (split screens, two-player input), `projects/scrolltest` (l2scroll) and `projects/geomtest` (polygons, bands, projection).
+part). Tests: `projects/sdktest` (48K/128K), `projects/nextruntest` (`l2wrun`, `dma_copy_pages`, `sprtext`), `projects/sdktest48gfx` (the 48K drawing modules and fixmath's sin14 / muls / rot2d, checked pixel by pixel), `projects/sdktestnext`, `projects/nextlibtest`, `projects/splittest` (split screens, two-player input), `projects/scrolltest` (l2scroll), `projects/geomtest` (polygons, bands, projection) and `projects/texviewtest` (texview).
 
 | header | module (src/) | what |
 |---|---|---|
@@ -72,6 +73,7 @@ part). Tests: `projects/sdktest` (48K/128K), `projects/nextruntest` (`l2wrun`, `
 | | `next/l2text5.c` | `l2_text5`, `l2_text5_center`: the 5x7 font on Layer 2 |
 | `l2rle.h` | `next/l2rle.c`, `next/l2rle_blit.asm` | Layer 2 320x256 extras: column-RLE "pieces" (`nextpic.piece`) blitted through a colour table (asm), `l2w_span` (and/or a row: shadows with a half-bright upper palette), `l2w_clear` (DMA), `l2w_plot` |
 | `l2wrun.h` | `next/l2wrun.asm` | Layer 2 320 x 256: column-run images (`tools/runimg.py`) drawn as base pen + offset, so one image draws in any colour set laid out alike in the palette; mirrored too (a shape and its mirror image from one picture); ~28 T-states a pixel. For 3D drawn on the host per view (projects/stack_tower) |
+| `texview.h` | `next/texview.asm` | a picture drawn through a table made on the host (`tools/texview.py`): for every pixel of a shape, the texel it shows and its shade; pixel = texture[v][u + turn] \| shade, 68 T-states (~80 in ZEsarUX); the texture (256 x 96) read at 0x0000-0x5FFF while Layer 2's write paging (NextReg 0x13: any 16K bank) takes the writes there, so it draws into the back buffer or makes a second texture; clipped on all sides; `tv_or_span` (shadows), `tv_fill` / `tv_copy` (write-only fill, a row copied forwards or backwards through the window: memset reads back what it wrote). Boing Twist's ball. Test: `projects/texviewtest` |
 | `sprtext.h` | `next/sprtext.c` | big text from hardware sprites: the 5x7 font made into patterns at start-up (with a shadow), one sprite a character, zoomed x2-x8: words over a double-buffered Layer 2 that never need erasing |
 | `nextspr.h` | `next/nextspr.c` | sprite groups: cols x rows 16x16 patterns uploaded by DMA, shown as one object (`sprg_show_ex`: hardware zoom, palette offset; `sprg_hide`: a range); `sprg_mask_rle` hides the parts behind a Layer 2 piece (isometric occlusion) |
 | `nextcopper.h` | `next/nextcopper.c` | copper lists (`copper_wait`, `copper_move`, `copper_end` (sent by DMA), `copper_stop` / `copper_run`): per-line register writes, e.g. palette switches and gradients. The copper restarts at the vertical blank, line 248 |

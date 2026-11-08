@@ -143,6 +143,14 @@ the 48K:
   drawn 96 rows high and shown 192 by the copper, which also paints the
   sky's gradient behind a transparent pen. About 8 fps: the hardest of the
   ports for a 28 MHz Z80 (its rules alone are a third of a frame a tick)
+- Boing Twist's ball is a textured, lit sphere that turns, twists and flips:
+  the host works out, for every pixel at each tilt, which texel it shows and
+  how lit it is (sdk `texview`), so the Next only looks texels up (68
+  T-states a pixel) and every motion is an add: a turn adds to the
+  longitude, a twist turns the band's rows of the texture by DMA, a flip is
+  drawn from a second texture laid out round its axis. Layer 2's write
+  paging lets the renderer read the texture and write the screen at the same
+  addresses; the copper doubles the rows. 30-37 fps while it moves
 
 - Emberkeep's lantern costs no drawing: the light square is the clip window of
   Layer 2 and of the sprites, and the copper narrows it on the lines of its
