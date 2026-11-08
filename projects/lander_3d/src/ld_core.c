@@ -243,6 +243,8 @@ static void ls_integrate(const fix *a)
 static const fix rcs_burn[3] = { 0, RCS_FUEL / 100, 2 * RCS_FUEL / 100 };     /* div100(n RCS_FUEL) */
 static const fix amax100[W_COUNT] = { FX(4.4) / 100, FX(9.0) / 100, FX(1.5) / 100 };   /* div100(amax) */
 static fix burn_thr = -1, burn_thr100, lost_half = -1, lost_lim;
+static fix th_pitch, th_roll, th_thr, th_a[3];
+static const LdWorld *th_w;              /* (0: none kept) */
 
 void ld_step(Level *L, const LdInput *in)
 {
@@ -275,12 +277,18 @@ void ld_step(Level *L, const LdInput *in)
         if (L->fuel <= 0) { L->fuel = 0; ld_push_ev(L, LDE_FUEL_OUT); }
     }
     C.throttle = thr;
-    if (thr) {                           /* port: fmul(t, 0) is 0 */
-        ld_up(&C, u);
-        t = FMUL(u[0], amax); acc[0] = FMUL(t, thr);
-        t = FMUL(u[1], amax); acc[1] = FMUL(t, thr) - W->g;
-        t = FMUL(u[2], amax); acc[2] = FMUL(t, thr);
-    } else { acc[0] = 0; acc[1] = -W->g; acc[2] = 0; }
+    /* port: the thrust's products kept while the angles, the throttle and
+       the world stay (a steady hover); fmul(t, 0) is 0 */
+    if (C.pitch != th_pitch || C.roll != th_roll || thr != th_thr || W != th_w) {
+        th_pitch = C.pitch; th_roll = C.roll; th_thr = thr; th_w = W;
+        if (thr) {
+            ld_up(&C, u);
+            t = FMUL(u[0], amax); th_a[0] = FMUL(t, thr);
+            t = FMUL(u[1], amax); th_a[1] = FMUL(t, thr) - W->g;
+            t = FMUL(u[2], amax); th_a[2] = FMUL(t, thr);
+        } else { th_a[0] = 0; th_a[1] = -W->g; th_a[2] = 0; }
+    }
+    acc[0] = th_a[0]; acc[1] = th_a[1]; acc[2] = th_a[2];
     if (L->params.wind) wind_at(L, (fix)L->t * LD_DT);     /* port: no wind: L->wind stays 0 (wind_at's) */
     if (W->drag) {
         fix drag = W->drag;
