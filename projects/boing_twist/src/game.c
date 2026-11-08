@@ -549,7 +549,7 @@ static void picture(void)
     if (ball_dirty) ball_dirty--;
     flip_pending = 1;
     drawn++;
-    pixels_last = rv_pixels;
+    pixels_last = tv_pixels;
 }
 
 /* ---------------- the main loop's pass ---------------- */

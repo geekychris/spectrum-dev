@@ -14,6 +14,7 @@
 #ifndef BT_H
 #define BT_H
 #include <stdint.h>
+#include "texview.h"
 
 #define TEX_BANK   16          /* the ball's texture: 256 x 96, rows 0-63 bank 16, 64-95 bank 17 */
 #define TEX_PAGE   32
@@ -35,15 +36,8 @@
    what everything that maps those slots puts back */
 void logic_map(void);
 
-/* render.asm */
-extern uint8_t rv_page, rv_off, rv_bank, rv_tex;
-extern int16_t rv_cx, rv_cy;
-extern uint16_t rv_pixels;
-extern void rv_draw(void);
-extern void rv_or_span(uint8_t y, uint8_t x, uint8_t n, uint8_t bits);
-extern void rv_copy(const uint8_t *src, uint8_t *dst, uint8_t n, uint8_t turned);
-extern void rv_fill(uint8_t *dst, uint8_t v, uint16_t n);   /* write-only (the window) */
-extern void rv_row(uint8_t *dst, const uint8_t *prog, uint8_t n, uint8_t dv);
-extern void rv_unpack4(const uint8_t *src, uint8_t *dst);
+/* render.asm (the ball itself: the SDK's texview.h) */
+extern void bt_row(uint8_t *dst, const uint8_t *prog, uint8_t n, uint8_t dv);
+extern void bt_unpack4(const uint8_t *src, uint8_t *dst);
 
 #endif

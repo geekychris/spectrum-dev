@@ -33,7 +33,7 @@ void room_load(uint8_t r)
     y = 0;
     do {
         z80_outp(0x123B, 0x0B | (y & 0xC0));
-        rv_unpack4((const uint8_t *)((uint16_t)y << 7), (uint8_t *)((uint16_t)(y & 63) << 8));
+        bt_unpack4((const uint8_t *)((uint16_t)y << 7), (uint8_t *)((uint16_t)(y & 63) << 8));
     } while (++y < 96);
     z80_outp(0x123B, 0x02);
     /* its 16 colours and their shadowed copies */
@@ -62,7 +62,7 @@ static void ellipse(int16_t cx, int16_t cy, uint8_t rx, uint8_t ry, uint8_t clip
     int16_t y, y0 = cy - ry, y1 = cy + ry, lo, hi;
     uint16_t r2 = (uint16_t)ry * 2, rr = r2 * r2;
     if (!ry) return;
-    rv_bank = l2_back;
+    tv_bank = l2_back;
     if (y0 < 0) y0 = 0;
     if (y1 >= clip) y1 = clip - 1;
     for (y = y0; y <= y1; y++) {
@@ -75,7 +75,7 @@ static void ellipse(int16_t cx, int16_t cy, uint8_t rx, uint8_t ry, uint8_t clip
         if (lo < 0) lo = 0;
         if (hi > 255) hi = 255;
         if (lo > hi) continue;
-        rv_or_span((uint8_t)y, (uint8_t)lo, (uint8_t)(hi - lo + 1), 0x20);
+        tv_or_span((uint8_t)y, (uint8_t)lo, (uint8_t)(hi - lo + 1), 0x20);
     }
 }
 

@@ -43,6 +43,7 @@ int main(void)
     logic_map();                             /* the text, the tables and the rules from here on */
     zx_border(INK_BLACK);
     copper_doubling();
+    tv_rows = 96;                            /* Layer 2's rows: each shown twice */
     hud_init();
     snd_init();
     input_init();

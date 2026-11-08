@@ -46,10 +46,11 @@ PROJ = os.path.dirname(HERE)
 ORIG = os.path.normpath(os.path.join(PROJ, "..", "..", "..", "amiga_mcp", "examples", "boing_twist"))
 sys.path.insert(0, HERE)
 import geom  # noqa: E402
+sys.path.insert(0, os.path.join(PROJ, "..", "..", "sdk", "tools"))
+from texview import PAGE, Stream, from_pixels  # noqa: E402
 from geom import FOCAL, TEX_W, TEX_H, TF_H, W, H, HM  # noqa: E402
 
 FIRST_BANK = 30                      # banks below: Layer 2, the working banks and code (src/bt.h)
-PAGE = 8192
 PITCHES = [-36, -24, -12, 0, 12, 24, 36]
 PLAY_DIST = 3.6
 TITLE = dict(vx=0.0, vy=0.0, dist=4.4, pitch=0.0, roll=-17.0)
@@ -114,47 +115,9 @@ def shading(xs, ys, ext):
 
 
 # ---------------------------------------------------------------- streams
-class Stream:
-    """rows of (dy, dx0, n) + n records of 3 bytes, packed into 8K pages
-    (a row never crosses a page: 0x80 = go on at the next page, 0x7F = end)"""
-
-    def __init__(self, cx, cy):
-        self.cx, self.cy = cx, cy
-        self.pages = [bytearray()]
-        self.pixels = 0
-        self.rows = 0
-
-    def row(self, dy, dx0, recs):
-        assert -127 <= dy <= 126 and -128 <= dx0 <= 127 and 0 < len(recs) <= 255
-        blob = bytes([dy & 255, dx0 & 255, len(recs)]) + bytes(b for r in recs for b in r)
-        if len(self.pages[-1]) + len(blob) + 1 > PAGE:
-            self.pages[-1].append(0x80)
-            self.pages.append(bytearray())
-        self.pages[-1] += blob
-        self.pixels += len(recs)
-        self.rows += 1
-
-    def end(self):
-        self.pages[-1].append(0x7F)
-        return self
-
-
 def pixels_to_stream(xs, ys, recs, cx, cy):
-    """recs[i] = (a, b, c) for pixel (xs[i], ys[i]); rows top to bottom, each
-    a run left to right (the ball is convex: one run a row)"""
-    st = Stream(cx, cy)
-    order = np.lexsort((xs, ys))
-    xs, ys = xs[order], ys[order]
-    recs = [recs[i] for i in order]
-    i = 0
-    while i < len(xs):
-        j = i
-        while j + 1 < len(xs) and ys[j + 1] == ys[i]:
-            j += 1
-        assert xs[j] - xs[i] == j - i, "a row of the ball with a hole in it"
-        st.row(int(ys[i] - cy), int(xs[i] - cx), recs[i:j + 1])
-        i = j + 1
-    return st.end()
+    """recs[i] = (u, v, shade) for pixel (xs[i], ys[i]): the SDK's texview stream"""
+    return from_pixels([int(x) for x in xs], [int(y) for y in ys], recs, cx, cy)
 
 
 def view(vx, vy, dist, pitch, roll):

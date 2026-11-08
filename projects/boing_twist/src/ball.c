@@ -87,7 +87,7 @@ static void boing_picture(BtPuzzle *p)
         write_third(v >> 6);
         b = brow[v];
         for (s = 0; s < g_segs; s++)
-            rv_fill(dst + ball_cols[s], (b + s) & 1 ? 0 : 1, seg_w(s));
+            tv_fill(dst + ball_cols[s], (b + s) & 1 ? 0 : 1, seg_w(s));
     }
     write_off();
     for (v = 0; v < g_bands * g_segs; v++) {
@@ -125,7 +125,7 @@ uint8_t ball_half_u(uint8_t half)
     return (uint8_t)((((uint16_t)half * 4 + g_segs) * 128u / g_segs + 1) >> 1);
 }
 
-static uint8_t prog[BT_MAX_S * 5];        /* a band's slots for rv_row */
+static uint8_t prog[BT_MAX_S * 5];        /* a band's slots for bt_row */
 
 void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_half, uint8_t only)
 {
@@ -161,8 +161,8 @@ void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_
             v = ball_rows[b] + dv;
             dst = (uint8_t *)((uint16_t)(v & 63) << 8);
             if ((v >> 6) != third) { third = v >> 6; write_third(third); }
-            if (dv == 0) rv_fill(dst, C_GROOVE, 256);   /* the groove along the band's top */
-            else rv_row(dst, prog, g_segs, dv);
+            if (dv == 0) tv_fill(dst, C_GROOVE, 256);   /* the groove along the band's top */
+            else bt_row(dst, prog, g_segs, dv);
         }
     }
     logic_map();                             /* ring_uv is in the logic bank: read there, written through the window */
@@ -186,7 +186,7 @@ void ball_build(const BtPuzzle *p, uint8_t flags, uint8_t sel_band, uint8_t sel_
             if (b == 0 || b == g_bands) continue;
             v = ball_rows[b];
             if ((v >> 6) != third) { third = v >> 6; write_third(third); }
-            rv_fill((uint8_t *)((uint16_t)(v & 63) << 8), C_RING, 256);
+            tv_fill((uint8_t *)((uint16_t)(v & 63) << 8), C_RING, 256);
         }
     }
     write_off();
@@ -227,39 +227,39 @@ void ball_twist_shift(uint8_t band, uint8_t d)
 
 void ball_flip_begin(uint8_t half)
 {
-    rv_page = v_ct.page;
-    rv_cx = v_ct.cx;
-    rv_cy = v_ct.cy;
-    rv_off = ball_half_u(half);
-    rv_bank = TF_BANK;
-    rv_tex = TEX_PAGE;
-    rv_draw();
+    tv_page = v_ct.page;
+    tv_cx = v_ct.cx;
+    tv_cy = v_ct.cy;
+    tv_off = ball_half_u(half);
+    tv_bank = TF_BANK;
+    tv_tex = TEX_PAGE;
+    tv_draw();
 }
 
 void ball_draw(const View *v, uint8_t off, int16_t x, int16_t y)
 {
-    rv_page = v->page;
-    rv_cx = x;
-    rv_cy = y;
-    rv_off = off;
-    rv_bank = l2_back;
-    rv_tex = TEX_PAGE;
-    rv_draw();
+    tv_page = v->page;
+    tv_cx = x;
+    tv_cy = y;
+    tv_off = off;
+    tv_bank = l2_back;
+    tv_tex = TEX_PAGE;
+    tv_draw();
 }
 
 void ball_draw_flip(uint8_t pitch, uint8_t half, uint8_t phi)
 {
-    rv_page = v_flip[pitch].page;
-    rv_cx = v_flip[pitch].cx;
-    rv_cy = v_flip[pitch].cy;
-    rv_off = (uint8_t)-phi;
-    rv_bank = l2_back;
-    rv_tex = TF_PAGE;
-    rv_draw();
+    tv_page = v_flip[pitch].page;
+    tv_cx = v_flip[pitch].cx;
+    tv_cy = v_flip[pitch].cy;
+    tv_off = (uint8_t)-phi;
+    tv_bank = l2_back;
+    tv_tex = TF_PAGE;
+    tv_draw();
     if (v_fstat[pitch].page) {               /* the other half, at the rim at steep tilts */
-        rv_page = v_fstat[pitch].page;
-        rv_off = ball_half_u(half);
-        rv_tex = TEX_PAGE;
-        rv_draw();
+        tv_page = v_fstat[pitch].page;
+        tv_off = ball_half_u(half);
+        tv_tex = TEX_PAGE;
+        tv_draw();
     }
 }
