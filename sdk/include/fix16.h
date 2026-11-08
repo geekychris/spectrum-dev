@@ -16,6 +16,12 @@
  *                       interpolated from its 256-entry table, * 65536
  *   a3_angle(rad)       radians (16.16) -> 16-bit angle
  *   fsin(rad), fcos(rad)
+ *   fhypot3(a, b, c)    a 3-D length (fix16_hyp3.c)
+ *   fatan2(y, x)        radians, -pi..pi, as Math.atan2; fasin(x); and in the
+ *                       engine's 16-bit angles a3_atan_ratio(num, den) (den > 0,
+ *                       |num| <= den) and a3_atan2(x, y) (from +y towards +x)
+ *                       (fix16_atan.c)
+ *   fexp_neg(x)         e^-x for x >= 0 (fix16_exp.c)
  *
  * On the Z80 the multiplies use z88dk's 16 x 16 -> 32 (the Z80N's MUL on the
  * Next): fmul is four of them, about 1,200 T-states; fdiv a 32-bit division
@@ -42,6 +48,12 @@ fix fsqrt(fix a);
 fix fhypot(fix a, fix b);
 fix fsin(fix rad);
 fix fcos(fix rad);
+fix fhypot3(fix a, fix b, fix c);
+int16_t a3_atan_ratio(int32_t num, int32_t den);
+uint16_t a3_atan2(int32_t x, int32_t y);
+fix fatan2(fix y, fix x);
+fix fasin(fix x);
+fix fexp_neg(fix x);
 
 #if defined(__SDCC) || defined(FIX16_Z80_C)
 extern uint32_t mulu16(uint16_t a, uint16_t b);    /* a * b */
