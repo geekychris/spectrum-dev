@@ -821,7 +821,7 @@ he_m1:
     or (hl)
     inc hl
     or (hl)
-    ret z                       ; all three far: 0 = far (edge_far's Z)
+    jp z,fl_slack               ; all three far: 0 = far (edge_far's Z): no contact
     ; port: p - a, p - b, p - c once (fs_pv), then each segment from them in
     ; 16-bit products where those are exact (fs_seg; else ht_seg)
     ld hl,fs_pv
@@ -1381,6 +1381,71 @@ abs_sum:
     ADD32 as_t
     ret
 
+; port: all three edges far (ht_edges returns): for hc_marble, the least
+; distance from an edge line, D >= L / E1 (edge_far: L = 16 |s| - 3 (E1 + F1)
+; - 9), less r + 28, over 32. While the ball has moved less than that (the
+; projection moves by at most sqrt 2 times an axis), it can't reach the
+; triangle (it would cross an edge line) nor come within r + 28 of an edge
+; (so d2 >= r2): this triangle does nothing, as now
+fl_slack:
+    ld hl,(mc_rec)
+    ld a,h
+    or l
+    ret z
+    ld hl,0xFFFF
+    ld (fl_min),hl
+    xor a
+fl_k:
+    ld (fl_i),a
+    add a,a
+    add a,a
+    ld hl,ef_es
+    add hl,a
+    call ld32_hl
+    ld b,8
+    call m_sra32                ; E1 >> 8, + 1: a larger divisor, a smaller (safe) D
+    inc hl
+    ld (fl_d),hl
+    ld hl,0
+    ld (fl_d + 2),hl
+    ld a,(fl_i)
+    add a,a
+    add a,a
+    ld hl,ef_ls
+    add hl,a
+    call ld32_hl
+    ld b,8
+    call m_sra32                ; L >> 8
+    DIV32 fl_d
+    ld a,d
+    or e
+    jr nz,fl_n                  ; >= 65536: no limit from this edge
+    ld de,(fl_min)
+    or a
+    sbc hl,de
+    add hl,de
+    jr nc,fl_n
+    ld (fl_min),hl
+fl_n:
+    ld a,(fl_i)
+    inc a
+    cp 3
+    jr nz,fl_k
+    ld hl,(fl_min)
+    ld de,(WB + B_R)
+    or a
+    sbc hl,de
+    ret c
+    ld de,28
+    sbc hl,de
+    ret c
+    ld b,5
+fl_sh:
+    srl h
+    rr l
+    djnz fl_sh
+    jp rec_slack
+
 ; port: Z (skip) if edge k (A: 0-2) can't make the contact: the ball is at
 ; least r + 48 from its line in the projection (u, v), so from the segment
 ; in 3D. cross2 times 16 is within 3 (|eu| + |ev| + |fu| + |fv|) + 9 of the
@@ -1448,7 +1513,17 @@ ef_2:
     SUB32 ef_t                  ; L = 16 |s| - 3 (E1 + F1) - 9
     jr c,ef_no                  ; negative
     ST32 ef_l
+    ld a,(ce_k4)                ; port: kept for ht_edges' note (fl_slack)
+    ld bc,ef_ls
+    call st32_bc_a
     LD32 ef_e
+    push hl
+    push de
+    ld a,(ce_k4)
+    ld bc,ef_es
+    call st32_bc_a
+    pop de
+    pop hl
     ld bc,(WB + B_R)
     ld a,c
     add a,48
@@ -3656,12 +3731,15 @@ en_drag:
     ld a,(ws_i)
     cp 3
     jr nc,en_nocache
-    inc a
-    ld e,a
-    ld d,CS_SIZE
-    mul d,e
-    ld hl,cs_slots
+    ld hl,cs_slots + CS_SIZE    ; slot 1 + enemy number (CS_SIZE > 255: added, not a MUL)
+    ld de,CS_SIZE
+    or a
+    jr z,en_slot
+en_sl:
     add hl,de
+    dec a
+    jr nz,en_sl
+en_slot:
     ld (cs_slot),hl
     xor a                       ; an enemy's slot is its own
     ld (cs_new),a
@@ -5170,6 +5248,11 @@ ce_b32: defs 4
 ce_s:   defs 12
 ce_raw: defs 48                 ; eu ev fu fv for each edge
 ef_p:   defs 2
+ef_ls:  defs 12                 ; L per edge (edge_far)
+ef_es:  defs 12                 ; E1 per edge
+fl_min: defs 2
+fl_i:   defs 1
+fl_d:   defs 4
 as_t:   defs 4
 ef_l:   defs 4
 ef_e:   defs 4

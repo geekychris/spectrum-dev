@@ -4,6 +4,8 @@
 #include "rs.h"
 extern int16_t view_x, view_y;
 extern uint16_t view_cols, view_rows;
+extern uint16_t view_pal[64];
+extern uint8_t view_npal, view_palgen;
 void view_init(void);
 void view_course(uint8_t level);
 void view_palette(void);

@@ -21,6 +21,9 @@
 #include "game.h"
 #include "view.h"
 #include "data.h"
+#include "sprite_data.h"
+#include "palfx.h"
+#include "hud.h"
 
 /* l2view.asm */
 extern void lv_setup(uint8_t page);
@@ -120,23 +123,23 @@ void view_init(void)
     view_x = -10000;
 }
 
-/* the course's picture palette into Layer 2's first palette */
+/* the course's picture palette (kept here: the flash and the HUD's shade
+   are made from it) into Layer 2's first palette */
+uint16_t view_pal[64];
+uint8_t view_npal, view_palgen;          /* palgen: counts palette loads */
+
 void view_palette(void)
 {
-    uint8_t n, i;
-    const uint16_t *pal;
     ZXN_WRITE_MMU2(lv_page);
-    n = *(const uint8_t *)0x4009;
-    pal = (const uint16_t *)0x400A;
-    ZXN_WRITE_REG(0x43, 0x10);           /* Layer 2 first palette, auto-increment */
-    ZXN_WRITE_REG(0x40, 0);
-    for (i = 0; i < n; i++) {
-        uint16_t c = pal[i];
-        ZXN_WRITE_REG(0x44, (uint8_t)(c >> 1));
-        ZXN_WRITE_REG(0x44, (uint8_t)(c & 1));
-    }
+    view_npal = *(const uint8_t *)0x4009;
+    if (view_npal > 64) view_npal = 64;
+    memcpy(view_pal, (const void *)0x400A, view_npal * 2);
     ZXN_WRITE_MMU2(10);
+    palfx_load(PAL_L2, 0, view_npal, view_pal);
+    view_palgen++;
 }
+
+static void objects_load(uint8_t level);
 
 /* the frame: follow game.c's camera */
 void view_frame(void)
@@ -146,6 +149,7 @@ void view_frame(void)
     if (shown != G.level) {
         view_course(G.level);
         view_palette();
+        objects_load(G.level);
         view_x = -10000;
     }
     view_project(&p->cam.focus, &x, &y);
@@ -159,8 +163,6 @@ void view_frame(void)
 }
 
 /* ---- sprites: what moves, far to near ---- */
-
-#include "sprite_data.h"
 
 typedef struct { int16_t x, y, z; uint8_t pat, pal; } Spr;
 #define MAXSPR 64
@@ -211,6 +213,180 @@ static void ball(const Ball *b, uint8_t pat, uint8_t pal, uint8_t shadow_pat, ui
     put(&b->p, z, pat, pal);
 }
 
+
+/* ---- the moving scenery: crushers, sweeper arms, crumbling tiles ----
+   port: the original draws them as lit boxes and course faces each frame;
+   here they are sprites made on the host (gen_course.objects: the same
+   boxes and lighting, the tiles hidden where the course is in front of
+   them): a crusher moves up and down, an arm shows one of 16 turns, a tile
+   shivers and drops away */
+#define PAL_OBJ   4
+#define PAT_OBJ   16                     /* patterns from here: the objects' */
+#define OBJ_MAX   10
+#define CELLS_MAX 112
+typedef struct { uint8_t kind, first, n, frames; V3 ref; uint8_t fpage; uint16_t faddr; } Obj;
+static Obj obj[OBJ_MAX];
+static uint8_t nobj, ncell;
+static int8_t cell_dx[CELLS_MAX], cell_dy[CELLS_MAX];
+static uint8_t sweep_shown = 0xFF, sweep_pat;
+static uint8_t rd_page;
+static const uint8_t *rd_p;
+
+static uint8_t rd8(void)
+{
+    uint8_t v;
+    ZXN_WRITE_MMU2(rd_page);
+    v = *rd_p++;
+    if (rd_p == (const uint8_t *)0x6000) { rd_p = (const uint8_t *)0x4000; rd_page++; }
+    return v;
+}
+
+/* n bytes; a block copy unless they cross the page */
+static void rd_n(uint8_t *d, uint16_t n)
+{
+    if (rd_p + n <= (const uint8_t *)0x6000) {
+        ZXN_WRITE_MMU2(rd_page);
+        memcpy(d, rd_p, n);
+        rd_p += n;
+        if (rd_p == (const uint8_t *)0x6000) { rd_p = (const uint8_t *)0x4000; rd_page++; }
+        return;
+    }
+    while (n--) *d++ = rd8();
+}
+
+static uint8_t sweep_fpage[16];
+static const uint8_t *sweep_faddr[16];   /* where each of the arm's frames starts */
+
+/* one 16 x 16 cell's dx, dy and pattern from the reader into pattern slot pat */
+static void rd_cell(uint8_t k, uint8_t pat)
+{
+    static uint8_t buf[130];
+    rd_n(buf, 130);
+    ZXN_WRITE_MMU2(10);
+    cell_dx[k] = (int8_t)buf[0];
+    cell_dy[k] = (int8_t)buf[1];
+    spl_patterns(pat, buf + 2, 1);
+}
+
+static void objects_load(uint8_t level)
+{
+    uint8_t i, f, c, npal;
+    uint16_t pal[15];
+    rd_page = obj_page[level];
+    rd_p = (const uint8_t *)obj_addr[level];
+    nobj = rd8();
+    npal = rd8();
+    rd_n((uint8_t *)pal, 30);
+    if (nobj > OBJ_MAX) nobj = OBJ_MAX;
+    ncell = 0;
+    for (i = 0; i < nobj; i++) {
+        Obj *o = &obj[i];
+        o->kind = rd8();
+        rd_n((uint8_t *)&o->ref, 12);
+        o->frames = rd8();
+        o->first = ncell;
+        if (o->frames > 1) {
+            /* an arm: its frames stay in their pages, one is uploaded at a time */
+            o->fpage = rd_page;
+            o->faddr = (uint16_t)rd_p;
+            o->n = 0;
+            for (f = 0; f < o->frames; f++) {
+                uint8_t n;
+                if (f < 16) { sweep_fpage[f] = rd_page; sweep_faddr[f] = rd_p; }
+                n = rd8();
+                if (n > o->n) o->n = n;
+                for (c = 0; c < n; c++) {                    /* past its cells */
+                    uint16_t left = 130;
+                    while (left) {
+                        uint16_t room = (uint16_t)((const uint8_t *)0x6000 - rd_p), k = left < room ? left : room;
+                        rd_p += k;
+                        left -= k;
+                        if (rd_p == (const uint8_t *)0x6000) { rd_p = (const uint8_t *)0x4000; rd_page++; }
+                    }
+                }
+            }
+            sweep_pat = PAT_OBJ + ncell;
+            ncell += o->n;
+            sweep_shown = 0xFF;
+            continue;
+        }
+        o->n = rd8();
+        for (c = 0; c < o->n && ncell < CELLS_MAX; c++, ncell++) rd_cell(ncell, PAT_OBJ + ncell);
+    }
+    ZXN_WRITE_MMU2(10);
+    ZXN_WRITE_REG(0x43, 0x20);           /* sprite first palette: the objects' 16 */
+    ZXN_WRITE_REG(0x40, PAL_OBJ * 16 + 1);
+    for (i = 0; i < npal; i++) {
+        ZXN_WRITE_REG(0x44, (uint8_t)(pal[i] >> 1));
+        ZXN_WRITE_REG(0x44, (uint8_t)(pal[i] & 1));
+    }
+    ZXN_WRITE_REG(0x43, 0x10);
+}
+
+/* the arm's frame f into its cells (the patterns by DMA) */
+static void sweep_frame(Obj *o, uint8_t f)
+{
+    uint8_t n, c;
+    rd_page = sweep_fpage[f];
+    rd_p = sweep_faddr[f];
+    n = rd8();
+    for (c = 0; c < n; c++) rd_cell(o->first + c, sweep_pat + c);
+    for (; c < o->n; c++) cell_dx[o->first + c] = -128;      /* unused this frame */
+    ZXN_WRITE_MMU2(10);
+}
+
+static void put_obj(const Obj *o, const V3 *p, int16_t jx)
+{
+    int16_t x, y, z = depth_of(p);
+    uint8_t c;
+    view_project(p, &x, &y);
+    x -= view_x - jx;
+    y -= view_y;
+    if (x < -96 || x > 416 || y < -96 || y > 352) return;
+    for (c = 0; c < o->n; c++) {
+        Spr *s;
+        if (cell_dx[o->first + c] == -128 || nspr >= MAXSPR) continue;
+        s = &list[nspr++];
+        s->x = x + cell_dx[o->first + c];
+        s->y = y + cell_dy[o->first + c];
+        s->z = z;
+        s->pat = PAT_OBJ + o->first + c;
+        s->pal = PAL_OBJ;
+    }
+}
+
+static void objects_draw(void)
+{
+    uint8_t i, nc = 0, ns = 0, ng = 0;
+    for (i = 0; i < nobj; i++) {
+        const Obj *o = &obj[i];
+        V3 p;
+        p.x = o->ref.x; p.y = o->ref.y; p.z = o->ref.z;
+        if (o->kind == 1) {                  /* crusher: lifted by crush_h */
+            p.y += (phy_crush[nc].lift * Wd.crush_h[nc]) >> 12;
+            nc++;
+            put_obj(o, &p, 0);
+        } else if (o->kind == 2) {           /* arm: the turn render.c draws, of 16 */
+            long a = phy_sweep[ns].yaw * 2 / 45 + (Wd.sweep_angle[ns] >> 8);
+            uint8_t f = (uint8_t)(((uint16_t)a + 1024) >> 11) & 15;
+            ns++;
+            if (f != sweep_shown) {
+                sweep_frame((Obj *)o, f);
+                sweep_shown = f;
+            }
+            put_obj(o, &p, 0);
+        } else {                             /* a tile: shivers, then drops away */
+            const Crumble *cr = &Wd.crumble[crumble_spec[ng].group - 1];
+            ng++;
+            if (cr->state == 2) {
+                if (cr->fall > 10 * FX) continue;
+                p.y -= cr->fall;
+            }
+            put_obj(o, &p, cr->state == 1 ? ((Wd.clock & 1) ? 1 : -1) : 0);
+        }
+    }
+}
+
 void view_sprites(void)
 {
     uint8_t i, j, k;
@@ -224,6 +400,7 @@ void view_sprites(void)
     }
     if (G.state != ST_TITLE && !p->dying && p->m.live)
         ball(&p->m, PAT_MARBLE, PAL_MARBLE, PAT_SHADOW, 0);
+    objects_draw();
     for (i = 0; i < MAXBITS; i++) {
         const Bit *b = &bits[i];
         long k12, r;

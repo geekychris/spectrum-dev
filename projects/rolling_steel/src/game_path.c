@@ -6,9 +6,20 @@
  * (path_at, course_progress, demo_input, demo_resync, respawn_point) map it
  * for game.c and the HUD.
  */
+#include <string.h>
 #include "game.h"
 
 #define V3CPY(d, s) ((d).x = (s).x, (d).y = (s).y, (d).z = (s).z)
+
+/* port: the course's route, in this bank (only these functions and the HUD
+   read it); course_c.c copies it in through banks.c's path_load */
+static PathPt path_buf[MAXPATH];
+
+void path_load_b(const void *src, uint16_t n)
+{
+    memcpy(path_buf, src, n * sizeof(PathPt));
+    C.path = path_buf;
+}
 
 void path_at_b(long t, V3 *ap)                       /* t: Q16 along the route; port: fills *ap */
 {

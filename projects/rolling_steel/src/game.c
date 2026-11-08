@@ -21,6 +21,7 @@
 #define V3CPY(d, s) ((d).x = (s).x, (d).y = (s).y, (d).z = (s).z)
 
 Game G;
+extern uint8_t autopilot;                  /* port: main.c */
 
 #define SECS(s)        ((long)((s) * 50.0 + 0.5))
 #define DEG(d)         ((long)((d) * 65536.0 / 360.0))
@@ -394,7 +395,7 @@ static void race_step(unsigned long held[2])
         if (p->dying) { all_out = 0; continue; }
         if (p->out_of_time) continue;
         all_out = 0;
-        if (G.demo) demo_input(p, &wx, &wz);
+        if (G.demo || autopilot) demo_input(p, &wx, &wz);   /* port: or B's autopilot (main.c) */
         else {
             /* the pad, relative to the camera: up is away from you */
             long h = 0, v = 0, sy, cy;

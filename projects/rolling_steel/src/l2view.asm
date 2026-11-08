@@ -220,9 +220,11 @@ lc_sk_part:
     ; y falls in this run: len - skip rows of it remain
     ld a,l                      ; remaining (1..255)
     pop hl
+    push af                     ; (lv_inc changes A)
     call lv_inc
     ld c,(hl)                   ; colour
     call lv_inc
+    pop af
     ld b,a
     jr lc_emit
 lc_out0:
@@ -403,9 +405,11 @@ lr_skw:
 lr_skp:
     ld a,l
     pop hl
+    push af
     call lv_inc
     ld c,(hl)
     call lv_inc
+    pop af
     ld b,a
     jr lr_emit
 lr_at:

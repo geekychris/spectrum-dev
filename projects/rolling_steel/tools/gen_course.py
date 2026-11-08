@@ -250,7 +250,16 @@ def build(out_dir):
         info.append((c.name, cv.w, cv.h, len(pal)))
     blob += bytes(-len(blob) % (2 * PAGE))
     last = FIRST_PAGE + len(blob) // PAGE - 1
-    assert last <= LAST_PAGE, last
+    assert last < 204, last              # the sound is at 204..207
+    # the moving scenery, from page 208
+    oblob = bytearray()
+    opage = []
+    for i in range(1, 7):
+        c = rscourse.load(i)
+        opage.append((OBJ_FIRST_PAGE + len(oblob) // PAGE, 0x4000 + len(oblob) % PAGE))
+        oblob += objects_blob(c, render(c))
+    oblob += bytes(-len(oblob) % (2 * PAGE))
+    assert OBJ_FIRST_PAGE + len(oblob) // PAGE - 1 <= LAST_PAGE
     gfx = out_dir / "gfx"
     gfx.mkdir(exist_ok=True)
     for f in gfx.glob("bank_*.bin"):
@@ -260,15 +269,156 @@ def build(out_dir):
         bank = (FIRST_PAGE * PAGE + k) // (2 * PAGE)
         (gfx / f"bank_{bank}.bin").write_bytes(blob[k:k + 2 * PAGE])
         asm += [f"SECTION BANK_{bank}", f'BINARY "gfx/bank_{bank}.bin"']
+    for k in range(0, len(oblob), 2 * PAGE):
+        bank = (OBJ_FIRST_PAGE * PAGE + k) // (2 * PAGE)
+        (gfx / f"bank_{bank}.bin").write_bytes(oblob[k:k + 2 * PAGE])
+        asm += [f"SECTION BANK_{bank}", f'BINARY "gfx/bank_{bank}.bin"']
     (out_dir / "src" / "data_banks.asm").write_text("\n".join(asm) + "\n")
     h = ["/* made by tools/gen_course.py */", "#ifndef DATA_H", "#define DATA_H", "#include <stdint.h>",
          f"static const uint8_t course_page[6] = {{ {', '.join(map(str, cpage))} }};   /* physics: header page */",
          f"static const uint8_t pic_page[6] = {{ {', '.join(map(str, ppage))} }};      /* pictures */",
+         f"static const uint8_t obj_page[6] = {{ {', '.join(str(p) for p, a in opage)} }};   /* moving scenery */",
+         f"static const uint16_t obj_addr[6] = {{ {', '.join(hex(a) for p, a in opage)} }};",
          f"#define DATA_LAST_PAGE {last}", "#endif", ""]
     (out_dir / "src" / "data.h").write_text("\n".join(h))
     for (name, w, h_, n), cp, pp in zip(info, cpage, ppage):
         print(f"  {name:12} physics page {cp}, picture page {pp}: {w} x {h_}, {n} colours")
     print(f"  pages {FIRST_PAGE}..{last}")
+
+
+
+
+# ---- the moving scenery as sprites (view.c) ----
+SWEEP_FRAMES = 16                        # over half a turn (an arm looks the same turned 180 degrees)
+
+
+def box_canvas(cam, c, hx, hy, hz, cs, sn, m=rsview.L_DANGER):
+    """render.c's box(): a yaw-only box lit by shade(), on its own canvas;
+    returns (canvas, the centre's screen position)"""
+    face = [[(1, -1, -1), (1, -1, 1), (1, 1, 1), (1, 1, -1)], [(-1, -1, -1), (-1, 1, -1), (-1, 1, 1), (-1, -1, 1)],
+            [(-1, 1, -1), (1, 1, -1), (1, 1, 1), (-1, 1, 1)], [(-1, -1, -1), (-1, -1, 1), (1, -1, 1), (1, -1, -1)],
+            [(-1, -1, 1), (-1, 1, 1), (1, 1, 1), (1, -1, 1)], [(-1, -1, -1), (1, -1, -1), (1, 1, -1), (-1, 1, -1)]]
+    nrm = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
+    cs >>= 2
+    sn >>= 2
+    quads = []
+    for f in range(6):
+        nx = nrm[f][0] * cs + nrm[f][2] * sn
+        nz = -nrm[f][0] * sn + nrm[f][2] * cs
+        P = []
+        for k in range(4):
+            lx, ly, lz = face[f][k][0] * hx, face[f][k][1] * hy, face[f][k][2] * hz
+            w = (c[0] + ((lx * cs + lz * sn) >> 12), c[1] + ly, c[2] + ((-lx * sn + lz * cs) >> 12))
+            P.append(cam.proj(w))
+        xs, ys, zs = [p[0] for p in P], [p[1] for p in P], [p[2] for p in P]
+        cr = ((xs[1] - xs[0]) >> 8) * ((ys[3] - ys[0]) >> 8) - ((ys[1] - ys[0]) >> 8) * ((xs[3] - xs[0]) >> 8)
+        if cr > 0:
+            quads.append((xs, ys, zs, rsview.shade(m, nx, nrm[f][1] * FX, nz)))
+    cx, cy, _ = cam.proj(c)
+    allx = [x for q in quads for x in q[0]]
+    ally = [y for q in quads for y in q[1]]
+    ox, oy = (min(allx) >> 16) - 1, (min(ally) >> 16) - 1
+    w, h = (max(allx) >> 16) - ox + 2, (max(ally) >> 16) - oy + 2
+    cv = rsview.Canvas(w, h, ox, oy, 0)
+    for xs, ys, zs, col in quads:
+        cv.quad(xs, ys, zs, col)
+    return cv, (cx / 65536 - ox, cy / 65536 - oy)
+
+
+def crumble_canvas(c, cam, cv, group):
+    """the quads of a crumbling tile, where the course in front doesn't hide them"""
+    pts = []
+    for qi, (vs, col, flags, nw) in enumerate(c.q):
+        if flags >> 8 != group:
+            continue
+        P = [cam.proj(c.v[i]) for i in vs]
+        pts.append((qi, P))
+    if not pts:
+        return None
+    fl = {f[4]: f for f in faces(c, cam)}
+    allx = [p[0] for _, P in pts for p in P]
+    ally = [p[1] for _, P in pts for p in P]
+    ox, oy = (min(allx) >> 16) - 1, (min(ally) >> 16) - 1
+    w, h = (max(allx) >> 16) - ox + 2, (max(ally) >> 16) - oy + 2
+    t = rsview.Canvas(w, h, ox, oy, 0)
+    pp = path_points(c, cam)
+    for qi, P in pts:
+        if qi not in fl:
+            continue                     # facing away
+        xs, ys, zs, key, _ = fl[qi]
+        k = np.argmin((pp[:, 0] - sum(xs) / 4 / 65536) ** 2 + (pp[:, 1] - sum(ys) / 4 / 65536) ** 2)
+        lv = int(key - pp[k, 2] - 4 * FX) >> 14
+        t.quad(xs, ys, zs, rsview.fog_col(c.q[qi][1], lv))
+    # hidden where the static course is nearer
+    for j in range(h):
+        for i in range(w):
+            X, Y = ox + i - cv.ox, oy + j - cv.oy
+            if 0 <= X < cv.w and 0 <= Y < cv.h and t.col[j, i] and cv.z[Y, X] < t.z[j, i]:
+                t.col[j, i] = 0
+    sx = sum(p[0] for _, P in pts for p in P) / (4 * len(pts)) / 65536
+    sy = sum(p[1] for _, P in pts for p in P) / (4 * len(pts)) / 65536
+    return t, (sx - ox, sy - oy)
+
+
+def cells_of(col, anchor):
+    """an image as 16 x 16 cells: [(dx, dy, cell)] relative to its anchor, empty cells left out"""
+    h, w = col.shape
+    out = []
+    for cy in range(0, h, 16):
+        for cx in range(0, w, 16):
+            cell = np.zeros((16, 16), np.int32)
+            part = col[cy:cy + 16, cx:cx + 16]
+            cell[:part.shape[0], :part.shape[1]] = part
+            if cell.any():
+                out.append((int(round(cx - anchor[0])), int(round(cy - anchor[1])), cell))
+    return out
+
+
+def objects(c, cv, cam=None):
+    """the course's crushers (one picture each, moved up and down), sweeper arms
+    (SWEEP_FRAMES turns) and crumbling tiles, as frames of 16 x 16 cells"""
+    cam = cam or rsview.Cam()
+    objs = []                            # (kind, ref point, [frames: [cells]])
+    for k in c.crush:
+        x, y, z, wdt = k[0], k[1], k[2], k[3]
+        bc, anc = box_canvas(cam, (x, y, z), rsview.c_div(wdt, 2), 3686, rsview.c_div(wdt, 2), k[7], k[8])
+        objs.append((1, (x, y, z), [cells_of(bc.col, anc)]))
+    for s in c.sweep:
+        frames = []
+        for f in range(SWEEP_FRAMES):
+            a = f * 32768 // SWEEP_FRAMES
+            bc, anc = box_canvas(cam, (s[0], s[1], s[2]), rsview.c_div(s[3], 2), 717, 922,
+                                 rsview.icos(a), rsview.isin(a))
+            frames.append(cells_of(bc.col, anc))
+        objs.append((2, (s[0], s[1], s[2]), frames))
+    for g, cr in enumerate(c.crumble):
+        r = crumble_canvas(c, cam, cv, cr[3])
+        if r:
+            objs.append((3, (cr[0], cr[1], cr[2]), [cells_of(r[0].col, r[1])]))
+    return objs
+
+
+OBJ_FIRST_PAGE = 208                     # after the sound (gen_sound.py: 204..207)
+
+
+def objects_blob(c, cv):
+    """a course's moving scenery for view.c: [nobj][npal][15 palette entries],
+    then per object kind (1 crusher, 2 sweeper, 3 crumbling tile), its point
+    (x y z), frames: [ncells] [dx dy pattern(128)]..."""
+    import gen_sprites
+    objs = objects(c, cv)
+    cells = [cell for o in objs for f in o[2] for (_, _, cell) in f]
+    nine, pens = gen_sprites.palette_of(cells) if cells else ([], {})
+    out = bytearray([len(objs), len(nine)])
+    out += struct.pack("<15H", *(list(nine) + [0] * (15 - len(nine))))
+    for kind, ref, frames in objs:
+        out += bytes([kind]) + struct.pack("<3i", *ref) + bytes([len(frames)])
+        for f in frames:
+            out += bytes([len(f)])
+            for dx, dy, cell in f:
+                assert -128 <= dx < 128 and -128 <= dy < 128
+                out += struct.pack("<bb", dx, dy) + gen_sprites.pattern(cell, pens)
+    return bytes(out)
 
 
 if __name__ == "__main__":

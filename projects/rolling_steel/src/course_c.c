@@ -14,7 +14,7 @@
 
 Course C;
 int course_count = 6;
-static PathPt path_buf[MAXPATH];
+void path_load(const void *src, uint16_t n);   /* banks.c: into game_path.c's bank */
 CrumbleSpec crumble_spec[MAXCRUMBLE];
 
 /* phys.asm's layouts (rsmac.inc) must be zsdcc's */
@@ -36,7 +36,7 @@ CHECK(zone, sizeof(Zone) == 52);
 static const uint8_t *cur;
 static void take(void *dst, uint16_t n) { memcpy(dst, cur, n); cur += n; }
 
-int course_load_b(int index)
+int course_load(int index)
 {
     uint8_t n[8], pg;
     uint16_t nt, np;
@@ -76,9 +76,9 @@ int course_load_b(int index)
     take(phy_enemy, n[5] * sizeof(EnemySpec));
     take(crumble_spec, n[6] * sizeof(CrumbleSpec));
     if (np > MAXPATH) np = MAXPATH;
-    take(path_buf, np * sizeof(PathPt));
+    path_load(cur, np);                      /* port: the route lives in bank 15 with its users */
+    cur += np * sizeof(PathPt);
     C.npath = np;
-    C.path = path_buf;
     take(C.name, 33);
     ZXN_WRITE_MMU2(10);
     zx_log("course %d %s tris=%u path=%u page=%u\n", index, C.name, nt, np, pg);

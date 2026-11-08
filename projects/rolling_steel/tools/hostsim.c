@@ -2,9 +2,9 @@
  * The original's rules on the host: game.c, phys.c and course.c from
  * tools/orig, unchanged, built with a 32-bit long (long32.h).
  *
- *   cc -O2 -std=gnu89 -include tools/long32.h -Itools/orig -o build/hostsim \
+ *   cc -O2 -std=gnu89 -include tools/long32.h -Itools/orig -o build-trace/hostsim \
  *      tools/hostsim.c tools/orig/game.c tools/orig/phys.c tools/orig/course.c
- *   build/hostsim [steps] [-v]
+ *   build-trace/hostsim [steps] [-v]
  *
  * It runs game_step() from game_init() with no input: after 25 s the title
  * starts the attract demo, the autopilot plays a course, and the title moves

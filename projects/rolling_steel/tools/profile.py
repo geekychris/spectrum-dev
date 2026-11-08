@@ -1,7 +1,7 @@
 """A sampling profiler for the Next build: stops the emulator at random
 T-states while the attract demo plays course 1 and counts which routine the
 PC is in (banked code resolved through the MMU). For finding hot spots, not
-a test.   .venv/bin/python projects/rolling_steel/tools/profile.py [samples]
+a test.   .venv/bin/python projects/rolling_steel/tools/profile.py [samples] [course]
 """
 import collections
 import random
@@ -38,8 +38,19 @@ def main():
     files = collections.Counter()
     with Emulator(machine="next") as e:
         e.load(HERE.parent / "build" / "rolling_steel.nex")
-        e.run_until("demo starts course=1", 2000)
-        e.run(100)
+        course = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+        if course:                           # that course, the autopilot (B) driving
+            e.run(200)
+            for _ in range(course - 1):
+                e.press("A")
+            e.run(30)
+            e.press("SPACE")
+            e.run(40)
+            e.press("B")
+            e.run(300)
+        else:
+            e.run_until("demo starts course=1", 2000)
+            e.run(100)
         start = e.position()["since_load"] + 5
         rnd = random.Random(1)
         for i in range(n):
