@@ -33,7 +33,8 @@ frames, guards that take a step every third frame along a breadth-first path
 to the player, fall into holes, steal gold (30%) and drop it, die in a
 regrown brick and come back on the top row, hidden ladders shown when all
 the gold is in, 100 a gold, 1000 a level, five lives. The 150 levels are the
-original's (`src/levels.txt`, extracted from its `level.c` by
+original's, repaired so they can be won (below; `src/levels.txt`; as
+released: `src/levels_original.txt`, extracted from its `level.c` by
 `tools/extract_levels.py`). Every change is marked `port:` in the source:
 
 - the logic runs at a fixed 50 Hz (`frame_wait()` ticks), the screen is
@@ -58,17 +59,30 @@ original's (`src/levels.txt`, extracted from its `level.c` by
   the player dies or wins (the original carried on with the built-in levels);
   hidden ladders and traps are drawn so they can be seen.
 
-## The levels as they are
+## The levels, repaired
 
-The original's levels can't be won, and the port keeps them as they are. A
-win needs all the gold and then the top row. On 149 of the 150 levels a route
-search from the start (digging allowed, guards ignored) can't reach all the
-gold, or can't reach row 0. The guards also move a tile every 3 frames, the
-player every 5. The test bot, which plans with the game's own rules,
-finishes none of the levels and is caught on 138 (half of them within 69
-frames). The evidence, the method and possible fixes for the originals are in
-[ORIGINAL_BUGS.md](ORIGINAL_BUGS.md) (`tools/level_report.py`,
-`tools/try_levels.py`). The test therefore clears a level built in the
+As released, the original's levels can't be won. A win needs all the gold
+and then the top row, and on 149 of the 150 levels a route search from the
+start (digging allowed, guards ignored) can't reach all the gold, or can't
+reach row 0 ([ORIGINAL_BUGS.md](ORIGINAL_BUGS.md), `tools/level_report.py`).
+
+The levels are now repaired, the same in every version (the Amiga
+original's `tools/repair_levels.py`). Each fix is the smallest edit that
+works, and every level keeps its layout:
+- a new or longer ladder;
+- a hidden ladder for the way out;
+- 1042 cells in all, 6.9 a level.
+
+[REPAIRED_LEVELS.md](REPAIRED_LEVELS.md) lists every change, and
+`src/levels_original.txt` keeps the levels as released.
+
+`tools/check_levels.py`, part of the test, plays all 150 levels to the exit
+with the host build of the rules (the one the Z80 build matches frame by
+frame). The guards are left out, and the moves are the route search's.
+
+The guards still move a tile every 3 frames and the player every 5, so most
+levels are hard to survive. The test bot is caught on most of them
+(`tools/try_levels.py`). The test therefore clears a level built in the
 editor, and plays the main game to its end.
 
 ## 48K notes
@@ -88,7 +102,8 @@ editor, and plays the main game to its end.
   The SDK's `gridpack` codes each tile with a binary arithmetic coder whose
   fixed probabilities depend on the tile before and the tile above (is it the
   tile before? the tile above? which one?), one model for all levels:
-  7,892 bytes, unpacked in ~0.1 s at the start of a level.
+  8,286 bytes (the levels as released: 7,892), unpacked in ~0.1 s at the
+  start of a level.
 - **Guards' pathfinding.** The original searches the whole grid from each
   guard every third frame, ~0.5 M T-states each in C. `gridbfs` keeps one
   distance field from the player (asm, ~300 T-states a cell). It grows the
@@ -100,12 +115,12 @@ editor, and plays the main game to its end.
   remainders all the time. The scale tables used for drawing give both:
   `room_x = x * 8/10`, so the cell is `room_x >> 3` and the position is on a
   cell when `room_x & 7 == 0`.
-- **Memory.** The code and levels fill 0x6B30..0xEE75. The variables (3.6 KB:
+- **Memory.** The code and levels fill 0x6B10..0xEFF3. The variables (3.6 KB:
   the game state, the cell lists, the distance field) are below the code from
   0x5D00. Tables made at start-up (the sprite frames, the scale tables, the
-  editor's two levels as nibbles, the pathfinding queue in one 256-byte page)
-  are above the SDK's IM 2 table, 0xF101..0xFD00 (`src/memmap.h`). About
-  400 bytes are left below 0xF000.
+  editor's two levels as nibbles, the pathfinding queue in one 256-byte page,
+  the tile rows' addresses) are above the SDK's IM 2 table, 0xF101..0xFD20
+  (`src/memmap.h`). 13 bytes are left below 0xF000.
 - **Frame rate.** The rules run at 50 Hz. The screen is drawn 50 fps on
   levels where little moves, ~40 on level 1, 34-42 on busier ones, and
   25-30 when guards with no way to the player wander at random (level 15:

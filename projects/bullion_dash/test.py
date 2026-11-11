@@ -19,6 +19,9 @@ included, must match it byte for byte.
 3. Level DEMO, where the guards can't reach the player: the bot collects
    gold for a while (the frame rate is measured here, screenshots/demo.png).
 4. A 128K: the AY is found and the game runs.
+5. The repaired levels (REPAIRED_LEVELS.md): all 150 played to the exit
+   with the host build of the rules (the one the Z80 matches above), the
+   guards out, along the route search's moves (tools/check_levels.py).
 
 docs/images/bullion_dash.gif is part 1's test play.
 """
@@ -301,6 +304,13 @@ with Emulator() as e:
     check("the game runs on a 128K", e.run_until("state=playing", 100))
     e.run(200)
     check("... and plays on (a life lost to the guards)", "death caught" in e.log())
+
+# ---- 5. the repaired levels, each played to the exit (the host build of the rules)
+sys.path.insert(0, str(HERE / "tools"))
+import check_levels  # noqa: E402
+lib = check_levels.sim()
+lost = [(lv, r) for lv in range(1, 151) if (r := check_levels.play(lib, lv)) is not True]
+check("all 150 repaired levels are won along the route search's moves", not lost, str(lost[:5]))
 
 seqs = []
 for i in range(2):

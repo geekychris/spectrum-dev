@@ -26,7 +26,10 @@ static uint8_t path_cells[GB_CELLS(GRID_COLS, GRID_ROWS)];
 static uint16_t path_queue[GB_QUEUE / 2];          /* host builds (tools/hostsim.c) */
 #endif
 
-uint8_t *tile_row[GRID_ROWS];   /* port: row addresses (no multiply per lookup) */
+/* port: row addresses (no multiply per lookup); at HI_TILEROW on the Spectrum */
+#ifndef __SDCC
+uint8_t *tile_row[GRID_ROWS];
+#endif
 
 uint8_t tile_at(int16_t x, int16_t y)
 {
