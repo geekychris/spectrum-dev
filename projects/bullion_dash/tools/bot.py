@@ -13,13 +13,17 @@ the move that gets the most gold and the closest without getting caught.
 """
 import ctypes
 import heapq
+import os
 import struct
 import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
 SDK = HERE.parents[1] / "sdk"
-SO = HERE / "build" / "hostsim.so"
+# BD_SIM_DEFS="-DENEMY_STEP_FRAMES=5 ...": the rules built with other
+# constants (tools/try_levels.py, for tuning), in a library of their own
+DEFS = os.environ.get("BD_SIM_DEFS", "").split()
+SO = HERE / "build" / ("hostsim%s.so" % ("-" + "".join(d.split("=")[-1] for d in DEFS) if DEFS else ""))
 
 # game.h
 COLS, ROWS, TW, TH = 28, 16, 10, 14
@@ -41,7 +45,7 @@ def build_sim():
     if SO.exists() and all(SO.stat().st_mtime > s.stat().st_mtime for s in srcs + [HERE / "src" / "game.h"]):
         return
     SO.parent.mkdir(exist_ok=True)
-    subprocess.run(["cc", "-O2", "-shared", "-fPIC", "-I", str(HERE / "src"), "-I", str(SDK / "include"),
+    subprocess.run(["cc", "-O2", "-shared", "-fPIC", *DEFS, "-I", str(HERE / "src"), "-I", str(SDK / "include"),
                     *map(str, srcs), "-o", str(SO)], check=True)
 
 
@@ -166,6 +170,7 @@ class Bot:
         self.horizon = horizon
         self.plan = None            # the move being made (decide)
         self.decisions = 0
+        self.order = None           # optional: the gold in this order (cells), then the exit
 
     # --- the host simulation
     def _put(self, gs, rng):
@@ -176,8 +181,17 @@ class Bot:
     def _get(self):
         return State(ctypes.string_at(self.lib.sim_gs(), self.size))
 
+    def goals(self, s):
+        """The next gold of self.order still lying there, if given; else the
+        gold (or the top row once it's all in), the nearest first."""
+        if self.order and s.gold < s.gold_total:
+            for c in self.order:
+                if s.tile(*c) == GOLD:
+                    return [c]
+        return self.any_goal(s)
+
     @staticmethod
-    def goals(s):
+    def any_goal(s):
         if s.gold < s.gold_total:
             g = [(x, y) for y in range(ROWS) for x in range(COLS) if s.tile(x, y) == GOLD]
             if g:

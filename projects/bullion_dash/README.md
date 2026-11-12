@@ -29,8 +29,8 @@ holes in the brick floors to trap the guards, then climb to the top row.
 original's `player.c`, `enemy.c`, `level.c` and `main.c` rules, statement for
 statement: movement 2 pixels a frame on a grid of 10 x 14 pixel tiles,
 gravity, bars, ladders, digging (10 frames), bricks growing back after 150
-frames, guards that take a step every third frame along a breadth-first path
-to the player, fall into holes, steal gold (30%) and drop it, die in a
+frames, guards that step along a breadth-first path to the player (slowed
+down: below), fall into holes, steal gold (30%) and drop it, die in a
 regrown brick and come back on the top row, hidden ladders shown when all
 the gold is in, 100 a gold, 1000 a level, five lives. The 150 levels are the
 original's, repaired so they can be won (below; `src/levels.txt`; as
@@ -80,10 +80,32 @@ works, and every level keeps its layout:
 with the host build of the rules (the one the Z80 build matches frame by
 frame). The guards are left out, and the moves are the route search's.
 
-The guards still move a tile every 3 frames and the player every 5, so most
-levels are hard to survive. The test bot is caught on most of them
-(`tools/try_levels.py`). The test therefore clears a level built in the
-editor, and plays the main game to its end.
+## The guards, fixed
+
+In the original, the guards step a tile every 3rd frame (the player takes
+5 across, 7 up and down), so they catch the player on almost every level,
+and they keep stolen gold until they're trapped. They now follow a new rule,
+the same in every version (`port:`/`fix` in `src/game.h`, `src/enemy.c`,
+`src/level.c`):
+- **Speed:** a tile every 8 frames across and 10 up or down.
+- **Start:** every guard waits 3 s at the start of a level, and a guard
+  placed on the player's start row enters from the top instead, as a
+  respawned guard does.
+- **Stolen gold:** a guard drops it again after 4 s, on the first free cell
+  with a floor that it stands on.
+
+`tools/try_levels.py`'s bot (it takes the gold in the route search's order
+and looks 150 frames ahead) plays all 150 levels with the port's rules:
+
+| | cleared | caught | out of time |
+|---|---|---|---|
+| no guards (the bot's own limit) | 124 | 0 | 26 |
+| the original's guards | 3 | 139 | 8 |
+| the fixed guards | 66 | 56 | 28 |
+
+With the fixed guards, runs give 62-74 cleared, depending on the guards'
+random numbers. The guards still catch the bot on a third of the levels.
+
 
 ## 48K notes
 
@@ -115,17 +137,17 @@ editor, and plays the main game to its end.
   remainders all the time. The scale tables used for drawing give both:
   `room_x = x * 8/10`, so the cell is `room_x >> 3` and the position is on a
   cell when `room_x & 7 == 0`.
-- **Memory.** The code and levels fill 0x6B10..0xEFF3. The variables (3.6 KB:
+- **Memory.** The code and levels fill 0x6A10..0xEF79. The variables (3.4 KB:
   the game state, the cell lists, the distance field) are below the code from
-  0x5D00. Tables made at start-up (the sprite frames, the scale tables, the
+  0x5D00 (no stdio heap: `zpragma.inc`). Tables made at start-up (the sprite frames, the scale tables, the
   editor's two levels as nibbles, the pathfinding queue in one 256-byte page,
   the tile rows' addresses) are above the SDK's IM 2 table, 0xF101..0xFD20
-  (`src/memmap.h`). 13 bytes are left below 0xF000.
+  (`src/memmap.h`). 135 bytes are left below 0xF000.
 - **Frame rate.** The rules run at 50 Hz. The screen is drawn 50 fps on
   levels where little moves, ~40 on level 1, 34-42 on busier ones, and
   25-30 when guards with no way to the player wander at random (level 15:
   the original's 32-bit random numbers and the keyboard read cost the most
-  there). The test measures level 15 over 600 frames: 24.6 fps.
+  there). The test measures level 15 over 600 frames: 41.4 fps.
 - **Sound.** Beeper effects (they stop the CPU for a moment). On a 128K,
   AY effects through the SDK's `ay_sfx`.
 
@@ -135,11 +157,12 @@ editor, and plays the main game to its end.
 
 1. On the title, E opens the editor. The test builds a level by moving the
    cursor and putting tiles: a brick floor, a ladder to the top row, gold,
-   the player, and a guard two cells away. ENTER test-plays it. The bot
-   digs a hole in front of the guard, who falls in; it takes the gold and
-   climbs out: LEVEL COMPLETE. BREAK leaves the editor.
-2. A game from level 4: the guards catch the bot five times (it takes a gold
-   each life), game over, initials (BOT), the title with the table.
+   the player, and a guard dropping in two cells away. ENTER test-plays it.
+   After the guards' 3 s start the bot digs a hole in front of the guard,
+   who falls in; it takes the gold and climbs out: LEVEL COMPLETE. BREAK
+   leaves the editor.
+2. A game from level 4: the bot clears levels until the guards have caught
+   it five times, then game over, initials (BOT), the title with the table.
 3. Level 15, where the guards can't reach the player: gold, and the frame
    rate.
 4. A 128K: the AY is found and the game runs.
