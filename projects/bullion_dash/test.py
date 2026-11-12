@@ -65,13 +65,16 @@ mismatches = []
 compared = [0]
 
 
-def same_as_host(prev, gs, rng_prev, keys):
+def same_as_host(prev, gs, rng_prev, keys, home):
     """The frames between two looks, run on the host from the first look
-    with the same keys, must give the second look's game state."""
+    with the same keys, must give the second look's game state. (home:
+    level.c's gold_home bits, which live outside gs.)"""
     frames = (struct.unpack_from("<H", gs, 13)[0] - struct.unpack_from("<H", prev, 13)[0]) & 0xFFFF
     lib = bot.lib
     ctypes.memmove(lib.sim_gs(), prev, bot.size)
     ctypes.memmove(lib.sim_rng(), rng_prev, 4)
+    lib.sim_gold_home.restype = ctypes.c_void_p
+    ctypes.memmove(lib.sim_gold_home(), home, len(home))
     lib.sim_sync()
     for _ in range(frames):
         if lib.sim_tick(keys) != PLAY_ON:
@@ -96,7 +99,7 @@ def drive(e, until, max_loops=30000, shots=None, frames=None):
         gs, rng = state(e)
         s = State(gs)
         if prev and prev[0][0] == 1 and s.state == 1 and prev[2] is not None:
-            same_as_host(prev[0], gs, prev[1], prev[2])
+            same_as_host(prev[0], gs, prev[1], prev[2], e.read_mem(0xFD20, 56))   # (memmap.h HI_GOLDHOME)
         bits = bot.decide(gs, rng)
         keys = Bot.key_names(bits)
         progress = (s.gold, s.lives, s.level, s.state)

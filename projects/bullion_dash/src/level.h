@@ -16,6 +16,8 @@ void level_reveal_hidden_ladders(void);
 uint8_t level_dig_brick(int16_t gx, int16_t gy);
 /* 1 if the level has hidden ladders */
 uint8_t level_count_hidden(void);
+/* fix: 1 if gold lay at (x, y) when the level started (a guard drops stolen gold only there) */
+uint8_t level_gold_home(int16_t x, int16_t y);
 /* count remaining gold tiles */
 int16_t level_count_gold(void);
 /* turn TILE_PLAYER / TILE_ENEMY markers into the player and the enemies and

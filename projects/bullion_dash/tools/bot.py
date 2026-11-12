@@ -23,7 +23,9 @@ SDK = HERE.parents[1] / "sdk"
 # BD_SIM_DEFS="-DENEMY_STEP_FRAMES=5 ...": the rules built with other
 # constants (tools/try_levels.py, for tuning), in a library of their own
 DEFS = os.environ.get("BD_SIM_DEFS", "").split()
-SO = HERE / "build" / ("hostsim%s.so" % ("-" + "".join(d.split("=")[-1] for d in DEFS) if DEFS else ""))
+# in build-trace/, not build/: the build cache restores build/ from the game's
+# sources alone, and a restored hostsim.so would be stale and look new
+SO = HERE / "build-trace" / ("hostsim%s.so" % ("-" + "".join(d.split("=")[-1] for d in DEFS) if DEFS else ""))
 
 # game.h
 COLS, ROWS, TW, TH = 28, 16, 10, 14

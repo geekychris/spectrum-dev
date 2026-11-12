@@ -20,6 +20,9 @@ static uint8_t ready;
 
 int sim_gs_size(void) { return sizeof(GameState); }
 GameState *sim_gs(void) { return &gs; }
+/* level.c's gold_home bits (on the Spectrum at HI_GOLDHOME, outside gs) */
+extern uint8_t gold_home[];
+uint8_t *sim_gold_home(void) { return gold_home; }
 uint32_t *sim_rng(void) { return &enemy_rng_state; }
 
 void sim_init(void)

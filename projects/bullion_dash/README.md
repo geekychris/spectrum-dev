@@ -91,8 +91,12 @@ the same in every version (`port:`/`fix` in `src/game.h`, `src/enemy.c`,
 - **Start:** every guard waits 3 s at the start of a level, and a guard
   placed on the player's start row enters from the top instead, as a
   respawned guard does.
-- **Stolen gold:** a guard drops it again after 4 s, on the first free cell
-  with a floor that it stands on.
+- **Stolen gold:** a guard drops it again after 3 s, on the first empty
+  cell it steps onto where gold lay at the start of the level. On other
+  cells it could land in a pit the player can't leave: measured in
+  [ORIGINAL_BUGS.md](ORIGINAL_BUGS.md), this kind of drop made a level
+  unwinnable in 9 of 600 runs, against 21 for any free cell. When that
+  happens, BREAK gives up the life and restarts the level.
 
 `tools/try_levels.py`'s bot (it takes the gold in the route search's order
 and looks 150 frames ahead) plays all 150 levels with the port's rules:
@@ -101,10 +105,11 @@ and looks 150 frames ahead) plays all 150 levels with the port's rules:
 |---|---|---|---|
 | no guards (the bot's own limit) | 124 | 0 | 26 |
 | the original's guards | 3 | 139 | 8 |
-| the fixed guards | 66 | 56 | 28 |
+| the fixed guards | 57 | 54 | 39 |
 
-With the fixed guards, runs give 62-74 cleared, depending on the guards'
-random numbers. The guards still catch the bot on a third of the levels.
+With the fixed guards, runs give 57-64 cleared, depending on the guards'
+random numbers. The guards still catch the bot on about a third of the
+levels.
 
 
 ## 48K notes
@@ -137,12 +142,13 @@ random numbers. The guards still catch the bot on a third of the levels.
   remainders all the time. The scale tables used for drawing give both:
   `room_x = x * 8/10`, so the cell is `room_x >> 3` and the position is on a
   cell when `room_x & 7 == 0`.
-- **Memory.** The code and levels fill 0x6A10..0xEF79. The variables (3.4 KB:
+- **Memory.** The code and levels fill 0x6A10..0xEF90. The variables (3.4 KB:
   the game state, the cell lists, the distance field) are below the code from
   0x5D00 (no stdio heap: `zpragma.inc`). Tables made at start-up (the sprite frames, the scale tables, the
   editor's two levels as nibbles, the pathfinding queue in one 256-byte page,
-  the tile rows' addresses) are above the SDK's IM 2 table, 0xF101..0xFD20
-  (`src/memmap.h`). 135 bytes are left below 0xF000.
+  the tile rows' addresses, the bits of where gold lay at the level's start)
+  are above the SDK's IM 2 table, 0xF101..0xFD58 (`src/memmap.h`). 112 bytes
+  are left below 0xF000.
 - **Frame rate.** The rules run at 50 Hz. The screen is drawn 50 fps on
   levels where little moves, ~40 on level 1, 34-42 on busier ones, and
   25-30 when guards with no way to the player wander at random (level 15:
