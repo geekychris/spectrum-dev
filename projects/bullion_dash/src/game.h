@@ -54,7 +54,8 @@
    up or down (the player: 5 and 7); every guard waits ENEMY_START_DELAY
    frames at the start of a level, and one placed on the player's row enters
    from the top instead; stolen gold is dropped again after
-   ENEMY_CARRY_FRAMES. (#ifndef: tools/try_levels.py tries other values.) */
+   ENEMY_CARRY_FRAMES, on a cell where gold lay at the start of the level
+   (level_gold_home). (#ifndef: tools/try_levels.py tries other values.) */
 #ifndef ENEMY_STEP_FRAMES
 #define ENEMY_STEP_FRAMES  8
 #endif
@@ -65,7 +66,7 @@
 #define ENEMY_START_DELAY  150
 #endif
 #ifndef ENEMY_CARRY_FRAMES
-#define ENEMY_CARRY_FRAMES 200
+#define ENEMY_CARRY_FRAMES 150
 #endif
 #define ENEMY_SPEED        1
 

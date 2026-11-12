@@ -130,9 +130,9 @@ The guards now follow a new rule, the same in every version:
 - **Start:** every guard waits 3 s at the start of a level, and one placed
   on the player's start row enters from the top instead, as a respawned
   guard does.
-- **Stolen gold:** a guard drops it again after 4 s, on the first free cell
-  with a floor that it stands on. In the original it kept the gold until
-  it was trapped or died.
+- **Stolen gold:** a guard drops it again after 3 s, on the first empty
+  cell it steps onto where gold lay at the start of the level. In the
+  original it kept the gold until it was trapped or died.
 
 `tools/try_levels.py` measures this on the repaired levels with this
 port's rules. Its bot now takes the gold in the route search's order and
@@ -144,14 +144,36 @@ looks 150 frames ahead:
 | the original's guards | 3 | 139 | 8 |
 | guards at 6/8 frames a tile, nothing else | 8 | 89 | 53 |
 | 8/10 frames, the 3 s start, start-row guards from the top | 43 | 56 | 51 |
-| the fix (the above, and stolen gold dropped after 4 s) | 66 | 56 | 28 |
+| the above, and stolen gold dropped after 4 s on any free cell with a floor | 66 | 56 | 28 |
+| the fix (gold dropped after 3 s, only where gold lay at the start) | 57 | 54 | 39 |
 
-The fix gives 62-74 cleared across runs, depending on the guards' random
+The fix gives 57-64 cleared across runs, depending on the guards' random
 numbers. Speed alone wasn't enough, for two reasons:
 - **The start:** the player starts in a corner on a floor that can't be
   dug, and on many levels a guard reaches the only way out first.
 - **Stolen gold:** a guard that keeps its gold leaves the level unfinishable
   until it is trapped.
+
+**Where dropped gold lands.** A first version let a guard drop the gold on
+any free cell with a floor. I measured it with the bot on all 150 levels
+with 4 seeds (600 level runs). At each drop, the test asks whether the
+level could still be won from the player's position just before and just
+after the drop, using the route search with dug holes as they are.
+
+| drop rule | drops | made a winnable level unwinnable |
+|---|---|---|
+| any free cell with a floor, after 4 s | 1,037 | 228, in 21 runs |
+| only cells where gold lay at the start, after 3 s (the fix) | 620 | 11, in 9 runs (1.5%) |
+
+- **Why the first version failed:** most of those 228 drops landed in
+  one-way pits that the player can reach but not leave, rather than on
+  cells out of reach.
+- **The fix's mask:** a bit per cell, built when the level starts.
+- **What's left:** the remaining cases come from the player having already
+  gone down a one-way drop, so the original gold cell is behind him.
+- **The way out:** BREAK gives up the life and restarts the level.
+- **Trapped guards:** the original's own drop, above the hole of a trapped
+  guard, gave 1 such case in 20 drops.
 
 ## 2. A player buried by a brick freezes
 

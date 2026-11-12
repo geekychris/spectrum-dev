@@ -26,6 +26,24 @@ static uint8_t path_cells[GB_CELLS(GRID_COLS, GRID_ROWS)];
 static uint16_t path_queue[GB_QUEUE / 2];          /* host builds (tools/hostsim.c) */
 #endif
 
+/* fix: the cells where gold lay when the level started, a bit each: a guard
+   drops stolen gold only on one of them (they are on the level's winning
+   route; elsewhere it could land in a pit the player can't leave) */
+#ifdef __SDCC
+#define gold_home ((uint8_t *)HI_GOLDHOME)
+#else
+uint8_t gold_home[GRID_COLS * GRID_ROWS / 8];      /* (tools/hostsim.c sets it from the Z80's) */
+#endif
+
+/* two bytes a column: rows 0-7, 8-15 */
+#define HOME_BYTE(x, y) gold_home[((uint8_t)(x) << 1) | ((uint8_t)(y) >> 3)]
+#define HOME_BIT(y)     (1 << ((uint8_t)(y) & 7))
+
+uint8_t level_gold_home(int16_t x, int16_t y)
+{
+    return HOME_BYTE(x, y) & HOME_BIT(y);
+}
+
 /* port: row addresses (no multiply per lookup); at HI_TILEROW on the Spectrum */
 #ifndef __SDCC
 uint8_t *tile_row[GRID_ROWS];
@@ -94,10 +112,13 @@ static void spawn_from_markers(void)
 {
     int16_t x, y, ne = 0;
 
+    memset(gold_home, 0, GRID_COLS * GRID_ROWS / 8);
     for (x = 0; x < GRID_COLS; x++) {
         for (y = 0; y < GRID_ROWS; y++) {
             uint8_t t = TILE(x, y);
-            if (t == TILE_PLAYER) {
+            if (t == TILE_GOLD) {
+                HOME_BYTE(x, y) |= HOME_BIT(y);
+            } else if (t == TILE_PLAYER) {
                 gs.player.gx = x;
                 gs.player.gy = y;
                 gs.player.px = x * TILE_W;
@@ -127,10 +148,14 @@ static void spawn_from_markers(void)
     gs.num_enemies = ne;
     /* fix: every guard waits ENEMY_START_DELAY frames before its first step;
        one placed on the player's row enters from the top instead */
-    for (x = 0; x < ne; x++) {
-        gs.enemies[x].move_timer = ENEMY_START_DELAY;
-        if (gs.enemies[x].gy == gs.player.gy)
-            gs.enemies[x].state = ES_DEAD;      /* enters from the top, as a respawn */
+    {
+        Enemy *e = gs.enemies;
+        uint8_t n;
+        for (n = (uint8_t)ne; n; n--, e++) {
+            e->move_timer = ENEMY_START_DELAY;
+            if (e->gy == gs.player.gy)
+                e->state = ES_DEAD;             /* enters from the top, as a respawn */
+        }
     }
 }
 
