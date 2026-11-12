@@ -125,6 +125,13 @@ static void spawn_from_markers(void)
         }
     }
     gs.num_enemies = ne;
+    /* fix: every guard waits ENEMY_START_DELAY frames before its first step;
+       one placed on the player's row enters from the top instead */
+    for (x = 0; x < ne; x++) {
+        gs.enemies[x].move_timer = ENEMY_START_DELAY;
+        if (gs.enemies[x].gy == gs.player.gy)
+            gs.enemies[x].state = ES_DEAD;      /* enters from the top, as a respawn */
+    }
 }
 
 void level_activate_spawn_markers(void)

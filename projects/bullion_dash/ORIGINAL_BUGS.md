@@ -47,7 +47,7 @@ Two rules make the routes worse than the maps suggest:
   the next frame's gravity check skips a player on a bar (`!is_on_bar(...)`),
   so the player stays where he is (`player.c`, "Release from bar").
 
-### Guard speed
+### Guard speed (the original's; fixed: "Guards: fixed" below)
 
 - Player: `PLAYER_SPEED` 2 pixels a frame on 10 x 14 tiles, so 5 frames a
   tile across and 7 up and down.
@@ -120,7 +120,38 @@ Results:
 - `tools/level_report.py` now reports all 150 levels as winnable.
 - `tools/check_levels.py` plays every level to the exit with the port's
   rules built for the host (guards out): 150 of 150 won.
-- The guard speed above is unchanged.
+- The guards are fixed too (below).
+
+### Guards: fixed
+
+The guards now follow a new rule, the same in every version:
+- **Speed:** a tile every 8 frames across and 10 up or down, about 0.6-0.7x
+  the player's speed (he takes 5 and 7).
+- **Start:** every guard waits 3 s at the start of a level, and one placed
+  on the player's start row enters from the top instead, as a respawned
+  guard does.
+- **Stolen gold:** a guard drops it again after 4 s, on the first free cell
+  with a floor that it stands on. In the original it kept the gold until
+  it was trapped or died.
+
+`tools/try_levels.py` measures this on the repaired levels with this
+port's rules. Its bot now takes the gold in the route search's order and
+looks 150 frames ahead:
+
+| | cleared | caught | out of time |
+|---|---|---|---|
+| no guards (the bot's own limit) | 124 | 0 | 26 |
+| the original's guards | 3 | 139 | 8 |
+| guards at 6/8 frames a tile, nothing else | 8 | 89 | 53 |
+| 8/10 frames, the 3 s start, start-row guards from the top | 43 | 56 | 51 |
+| the fix (the above, and stolen gold dropped after 4 s) | 66 | 56 | 28 |
+
+The fix gives 62-74 cleared across runs, depending on the guards' random
+numbers. Speed alone wasn't enough, for two reasons:
+- **The start:** the player starts in a corner on a floor that can't be
+  dug, and on many levels a guard reaches the only way out first.
+- **Stolen gold:** a guard that keeps its gold leaves the level unfinishable
+  until it is trapped.
 
 ## 2. A player buried by a brick freezes
 

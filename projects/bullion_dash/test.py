@@ -1,14 +1,14 @@
 """Bullion Dash (48K) - plays the game through the harness.
 
 1. The title; E opens the editor. The test builds a small level there (a
-   brick floor, a ladder to the top, gold, the player and a guard right next
-   to him) and test-plays it (ENTER): the bot (tools/bot.py, which plans with
-   the game's own rules built for the host) has to dig a hole in front of the
-   guard to trap him, take the gold and climb out: LEVEL COMPLETE.
+   brick floor, a ladder to the top, gold, the player and a guard dropping in
+   next to him) and test-plays it (ENTER): after the guards' 3 s start the
+   bot (tools/bot.py, which plans with the game's own rules built for the
+   host) digs a hole in front of the guard to trap him, takes the gold and
+   climbs out: LEVEL COMPLETE.
 2. Back on the title it starts a game at level START (O/P choose the level):
-   the original's guards are faster than the player, so the bot loses its
-   lives (giving one up with BREAK if it is stuck), game over, initials,
-   the title again.
+   the bot loses its lives to the guards (giving one up with BREAK if it is
+   stuck), game over, initials, the title again.
 
 The whole session is recorded and replayed twice (every frame hash must
 match). While the bot plays, every game loop's result is checked against the
@@ -185,16 +185,18 @@ with Emulator() as e:
     ed_goto(e, 1, 14, paint=True)               # a ladder to the top row
     put(e, 0, 14, GOLD)
     put(e, 2, 14, PLAYER)
-    put(e, 4, 14, ENEMY)                        # a guard two cells away
+    put(e, 4, 13, ENEMY)                        # a guard two cells away (it drops onto the
+                                                # floor: one on the player's row enters from the top)
     gs, _ = state(e)
     t = State(gs).tile
     check("the editor puts the tiles", t(3, 15) == BRICK and t(1, 7) == LADDER and t(0, 14) == GOLD
-          and t(2, 14) == PLAYER and t(4, 14) == ENEMY, f"{t(3, 15)} {t(1, 7)} {t(0, 14)} {t(2, 14)} {t(4, 14)}")
+          and t(2, 14) == PLAYER and t(4, 13) == ENEMY, f"{t(3, 15)} {t(1, 7)} {t(0, 14)} {t(2, 14)} {t(4, 13)}")
     e.run(10)
     e.screenshot(SHOTS / "editor.png")
     e.press("ENTER")
     check("ENTER test-plays the level", e.run_until("bullion: test play", 50))
 
+    e.run(150)                                  # the guards' 3 s start (game.h ENEMY_START_DELAY)
     trapped = []
 
     def watch_trap(e, s, log):
@@ -302,8 +304,7 @@ with Emulator() as e:
     e.run(10)
     e.press("SPACE")
     check("the game runs on a 128K", e.run_until("state=playing", 100))
-    e.run(200)
-    check("... and plays on (a life lost to the guards)", "death caught" in e.log())
+    check("... and plays on (a life lost to the guards)", e.run_until("death caught", 1500))
 
 # ---- 5. the repaired levels, each played to the exit (the host build of the rules)
 sys.path.insert(0, str(HERE / "tools"))
