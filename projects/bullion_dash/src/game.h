@@ -130,7 +130,12 @@ typedef struct {
 extern GameState gs;
 
 /* bounds-checked tile lookup (out of bounds is solid) - the original's tile_at */
-extern uint8_t *tile_row[GRID_ROWS];
+#ifdef __SDCC
+#include "memmap.h"
+#define tile_row ((uint8_t **)HI_TILEROW)         /* (above 0xF000: room for the levels) */
+#else
+extern uint8_t *tile_row[GRID_ROWS];               /* host builds (tools/hostsim.c) */
+#endif
 #define TILE(x, y) (tile_row[(y)][(x)])
 extern uint8_t tile_at(int16_t x, int16_t y);
 /* port: every tile change goes through here, so the screen redraws the cell */

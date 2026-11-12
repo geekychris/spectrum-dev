@@ -4,8 +4,11 @@ Found while porting `amiga_mcp/examples/bullion_dash` to the Spectrum. The
 Atari ST (`atari_st_games/bullion_dash`) and 3DO (`3do_dev/projects/bullion_dash`)
 versions use the same `player.c`, `enemy.c` and `level.c` (no differences in
 the rules) and the same `level_data[]`, so everything below applies to all
-three. The Spectrum port keeps the levels and rules as they are; only the two
-small items at the end are changed there (marked `port:`).
+three. The Spectrum port keeps the rules as they are; only the two small
+items at the end are changed there (marked `port:`).
+
+**The levels are now repaired** in every version (section 1, "Repaired").
+The analysis below is of the levels as released (`src/levels_original.txt`).
 
 ## 1. The levels can't be won
 
@@ -97,6 +100,27 @@ steps rather than between tile jumps.
 - Let the player climb out of the top of a ladder into row 0 (or treat
   reaching row 1 above a ladder as the exit), and let down release a bar.
 - Start the guards a second or two after the player, or away from his row.
+
+### Repaired
+
+All versions now use repaired levels:
+- **The Amiga original:** `bullion_dash/level.c` in geekychris/amiga_games.
+- **This port:** `src/levels.txt`.
+
+The original's `tools/repair_levels.py` made them, using the route search
+described above with digging left out (a dug brick grows back) and
+guards ignored. Each fix is the smallest edit that works, and every level
+keeps its layout:
+- a new or longer ladder, through space, a brick or a bar's cell;
+- a hidden ladder up to row 1 for the way out;
+- 1042 cells in all, 6.9 a level, listed in
+  [REPAIRED_LEVELS.md](REPAIRED_LEVELS.md).
+
+Results:
+- `tools/level_report.py` now reports all 150 levels as winnable.
+- `tools/check_levels.py` plays every level to the exit with the port's
+  rules built for the host (guards out): 150 of 150 won.
+- The guard speed above is unchanged.
 
 ## 2. A player buried by a brick freezes
 

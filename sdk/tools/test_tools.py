@@ -198,8 +198,10 @@ w, h, rooms = parse(open(os.path.join(bd, "levels.txt")).read())
 pk = gridpack.pack([c for _, c in rooms], w, h, 10)
 check("gridpack: Bullion Dash's 150 levels give the committed levels_data.c",
       gridpack.c_source(pk, "lv", None, "levels_data.h")[0] == open(os.path.join(bd, "levels_data.c")).read())
-check("gridpack: they unpack (reference decoder) and take < 8 KB, zxrle > 19 KB",
-      all(gridpack.unpack(pk, i) == c for i, (_, c) in enumerate(rooms)) and pk.size < 8192
+# (the levels as released took 7,892 bytes; the repaired ones, with ~1,000
+#  more ladder cells, 8,286)
+check("gridpack: they unpack (reference decoder) and take < 8.5 KB, zxrle > 19 KB",
+      all(gridpack.unpack(pk, i) == c for i, (_, c) in enumerate(rooms)) and pk.size < 8704
       and sum(len(pack(c)) for _, c in rooms) > 19 * 1024, f"{pk.size}")
 
 # the build cache (scripts/buildcache.py): what the key depends on, store / restore
