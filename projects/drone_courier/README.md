@@ -136,7 +136,7 @@ What it uses beyond a 48K/128K Spectrum, and why:
 | **hardware sprites** | the drone (10 sprites, 4 bits a pixel, frames copied in by DMA when they change), the arrow to the pad, the wind gauge, the big text (the engine's 16 x 16 font, at twice its size on the title) | the drone is the original's model, sharper than the view, with no polygons to draw |
 | **tilemap** (40 x 32, 4 bpp) | the HUD, panels and help pages in the ROM font with the original's drop shadow, the battery bar | text is never drawn into the 3D view |
 | **zxnDMA** | clearing the sky and ground, long polygon spans, the drone's sprite frames | ~2 T-states a byte |
-| **MMU banking** | the rules in bank 20 over the ROM (bank 21, the view, instead while drawing), the shell in page 44, the tests in page 45, the projection's reciprocal table (page 48) while the polygon list is built, the drone's frames (banks 25-39) | the code is ~60K against 28K free at 0x8000, plus ~250K of tables (the drone's frames, the reciprocals) |
+| **MMU banking** | the rules and the sound in bank 20 over the ROM (bank 21, the view, instead while drawing), the shell in page 44, the tests in page 45, the projection's reciprocal table (page 48) while the polygon list is built, the drone's frames (banks 25-39) | the code is ~60K against 28K free at 0x8000, plus ~250K of tables (the drone's frames, the reciprocals) |
 | **Z80N `MUL`** | fix16's 32 x 32 multiplies and divisions (the rules), the camera transform and projection, l2poly's slopes | the original's 16.16 arithmetic, exactly, at a usable speed |
 | **TurboSound** (3 AY chips) | the tune on chips 0 and 1, the effects on chip 2 (events, gusts and the rotors' hum on its three channels) | music and effects at once |
 | **raster line** (NextReg 0x1E/0x1F) | the profiler's figures in the `dc: lines` log | |
@@ -149,7 +149,7 @@ What it uses beyond a 48K/128K Spectrum, and why:
 - `src/view.c`, `src/view_asm.asm`: the 3D view (bank 21).
 - `src/game.c` (page 44), `src/screens.c` (bank 20), `src/hud.c`: the
   shell, the help pages and high scores, the text and sprites.
-- `src/sound.c`: the effects and the tune.
+- `src/sound.c` (bank 20): the effects and the tune.
 - `tools/gen_gfx.py`: the palette, the font and arrow sprites, the
   projection's table; `tools/gen_drone.py`: the drone's frames;
   `tools/refview.py`: the original's view in Python (for the test);

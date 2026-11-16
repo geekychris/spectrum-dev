@@ -5,7 +5,7 @@
  * them on customers' roofs before the clock runs out.
  *
  * Memory map (everything is in the .nex; this only maps it):
- *   0x0000-0x3FFF  bank 20: the original's rules (dc_core.c), over the ROM
+ *   0x0000-0x3FFF  bank 20: the original's rules (dc_core.c), the sound, over the ROM
  *                  (the tiles are made from the ROM font first); bank 21 instead while
  *                  the 3D view is drawn (view.c, its polygon pool)
  *   0x4000-0x5FFF  bank 5's first page: the tilemap (nexttile.h)

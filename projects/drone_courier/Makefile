@@ -4,8 +4,10 @@ ZX_SDK ?= ../../sdk
 include $(ZX_SDK)/project.mk
 
 # memory map: see src/main.c; the link addresses are in zpragma.inc
-# the original's rules (and the help pages, the high-score entry): 16K bank 20 at 0x0000 (over the ROM)
-$(OBJDIR)/dc_core.c.o $(OBJDIR)/screens.c.o: EXTRA_CFLAGS += --codesegBANK_20 --constsegBANK_20 --datasegBANK_20
+# the original's rules (and the help pages, the high-score entry, the sound): 16K bank 20 at 0x0000 (over the ROM)
+# (sound.c moved there when main's bigger SDK pushed the resident part past 0xF000: every snd_ call
+# is made with bank 20 mapped - from game.c, screens.c and main.c after it maps bank 20)
+$(OBJDIR)/dc_core.c.o $(OBJDIR)/screens.c.o $(OBJDIR)/sound.c.o: EXTRA_CFLAGS += --codesegBANK_20 --constsegBANK_20 --datasegBANK_20
 # the 3D view: bank 21 at 0x0000 while drawing (main.c view_draw); its pool from 0x2C00
 $(OBJDIR)/view.c.o $(OBJDIR)/gfx_data.c.o: EXTRA_CFLAGS += --codesegBANK_21 --constsegBANK_21 --datasegBANK_21
 # its tests: 8K page 45 at 0x6000, mapped while they run (main.c selftest)

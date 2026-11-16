@@ -78,7 +78,7 @@ the CPU is slow, so the work goes into drawing less:
   and variables take the whole RAM from 0x5D00, with tables made at start-up
   above the IM 2 table
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel, Orb Hunter, Harbour Crane, Orbital Patrol, Ace Pilot, RJ's Birthday Bash): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel, Orb Hunter, Harbour Crane, Orbital Patrol, Ace Pilot, RJ's Birthday Bash, Drone Courier): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -171,6 +171,11 @@ the 48K:
   entered and everything that moves is a 4-bit sprite (nextsprl), so the
   original's 16.16 rules have the frame to themselves at 50 fps; they run
   from a 16K code bank mapped over the ROM, which the game doesn't need
+- Drone Courier's chase camera turns freely, so its city is drawn in full
+  every frame: only 96 rows of it, each shown twice by the copper (sdk
+  `l2double`), the transform in 16-bit Z80N asm, polygons wholly on the
+  screen filled by its own edge stepper into l2poly's span store, and the
+  drone as pre-rendered sprites (10 of ~45 polygons gone); ~12 fps
 
 - Harbour Crane fixes the original's camera so most of the picture never
   changes: a backdrop copied in by DMA each frame (its sea's drifting bands
