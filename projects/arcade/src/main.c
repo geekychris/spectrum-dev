@@ -22,7 +22,8 @@
 #include "sdfile.h"
 #include "zxlog.h"
 
-#define MAX_GAMES  32
+#define MAX_GAMES  64          /* arcade.py's MAX_GAMES; games.dat is 8 + 64 * 256 bytes */
+#define OLD_GAMES  32          /* stats.dat before 64 games: 32 counters + sort + last */
 #define REC_SIZE   256
 #define CHOICE     (*(volatile uint8_t *)32767)   /* read by autoexec.bas */
 #define NO_GAME    255
@@ -36,6 +37,8 @@ typedef struct {
     char desc[176];              /* lines separated by '\n' (wrapped by arcade.py) */
 } game_rec;
 
+/* stats.dat: MAX_GAMES play counters, sort, last (130 bytes). A 66-byte file is
+   the old 32-game layout (read by load_stats); sd_save writes it back as the new one. */
 typedef struct {
     uint16_t plays[MAX_GAMES];
     uint8_t sort;                /* 0 = A-Z, 1 = most played */
@@ -73,6 +76,20 @@ static const char *tag_of(uint8_t i, uint8_t *colour)
     uint8_t next = games[order[i]].machine;
     *colour = next ? C_NEXT : C_48K;
     return next ? "Next" : "48K";
+}
+
+static void load_stats(void)
+{
+    int16_t n = sd_load("/arcade/stats.dat", &stats, sizeof stats);
+    if (n == OLD_GAMES * 2 + 2) {               /* old layout: sort and last sit at plays[32] */
+        uint8_t *b = (uint8_t *)&stats.plays[OLD_GAMES];
+        uint8_t sort = b[0], last = b[1];
+        memset(&stats.plays[OLD_GAMES], 0, (MAX_GAMES - OLD_GAMES) * 2);
+        stats.sort = sort;
+        stats.last = last;
+    } else if (n != sizeof stats) {
+        memset(&stats, 0, sizeof stats);
+    }
 }
 
 static void sort_games(void)
@@ -174,7 +191,7 @@ int main(void)
     games = (game_rec *)(dat + 8);
     ngames = (n > 8 && !memcmp(dat, "ZXARC1", 6)) ? dat[6] : 0;
     if (ngames > MAX_GAMES) ngames = MAX_GAMES;
-    if (sd_load("/arcade/stats.dat", &stats, sizeof stats) != sizeof stats) memset(&stats, 0, sizeof stats);
+    load_stats();
     if (stats.sort > 1) stats.sort = 0;
     sort_games();
 

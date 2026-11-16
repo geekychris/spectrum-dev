@@ -40,7 +40,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import buildcache  # noqa: E402
 
 OUT = ROOT / "build" / "arcade"
-MAX_GAMES = 32
+MAX_GAMES = 64                           # the menu's MAX_GAMES (projects/arcade/src/main.c)
+OLD_GAMES = 32                           # stats.dat before 64 games: 32 counters + sort + last
 REC = 256
 PIC_W, PIC_H = 160, 120
 CHOICE_ADDR = 32767                      # where the menu leaves the chosen game
@@ -224,8 +225,12 @@ def stats_dat(plays: list[int], sort: int = 0, last: int = 0) -> bytes:
 
 
 def read_stats(data: bytes) -> dict:
-    plays = [int.from_bytes(data[i * 2:i * 2 + 2], "little") for i in range(MAX_GAMES)]
-    return {"plays": plays, "sort": data[MAX_GAMES * 2], "last": data[MAX_GAMES * 2 + 1]}
+    """stats.dat in either layout: MAX_GAMES counters (current) or OLD_GAMES (before 64 games)."""
+    n = {MAX_GAMES * 2 + 2: MAX_GAMES, OLD_GAMES * 2 + 2: OLD_GAMES}.get(len(data))
+    if n is None:
+        raise ValueError(f"stats.dat: {len(data)} bytes")
+    plays = [int.from_bytes(data[i * 2:i * 2 + 2], "little") for i in range(n)]
+    return {"plays": plays + [0] * (MAX_GAMES - n), "sort": data[n * 2], "last": data[n * 2 + 1]}
 
 
 def game_file(g: dict) -> str:
@@ -414,7 +419,7 @@ def set_sort(emu: Emulator, want: int, tries: int = 3) -> int | None:
     return None
 
 
-def padded_image(src: Path, dst: Path, total: int, gs: list[dict]) -> list[dict]:
+def padded_image(src: Path, dst: Path, total: int, gs: list[dict], stats: bytes | None = None) -> list[dict]:
     """A copy of an arcade image with `total` entries: the real games, then extra
     entries ("Zz Extra NN", sorted last) that start the real games again. For
     testing the menu with more games than it shows at once. Returns the entries."""
@@ -427,7 +432,7 @@ def padded_image(src: Path, dst: Path, total: int, gs: list[dict]) -> list[dict]
         fatimg.put(tree, f"arcade/pic{g['index']:02d}.l2", img.read(f"arcade/pic{g['source']:02d}.l2"))
     fatimg.put(tree, "arcade/games.dat", games_dat(full))
     fatimg.put(tree, "nextzxos/autoexec.bas", autoexec(full))
-    fatimg.put(tree, "arcade/stats.dat", stats_dat([]))
+    fatimg.put(tree, "arcade/stats.dat", stats_dat([]) if stats is None else stats)
     fatimg.write_image(tree, dst, size_mb=32)
     return full
 
