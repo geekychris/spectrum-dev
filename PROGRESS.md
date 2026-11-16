@@ -331,6 +331,17 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   the autopilot flying (10.5-16). sound.c went into the rules' bank when
   main's larger SDK pushed the resident part past 0xF000.
 
+- **Canyon Rail** (Next): the original's rules (cr_core.c; three products
+  widened for 16-bit int, the bolt's 64-bit FMUL/FDIV as exact 32-bit
+  equivalents) in a bank; tools/check_trace.sh runs four whole autopilot
+  games on the host (the original's C) and the Z80 and they are identical.
+  The canyon in slabs far to near with l2poly, the camera rotation in Z80N
+  asm shared between slabs, a 1/z table, 96 rows doubled by the copper, a
+  copper sky; targets, bolts, explosions, the guardian and the sight as
+  sprites from the original's models (tools/gen_sprites.py); tilemap HUD and
+  screens, AY effects, high scores. Rules 25 Hz, ~12 fps riding. SDK: a3cam
+  (the engine's camera and hash). Two zsdcc miscompiles found (CLAUDE.md).
+
 - **Marble Tilt** (Next): the original's amiga3d rules unchanged on 16.16
   (`fix16.h`, the engine's fixed point bit for bit: the original's whole
   autopilot game hashes as in its tests/vectors.h, on the Next and the host);
