@@ -5,6 +5,10 @@ set -euo pipefail
 
 ZX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export ZX_ROOT
+# This checkout's zxdev, even when .venv is a symlink to another checkout's venv
+# (worktrees share one): its editable install would otherwise import that
+# checkout's code.
+export PYTHONPATH="$ZX_ROOT/tools/zxdev/src${PYTHONPATH:+:$PYTHONPATH}"
 
 # ---- pinned upstream versions (bump deliberately, then re-run setup) ----
 ZESARUX_REPO="https://github.com/chernandezba/zesarux.git"

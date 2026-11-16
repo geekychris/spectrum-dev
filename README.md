@@ -26,6 +26,7 @@ loop.
 - [Writing programs](#writing-programs)
 - [Games](#games)
 - [Arcade](#arcade)
+- [Play the games in a browser (DevBench arcade)](#play-the-games-in-a-browser-devbench-arcade)
 - [Repository layout](#repository-layout)
 - [Documentation](#documentation)
 - [Licensing and credits](#licensing-and-credits)
@@ -74,7 +75,7 @@ $EDITOR projects/mygame/src/main.c
 ./zx test mygame               # headless test (projects/mygame/test.py)
 ./zx log mygame --frames 300 --press P@200     # what the program logged
 ./zx shot mygame -o shot.png --until "mygame: ready"
-./zx devbench --open           # web UI on http://127.0.0.1:3580/
+./zx devbench --open           # the arcade page on http://127.0.0.1:3580/arcade (+ web UI on /)
 ```
 
 ## How it works
@@ -264,6 +265,40 @@ controls, picture, the log line its title prints); the menu, the list in
 a Play button per game) and the MCP tools (`arcade_games`, `arcade_play(game)`)
 all come from those files. How the card, the menu, loading and returning
 work: [projects/arcade/README.md](projects/arcade/README.md).
+
+## Play the games in a browser (DevBench arcade)
+
+```sh
+./setup.sh                 # once
+./zx devbench --open       # opens http://127.0.0.1:3580/arcade
+```
+
+The arcade page lists every game in `projects/` (every project with an
+`arcade.json`) with its picture, description, machine (48K or Spectrum Next)
+and controls:
+
+- **Play here** runs the game headless and shows it live in the page. Click
+  the screen and play: letters and digits are Spectrum keys, Space, Enter,
+  Shift = CAPS SHIFT, Alt = SYMBOL SHIFT, arrows + Ctrl = joystick + fire.
+  Pause, Restart, Stop; *Debug it in the DevBench* opens the main page
+  (registers, disassembly, breakpoints, memory, guest log) on the same session.
+- **Play in a window** opens it in a ZEsarUX window.
+- A game on the SD image (`build/arcade/arcade.mmc`) starts from the arcade
+  menu on NextZXOS; one that isn't on it yet (merged since the last build, or
+  the image isn't built) starts on its own, built first if need be, and the
+  page says so. **Rebuild** (`./zx arcade --image-only`, a few minutes; the
+  build cache makes unchanged games instant) puts every game on the image;
+  **Open the menu** boots it in a window.
+- *Other projects* lists the projects that aren't games (SDK tests, demos,
+  the menu itself), with why, and runs them the same way.
+- `/arcade#play=<project>` is a link that starts a game.
+
+The main DevBench page (`/`) is the debugger; its header links to the
+arcade. REST: `GET /api/arcade` (every project: on the image or not, built or
+not, any arcade.json problem), `POST /api/arcade/play {"game": "nova_defense",
+"window": false, "resume": true}`, then `GET /api/sessions/<pid>/screen.png`
+and `POST /api/sessions/<pid>/cmd/hold {"keys": "O+SPACE"}` / `release`. See
+[docs/devbench.md](docs/devbench.md).
 
 ## Releases
 

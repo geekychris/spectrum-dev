@@ -1,12 +1,17 @@
 # DevBench: web UI, REST API and MCP over HTTP
 
 ```sh
-./zx devbench            # http://127.0.0.1:3580/
-./zx devbench --open     # ... and open the browser
+./zx devbench            # http://127.0.0.1:3580/  (the arcade: /arcade)
+./zx devbench --open     # ... and open the arcade page in the browser
 ./zx devbench --port 3590 --host 0.0.0.0     # other port / reachable from the LAN (no auth!)
 ```
 
 One process serves three things on one port:
+
+- **`/arcade`** — every game with its picture, description and controls:
+  *Play here* (headless, the live screen in the page, your keyboard as the
+  Spectrum's), *Play in a window*, Rebuild, Open the menu; and the other
+  projects (tests, demos) with why they aren't games. The page `--open` lands on.
 
 - **`/`** — a web page: the screen (live refresh), the guest log, run/pause
   controls, key presses and typing, a small debugger (breakpoint/watch on a
@@ -49,11 +54,13 @@ Arcade (see [projects/arcade/README.md](../projects/arcade/README.md)):
 
 | Method + path | |
 |---|---|
-| `GET /arcade` | page: every game with its picture, description, controls, a Play button (window) and Headless |
-| `GET /api/arcade` | the games (`project`, `title`, `machine`, `controls`, `description`, `index`) + `built`, `image` |
-| `GET /api/arcade/picture/{game}.png` | the menu's picture of a game |
+| `GET /arcade` | page: every game (picture, description, controls), *Play here* (live in the page), *Play in a window*; other projects with why; `#play=<project>` starts one |
+| `GET /api/arcade` | `games`: every project with an `arcade.json` (`project`, `title`, `machine`, `controls`, `description`, `has_picture`, `built`, `on_image`, `index` on the image, `stale`, `note`, `problem`); `others`: the other projects (`reason`); `built`, `image`, `missing_from_image` |
+| `GET /api/arcade/picture/{game}.png` | the menu's picture of a game (another project: its first screenshot) |
 | `POST /api/arcade/build` | `./zx arcade --image-only` (games, menu, SD image) |
-| `POST /api/arcade/play` `{"game", "window": true, "scratch": false}` | a session on the SD image; with `game`, the menu picks it and runs it to its title (`started`). `scratch`: plays aren't saved to the image |
+| `POST /api/arcade/play` `{"game", "window": true, "scratch": false, "direct": false, "resume": false}` | a game on the SD image: a session on the image, the menu picks it and runs it to its title (`started`, `via: "menu"`). A game not on the image (or `direct`): its own program in a session, built first if need be (`via: "direct"`). No `game`: the menu. `scratch`: plays aren't saved to the image; `resume`: a headless session free-runs once the game is up (the page's *Play here*) |
+
+`GET /api/screen.png` ignores a `t=` query parameter (the pages' cache-buster).
 
 Errors: `404` no such session/project, `400` command error (bad
 arguments, unknown command, emulator error), `502` session unreachable.
