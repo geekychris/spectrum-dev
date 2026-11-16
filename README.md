@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Spectrum Dev logo" width="180">
+</p>
+
 # spectrum-dev — a ZX Spectrum / Spectrum Next dev kit with a scriptable, debuggable emulator
 
 Write software for the **ZX Spectrum 48K/128K** and the **Spectrum Next** on a
