@@ -49,8 +49,8 @@ void cases(void)
     a3 = plat_kind_at(-1, 5);
     found = plat_kind_at(200, 20);
     CASE_LOG("plat: kind=%u,%u,%u,%u\n", a1, a2, a3, found);
-    /* lands from y = 61: the original's snap puts it on top of the tile its
-       top was in (y = 48), not on the floor (64) - Miner Meteor's README */
+    /* lands from y = 61 on the floor (y = 64); the original's first snap put
+       it on top of the tile its top was in (y = 48), where it bobbed */
     run("fall", 20, 16, 0, 0, 11);
     run("wall", 32, 64, 2, 0, 60);               /* walks right into the wall block */
     run("left", 64, 64, -2, 0, 60);              /* and left into the outer wall */

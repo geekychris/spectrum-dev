@@ -1,6 +1,10 @@
 ; Miner Meteor caverns: the original's levels.cpp rows (Hazard Bay's right wall fixed
-; there too, amiga_games #53; the three
-; rows the original marks "bug in the original: unwinnable" are its fixed rows).
+; there too, amiga_games #53; the rows the original marks "bug in the original:
+; unwinnable" are its fixed rows). Its landing fix (feet on the floor, not a tile
+; too high) left two caverns unwinnable, so these rows changed there too:
+; Hazard Bay's row-10 ledge (cols 5-6) is on row 9, since from row 10 no jump
+; reached the row-5 ledge; Collapsing Attic's row-8 ledge and its key moved 6
+; columns left (cols 8-11, key col 9) and its row-3 ledge 2 left (cols 7-10).
 ; Packed by sdk/tools/levelpack.py: tools/make_data.sh writes src/levels_data.c.
 size 20 15
 legend . 0  # 1  K 2  E 3  c 4  < 5  > 6  ^ 7  P 8
@@ -32,8 +36,8 @@ room HAZARD BAY
 #..................#
 #.^^^^....K....^^^.#
 #..................#
-#..............##..#
-#....##............#
+#....##........##..#   ; bug in the original: unwinnable - this ledge was in row 10, too low to jump to row 5 from
+#..................#   ; was "#....##............#"
 #..................#
 #..P.....^.^^....E.#
 ####################
@@ -77,12 +81,12 @@ room COLLAPSING ATTIC
 ####################
 #..................#
 #.........K........#
-#........cccc......#
+#......cccc........#   ; bug in the original: unwinnable - out of jump reach, was "#........cccc......#"
 #..................#
 #..K...............#
 #.cccc.............#
-#..............K...#
-#............cccc..#
+#........K.........#   ; bug in the original: unwinnable - this ledge and key were out of reach,
+#.......cccc.......#   ; were "#..............K...#" / "#............cccc..#"
 #..................#
 #....K.............#
 #..cccc............#

@@ -198,14 +198,17 @@ with Emulator() as e:
     GIF.parent.mkdir(parents=True, exist_ok=True)
     e.record_video(GIF, frames=400, every=2, scale=1)
     log += e.log()
-    for _ in range(40):
+    shot = set()
+    for _ in range(200):
         if "state=won" in log or "died" in log:
             break
-        e.run(100)
+        e.run(20)
         log += e.log()
-        if "state=playing level=6" in log and not (SHOTS / "cavern6.png").exists():
-            e.run(60)
-            e.screenshot(SHOTS / "cavern6.png")
+        for lv in ("2", "5", "6"):             # the two caverns the landing fix changed, and the last
+            if f"state=playing level={lv}" in log and lv not in shot:
+                shot.add(lv)                   # just after it is drawn, before anything moved much
+                e.run(10)
+                e.screenshot(SHOTS / f"cavern{lv}.png")
     cleared = list(dict.fromkeys(re.findall(r"cleared level=(\d+)", log)))
     check("the demo clears all six caverns", cleared == ["1", "2", "3", "4", "5", "6"], str(cleared))
     check("no life lost on the way", "died" not in log)
