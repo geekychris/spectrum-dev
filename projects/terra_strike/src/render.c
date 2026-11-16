@@ -104,7 +104,7 @@ static int16_t wrap16(int32_t a, int32_t b)
 /* tgrid.asm: a model's vertices (here also: one point, the camera's own
    rotation) */
 extern const int16_t *xf_src;
-extern uint8_t xf_n, xf_flat;
+extern uint8_t xf_n, xf_flat, xf_wide;
 extern int16_t xf_m00, xf_m01, xf_m10, xf_m11, xf_cx, xf_cy, xf_cz;
 extern int16_t mvx[MDL_MAXV], mvy[MDL_MAXV], mvz[MDL_MAXV], msx[MDL_MAXV], msy[MDL_MAXV];
 extern void xf_model(void);
@@ -122,7 +122,9 @@ static void xform(int32_t wx, int32_t wy, int32_t wz, V3 *out)
     xf_flat = 0;
     xf_n = 1;
     xf_src = d;
+    xf_wide = 1;
     xf_model();
+    xf_wide = 0;
     out->x = mvx[0];
     out->y = mvy[0];
     out->z = mvz[0];

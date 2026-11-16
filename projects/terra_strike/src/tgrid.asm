@@ -916,7 +916,7 @@ qtmp:     defs 2
 ; to mvx, mvy, mvz; projected (as tg_row) into msx, msy when cz >= NEAR_Z.
 
 PUBLIC _xf_model, _xf_src, _xf_n, _xf_m00, _xf_m01, _xf_m10, _xf_m11
-PUBLIC _xf_cx, _xf_cy, _xf_cz, _xf_flat
+PUBLIC _xf_cx, _xf_cy, _xf_cz, _xf_flat, _xf_wide
 PUBLIC _mvx, _mvy, _mvz, _msx, _msy
 
 _xf_model:
@@ -953,12 +953,12 @@ xm_noflat:
     ; ---- x1 = (x m00 + z m01) >> 12 + cx
     ld de,(ox)
     ld bc,(_xf_m00)
-    call smul16s
+    call vmul
     ld (tmp),hl
     ld (tmp+2),de
     ld de,(oz)
     ld bc,(_xf_m01)
-    call smul16s
+    call vmul
     call add_tmp
     call shr12_dehl
     ld de,(_xf_cx)
@@ -967,19 +967,19 @@ xm_noflat:
     ; ---- z1 = (x m10 + z m11) >> 12
     ld de,(ox)
     ld bc,(_xf_m10)
-    call smul16s
+    call vmul
     ld (tmp),hl
     ld (tmp+2),de
     ld de,(oz)
     ld bc,(_xf_m11)
-    call smul16s
+    call vmul
     call add_tmp
     call shr12_dehl
     ld (z1),hl
     ; ---- cy = ((y cp + z1 sp) >> 12) + cy0
     ld de,(oy)
     ld bc,(_tg_cp)
-    call smul16
+    call vmul
     ld (tmp),hl
     ld (tmp+2),de
     ld de,(z1)
@@ -993,7 +993,7 @@ xm_noflat:
     ; ---- cz = ((z1 cp - y sp) >> 12) + cz0
     ld de,(oy)
     ld bc,(_tg_sp)
-    call smul16
+    call vmul
     call neg32
     ld (tmp),hl
     ld (tmp+2),de
@@ -1062,6 +1062,51 @@ xm_next:
     pop ix
     ret
 
+; DEHL = DE * BC, both signed: a model's vertex (|DE| <= 255) by
+; smul8x16, else (xf_wide: xform's world offsets) by smul16s
+vmul:
+    ld a,(_xf_wide)
+    or a
+    jp nz,smul16s
+smul8x16:
+    ld a,d
+    xor b
+    push af                             ; the product's sign in bit 7
+    bit 7,d
+    jr z,s8_pa
+    xor a
+    sub e
+    ld e,a                              ; E = |DE|
+s8_pa:
+    bit 7,b
+    jr z,s8_pb
+    xor a
+    sub c
+    ld c,a
+    ld a,0
+    sbc a,b
+    ld b,a                              ; BC = |BC|
+s8_pb:
+    ld d,c
+    ld l,e
+    mul d,e                             ; |v| * low byte
+    ld a,l
+    ld l,e
+    ld h,d
+    ld d,b
+    ld e,a
+    mul d,e                             ; |v| * high byte (<< 8)
+    ld a,h
+    add a,e
+    ld h,a
+    ld a,d
+    adc a,0
+    ld e,a
+    ld d,0
+    pop af
+    ret p
+    jp neg32
+
 ; DEHL = DE * BC, both signed
 smul16s:
     bit 7,b
@@ -1115,6 +1160,7 @@ _xf_cx:   defs 2
 _xf_cy:   defs 2
 _xf_cz:   defs 2
 _xf_flat: defs 1
+_xf_wide: defs 1
 _mvx:     defs 64
 _mvy:     defs 64
 _mvz:     defs 64

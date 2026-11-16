@@ -128,6 +128,7 @@ static char *num_r(char *p, int32_t v, uint8_t w)
 
 static int16_t shown_fuel = -1, shown_shield = -1;
 static uint8_t msg_row = 0;
+static uint8_t shown_state = 255;
 
 void hud_reset(void)
 {
@@ -138,6 +139,7 @@ void hud_reset(void)
     tm_print(13, PANEL_ROW + 2, "SHLD", FONT_PANEL, HP_GREY);
     shown_fuel = shown_shield = -1;
     msg_row = 0;
+    shown_state = 255;
     radar_frame();
 }
 
@@ -284,6 +286,12 @@ void hud_draw(const World *w, uint8_t paused)
         break;
     }
     if (paused) { m1 = "PAUSED"; row = 14; pal1 = HP_WHITE; }
+    /* a new state: clear the view's rows (4..25) of the last one's words */
+    if (w->state != shown_state) {
+        tm_fill(0, 4, TM_COLS, PANEL_ROW - 4, T_CLEAR, HP_WHITE);
+        shown_state = w->state;
+        msg_row = 0;
+    }
     /* clear the rows the messages used (4..25 is the view) */
     if (msg_row != row || row) {
         tm_fill(0, 7, TM_COLS, 9, T_CLEAR, HP_WHITE);
