@@ -373,7 +373,11 @@ static void update_bullets(GameState *gs)
         }
         /* Check if bullet hits a rock */
         {
-            WORD world_bx = (WORD)(gs->scroll_x / 100 + b->x);
+            /* fix (as in the original now): was a WORD, which overflows
+               after 32768 px; 65536 is not a multiple of TERRAIN_LEN (640),
+               so from there on the bullet tested the terrain 256 px away
+               from the drawn rock */
+            LONG world_bx = gs->scroll_x / 100 + b->x;
             WORD tidx = (WORD)(world_bx % TERRAIN_LEN);
             if (tidx < 0) tidx += TERRAIN_LEN;
             if (gs->terrain[tidx] == TERRAIN_ROCK && b->y >= GROUND_Y - 12) {
