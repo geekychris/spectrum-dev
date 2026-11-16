@@ -2,8 +2,21 @@
 
 Found while porting `amiga_mcp/examples/jump_quest` to the Spectrum. The same
 code is in the Amiga, AmigaOS 4, Atari ST (`atari_st_games/jump_quest`) and 3DO
-(`3do_dev/projects/jump_quest`) versions. Those repos are unchanged; this note
-is for fixing them later.
+(`3do_dev/projects/jump_quest`) versions.
+
+**Fixed in the original** (geekychris/amiga_games #48, 2026-11-15), and in this
+port:
+
+| bug | the original now | this port |
+|---|---|---|
+| the jump too low to finish level 1 (section 1) | `JUMP_FORCE` -180 | -180 from the start (`src/jq.h`) |
+| every life and level starts with 0 points and 3 lives (section 2) | kept across `player_init()` | kept from the start (`src/jq.c` `start_level`) |
+| GAME OVER: the UWORD countdown wrapped 0 -> 65535, ~22 minutes without input | stops at 0 | `transition` is an `int16_t` and stops at 0 |
+| sound effects never stopped (section 3) | each stops after its length | the port's beeper and AY effects end by themselves |
+| joystick right read from bit 0 | bit 1 | not applicable (the SDK reads the joysticks) |
+| bridge variables (BYTEs registered as I32) | LONG copies | not applicable (Amiga only) |
+
+The sections below describe the original as it was.
 
 ## 1. The jump is too low to finish level 1
 
@@ -68,6 +81,6 @@ p->health = health;      /* the death code sets health = 3 before start_level */
   only moves once it is 61+ px behind its target, and at the level's right end
   it can stop a tile short of `max_x`. The 320-px screen hides this.
 - `sound.c` starts each sound effect but never stops it: Paula repeats the
-  sample (the ST port documents this too).
+  sample (the ST port documents this too). Fixed in the original (#48).
 - `check_level_end()` uses `PLAYER_H` for Dale as well (his height is
   `PLAYER_H_SHORT`); harmless.
