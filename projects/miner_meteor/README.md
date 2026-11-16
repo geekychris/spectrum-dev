@@ -31,7 +31,11 @@ the effects.
 `src/game.c` is the original's `game.cpp` (the `MinerGame` methods over one
 `GameState`) and `src/levels.txt` is its six caverns row for row, including the
 three rows the original fixed to make caverns 2 and 6 winnable, and its
-`JUMP_IMPULSE` of -12. The guardians, scoring, air, collapse timers, conveyors,
+`JUMP_IMPULSE` of -12. Its later fixes (amiga_games #53) are in too: Hazard
+Bay's right wall closed on row 5 and Guardian Alley's first guardian on its
+ledge (y 32, not 48 inside it); the route search still clears all six caverns
+without losing a life (cavern 4 now takes 5.2 s). Its third fix, all 8 walk
+frames shown, doesn't apply: the port draws its own 4. The guardians, scoring, air, collapse timers, conveyors,
 jump edge-trigger and collision snaps are unchanged; the player's collision is
 the original's code moved into the SDK (`plat.h`) without changes. The logic
 runs at a fixed 50 ticks a second, as on the Amiga.
@@ -54,7 +58,7 @@ Changes are marked `port:`:
 - **BREAK** gives up a game (the Amiga's ESC quit the program).
 - **demo** (port addition): `src/demo.h` is the fastest route through each cavern,
   found by `tools/solve.sh`: a breadth-first search over `game_tick()` built for
-  the host (2.9, 4.7, 17.1, 4.2, 4.9 and 6.4 s; the original's README lists
+  the host (2.9, 4.7, 17.1, 5.2, 4.9 and 6.4 s; the original's README lists
   3.0, 6.1, 17.1, 4.2, 5.3 and 6.0 s from its own search).
 - **sound** (port addition): the Amiga's sound functions are stubs.
 - types: `int16_t`/`uint8_t` for the original's `LONG`s, a counter for
