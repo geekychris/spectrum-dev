@@ -93,6 +93,105 @@ def games(root: Path | None = None) -> list[dict]:
     return out
 
 
+def _readme_blurb(proj: Path) -> tuple[str | None, str]:
+    """A project's README: its first heading and first paragraph (or None, "")."""
+    f = proj / "README.md"
+    if not f.exists():
+        return None, ""
+    title, para = None, []
+    for line in f.read_text(errors="replace").splitlines():
+        s = line.strip()
+        if title is None and s.startswith("#"):
+            title = s.lstrip("#").strip()
+            continue
+        if s.startswith(("!", "|", "```", "#", "<")):
+            if para:
+                break
+            continue
+        if not s:
+            if para:
+                break
+            continue
+        para.append(s)
+    return title, " ".join(para)[:300]
+
+
+def _other_kind(name: str) -> str:
+    if name == "arcade":
+        return "the arcade's own menu program"
+    if "test" in name:
+        return "an SDK / emulator test"
+    return "a demo or SDK example"
+
+
+def catalog(root: Path | None = None) -> dict:
+    """Every project, for the DevBench's arcade page: the games (projects with an
+    arcade.json), each saying whether it is on the built SD image (playable from
+    the menu) or only playable on its own, and the other projects (tests, demos,
+    the menu) with why they aren't in the arcade. Never raises for one bad
+    project: its "problem" says what is wrong."""
+    root = root or ROOT
+    out_dir = root / "build" / "arcade"
+    image = out_dir / "arcade.mmc"
+    built_games = {}
+    if (out_dir / "games.json").exists():
+        try:
+            built_games = {g["project"]: g for g in json.loads((out_dir / "games.json").read_text())["games"]}
+        except (json.JSONDecodeError, KeyError, TypeError):
+            built_games = {}
+    image_time = image.stat().st_mtime if image.exists() else None
+    gs, others = [], []
+    for proj in sorted(p for p in (root / "projects").iterdir() if (p / "Makefile").exists()):
+        target = _make_var(proj / "Makefile", "TARGET") or "zx"
+        name = _make_var(proj / "Makefile", "NAME") or proj.name
+        program = proj / "build" / f"{name}.{'nex' if target == 'zxn' else 'tap'}"
+        machine = "next" if target == "zxn" else "48k"
+        meta = proj / "arcade.json"
+        if not meta.exists():
+            title, blurb = _readme_blurb(proj)
+            shots = sorted((proj / "screenshots").glob("*.png")) if (proj / "screenshots").is_dir() else []
+            others.append({"project": proj.name, "title": title or proj.name, "description": blurb,
+                           "machine": machine, "built": program.exists(), "kind": _other_kind(proj.name),
+                           "reason": f"no arcade.json: {_other_kind(proj.name)}",
+                           "picture": str(shots[0]) if shots else None})
+            continue
+        g = {"project": proj.name, "title": proj.name, "description": "", "controls": "",
+             "machine": machine, "built": program.exists(), "picture": None, "problem": None}
+        try:
+            j = json.loads(meta.read_text())
+            missing = [k for k in ("title", "description", "controls", "picture", "ready") if not j.get(k)]
+            g.update(title=(j.get("title") or proj.name)[:20], description=j.get("description", ""),
+                     controls=(j.get("controls") or "")[:40], ready=j.get("ready"))
+            if j.get("picture"):
+                pic = proj / j["picture"]
+                if pic.exists():
+                    g["picture"] = str(pic)
+                else:
+                    missing.append(f"picture file {j['picture']}")
+            if missing:
+                g["problem"] = "arcade.json is missing " + ", ".join(missing)
+        except json.JSONDecodeError as ex:
+            g["problem"] = f"arcade.json: {ex}"
+        b = built_games.get(proj.name)
+        on_image = bool(b) and image.exists()
+        g["on_image"] = on_image
+        g["index"] = b.get("index") if on_image else None
+        if on_image and b.get("image_picture") and Path(b["image_picture"]).exists():
+            g["image_picture"] = b["image_picture"]
+        g["stale"] = bool(on_image and image_time and program.exists()
+                          and program.stat().st_mtime > image_time)
+        if not on_image:
+            g["note"] = ("not on the SD image yet: it plays on its own; Rebuild adds it to the menu"
+                         if image.exists() else "the SD image isn't built: it plays on its own")
+        elif g["stale"]:
+            g["note"] = "built since the SD image: the menu has the older build until Rebuild"
+        gs.append(g)
+    gs.sort(key=lambda g: g["title"].lower())
+    return {"image": str(image) if image.exists() else None, "built": image.exists(),
+            "games": gs, "others": others,
+            "missing_from_image": [g["project"] for g in gs if not g["on_image"]]}
+
+
 def build_projects(names, log=print, jobs: int = 4):
     """zx-make each project, `jobs` at a time (a cache hit takes ~0.1 s; misses build in parallel)"""
     from concurrent.futures import ThreadPoolExecutor

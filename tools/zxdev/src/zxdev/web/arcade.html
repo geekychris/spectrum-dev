@@ -7,105 +7,272 @@
 <style>
 :root {
   --bg: #f4f4f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #d9d9d2;
-  --accent: #d7262a; --accent2: #0a5bd7; --k48: #c2560a; --next: #0a8f8f;
+  --accent: #d7262a; --accent2: #0a5bd7; --k48: #c2560a; --next: #0a8f8f; --warn: #9a6a00;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #151514; --panel: #1f1f1d; --ink: #ecece6; --muted: #9a9a92; --line: #33332f;
-          --accent: #ff5a4e; --accent2: #5aa0ff; --k48: #ff9a4a; --next: #45d0d0; }
+          --accent: #ff5a4e; --accent2: #5aa0ff; --k48: #ff9a4a; --next: #45d0d0; --warn: #e0b040; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
 header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px;
-         border-bottom: 1px solid var(--line); background: var(--panel); }
+         border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
 header h1 { font-size: 16px; margin: 0 12px 0 0; }
 header h1 span { display: inline-block; width: 46px; height: 10px; margin-right: 8px; vertical-align: middle;
   background: linear-gradient(90deg, #d7262a 0 25%, #f2c418 25% 50%, #2aa84a 50% 75%, #1b8ad8 75%); }
-header a { color: var(--accent2); }
+a { color: var(--accent2); }
+input[type=search] { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 5px;
+  background: var(--bg); color: var(--ink); min-width: 0; width: 160px; }
 button { font: inherit; padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px;
   background: var(--bg); color: var(--ink); cursor: pointer; }
 button:hover { border-color: var(--accent2); }
 button.primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
 button:disabled { opacity: .5; cursor: wait; }
-.status { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); }
+.status { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .err { color: var(--accent); }
-main { padding: 16px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.wrap { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+h2.sec { font-size: 15px; margin: 0; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
         display: flex; flex-direction: column; }
-.card img { width: 100%; aspect-ratio: 4/3; image-rendering: pixelated; background: #000; display: block; }
+.card img, .card .nopic { width: 100%; aspect-ratio: 4/3; image-rendering: pixelated; background: #000; display: block; }
+.card .nopic { display: grid; place-items: center; color: #888; font-size: 12px; }
 .card .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-.card h2 { font-size: 16px; margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.badge { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; }
+.card h3 { font-size: 16px; margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.badge { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
 .badge.k48 { color: var(--k48); } .badge.next { color: var(--next); }
 .desc { margin: 0; }
 .controls { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); }
-.card .row { margin-top: auto; display: flex; gap: 6px; }
-.empty { color: var(--muted); padding: 16px; }
+.note { font-size: 12px; color: var(--warn); } .problem { font-size: 12px; color: var(--accent); }
+.card .row { margin-top: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.empty { color: var(--muted); }
+#player { scroll-margin-top: 70px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+          display: none; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+#player.on { display: flex; }
+#player .scr { outline: none; border: 2px solid var(--line); border-radius: 4px; line-height: 0; max-width: 100%; }
+#player .scr:focus { border-color: var(--accent2); }
+#player img { width: 528px; max-width: 100%; image-rendering: pixelated; background: #000; }
+#player .side { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 8px; }
+#player .row { display: flex; gap: 6px; flex-wrap: wrap; }
+#player h3 { margin: 0; font-size: 16px; }
+kbd { font-family: ui-monospace, Menlo, monospace; font-size: 12px; border: 1px solid var(--line);
+      border-radius: 3px; padding: 0 4px; }
+.others { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); }
+.other { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+         display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.other .why { font-size: 12px; color: var(--muted); }
+details summary { cursor: pointer; font-weight: 600; }
 </style>
 </head>
 <body>
 <header>
   <h1><span></span>ZX Arcade</h1>
-  <button id="menu" class="primary">Open the menu</button>
-  <button id="build">Rebuild</button>
-  <a href="/">DevBench</a>
+  <input type="search" id="q" placeholder="find a game" aria-label="find a game">
+  <button id="menu" title="boot NextZXOS from the SD image and open the arcade menu in a window">Open the menu</button>
+  <button id="build" title="./zx arcade --image-only: build every game, the menu and the SD image">Rebuild</button>
+  <a href="/">DevBench (debugger)</a>
   <span class="status" id="msg"></span>
 </header>
-<main id="games"><div class="empty">Loading…</div></main>
+<div class="wrap">
+  <section id="player" aria-label="now playing">
+    <div class="scr" id="scr" tabindex="0" title="click here, then play with the keyboard"><img id="live" alt="the running game"></div>
+    <div class="side">
+      <h3 id="ptitle"></h3>
+      <div class="controls" id="pcontrols"></div>
+      <div class="status">Click the screen, then play: letters and digits are Spectrum keys,
+        <kbd>Space</kbd> <kbd>Enter</kbd>, <kbd>Shift</kbd> = CAPS SHIFT, <kbd>Alt</kbd> = SYMBOL SHIFT,
+        arrows + <kbd>Ctrl</kbd> = joystick + fire.</div>
+      <div class="row">
+        <button id="pause">Pause</button><button id="reset">Restart</button>
+        <button id="stopp">Stop</button><a id="dbg" href="/" target="_blank" rel="noopener">Debug it in the DevBench</a>
+      </div>
+      <div class="status" id="pstat"></div>
+    </div>
+  </section>
+  <h2 class="sec" id="gamesh">Games</h2>
+  <div class="grid" id="games"><div class="empty">Loading…</div></div>
+  <details id="otherbox">
+    <summary id="othersh">Other projects</summary>
+    <p class="status">Tests, demos and the menu itself: not in the arcade (no <code>arcade.json</code>), but they run the same way.
+      To add a game to the arcade, give its project an <code>arcade.json</code> (see the README) and Rebuild.</p>
+    <div class="others" id="others"></div>
+  </details>
+</div>
 <script>
 const $ = s => document.querySelector(s);
 const msg = (t, bad) => { $('#msg').textContent = t; $('#msg').className = 'status' + (bad ? ' err' : ''); };
+const MACHINE = {next: ['next', 'Spectrum Next'], '48k': ['k48', '48K']};
+// browser key -> emulator key name (see the hint in the player)
+function keyName(e) {
+  const k = e.key;
+  if (/^[a-z0-9]$/i.test(k)) return k.toUpperCase();
+  return {' ': 'SPACE', Enter: 'ENTER', Shift: 'CAPS', Alt: 'SYM', Control: 'FIRE',
+          ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT'}[k] || null;
+}
 
-async function api(path, body) {
-  const r = await fetch(path, body === undefined ? {} :
-    {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+async function api(path, body, method) {
+  const r = await fetch(path, {method: method || (body === undefined ? 'GET' : 'POST'),
+    headers: {'Content-Type': 'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)});
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
 }
 
+let all = [], others = [];
+function picture(el, g) {
+  const box = el.querySelector('.pic');
+  if (!g.has_picture) { box.outerHTML = '<div class="nopic">no picture</div>'; return; }
+  const img = document.createElement('img');
+  img.src = `/api/arcade/picture/${encodeURIComponent(g.project)}.png`;
+  img.alt = g.title; img.loading = 'lazy';
+  box.replaceWith(img);
+}
 function card(g) {
   const el = document.createElement('div');
   el.className = 'card';
-  const next = g.machine === 'next';
-  el.innerHTML = `<img alt="">
+  el.dataset.search = `${g.title} ${g.project} ${g.description} ${g.machine}`.toLowerCase();
+  const [cls, label] = MACHINE[g.machine] || ['', g.machine];
+  el.innerHTML = `<div class="pic"></div>
     <div class="body">
-      <h2><span class="t"></span><span class="badge ${next ? 'next' : 'k48'}">${next ? 'Spectrum Next' : '48K'}</span></h2>
-      <p class="desc"></p><div class="controls"></div>
-      <div class="row"><button class="primary play">Play in a window</button>
-      <button class="head">Headless</button></div>
+      <h3><span class="t"></span><span class="badge ${cls}">${label}</span></h3>
+      <p class="desc"></p><div class="controls"></div><div class="note"></div><div class="problem"></div>
+      <div class="row"><button class="primary here">Play here</button>
+      <button class="win">Play in a window</button></div>
     </div>`;
-  el.querySelector('img').src = `/api/arcade/picture/${encodeURIComponent(g.project)}.png`;
-  el.querySelector('img').alt = g.title;
+  picture(el, g);
   el.querySelector('.t').textContent = g.title;
   el.querySelector('.desc').textContent = g.description;
   el.querySelector('.controls').textContent = g.controls;
-  el.querySelector('.play').onclick = e => play(g, true, e.target);
-  el.querySelector('.head').onclick = e => play(g, false, e.target);
+  el.querySelector('.note').textContent = g.note || (g.built ? '' : 'not built yet: Play builds it first');
+  el.querySelector('.problem').textContent = g.problem || '';
+  el.querySelector('.here').onclick = e => play(g, false, e.target);
+  el.querySelector('.win').onclick = e => play(g, true, e.target);
+  return el;
+}
+function otherRow(g) {
+  const el = document.createElement('div');
+  el.className = 'other';
+  el.dataset.search = `${g.title} ${g.project} ${g.description}`.toLowerCase();
+  el.innerHTML = `<div><b class="t"></b> <span class="badge"></span><div class="why"></div></div>
+    <div class="row"><button class="here">Run here</button></div>`;
+  el.querySelector('.t').textContent = g.project;
+  const [cls, label] = MACHINE[g.machine] || ['', g.machine];
+  el.querySelector('.badge').className = 'badge ' + cls;
+  el.querySelector('.badge').textContent = label;
+  el.querySelector('.why').textContent = g.reason + (g.description ? ' — ' + g.description : '');
+  el.querySelector('.here').onclick = e => play(g, false, e.target);
   return el;
 }
 
+// ------------------------------------------------------------- the player
+let cur = null, held = new Set(), paused = false;
+async function sendKeys(cmd, keys) {
+  if (!cur) return;
+  try { await api(`/api/sessions/${cur.pid}/cmd/${cmd}`, keys === undefined ? {} : {keys}); }
+  catch (ex) { $('#pstat').textContent = ex.message; }
+}
+$('#scr').addEventListener('keydown', e => {
+  const k = keyName(e); if (!k) return;
+  e.preventDefault();
+  if (e.repeat || held.has(k)) return;
+  held.add(k); sendKeys('hold', k);
+});
+$('#scr').addEventListener('keyup', e => {
+  const k = keyName(e); if (!k) return;
+  e.preventDefault(); held.delete(k); sendKeys('release', k);
+});
+$('#scr').addEventListener('blur', () => { if (held.size) { held.clear(); sendKeys('release'); } });
+
+let frameLoop = 0;
+async function showFrames(id) {
+  const img = $('#live');
+  while (cur && frameLoop === id) {
+    try {
+      const r = await fetch(`/api/sessions/${cur.pid}/screen.png?t=${Date.now()}`);
+      if (!r.ok) { $('#pstat').textContent = 'the session has stopped'; break; }
+      const url = URL.createObjectURL(await r.blob());
+      await new Promise(ok => { img.onload = img.onerror = ok; img.src = url; });
+      URL.revokeObjectURL(url);
+    } catch { break; }
+    if (document.hidden) await new Promise(ok => setTimeout(ok, 500));
+  }
+}
+async function stopCurrent() {
+  if (!cur) return;
+  const pid = cur.pid; cur = null;
+  try { await api(`/api/sessions/${pid}`, undefined, 'DELETE'); } catch {}
+}
+function startPlayer(g, r) {
+  cur = {pid: r.session.pid, game: g};
+  paused = false; $('#pause').textContent = 'Pause';
+  $('#player').classList.add('on');
+  $('#ptitle').textContent = g.title;
+  $('#pcontrols').textContent = g.controls || '';
+  $('#pstat').textContent = `session ${r.session.pid} · ${r.via === 'menu' ? 'started from the arcade menu' : 'running on its own'}`
+    + (r.started === false ? ' · its ready line did not show' : '');
+  showFrames(++frameLoop);
+  $('#player').scrollIntoView({behavior: 'smooth', block: 'start'});
+  $('#scr').focus({preventScroll: true});
+}
+$('#stopp').onclick = async () => { await stopCurrent(); $('#player').classList.remove('on'); msg('stopped'); };
+$('#pause').onclick = async () => {
+  if (!cur) return;
+  paused = !paused;
+  await sendKeys(paused ? 'pause' : 'resume');
+  $('#pause').textContent = paused ? 'Resume' : 'Pause';
+  $('#scr').focus();
+};
+$('#reset').onclick = async () => {
+  if (!cur) return;
+  const g = cur.game;
+  await play(g, false, $('#reset'));
+};
+
 async function play(g, window, btn) {
   if (btn) btn.disabled = true;
-  msg(g ? `starting ${g.title}: NextZXOS boots, the menu picks it…` : 'opening the menu…');
+  msg(g ? `starting ${g.title}…` : 'opening the menu…');
   try {
-    const r = await api('/api/arcade/play', {game: g ? g.project : '', window});
-    msg(g ? (r.started ? `${g.title} is running (session ${r.session.pid}); reset returns to the menu`
-                       : `${g.title} didn't reach its title`) : `menu open (session ${r.session.pid})`, g && !r.started);
+    if (!window) await stopCurrent();
+    const r = await api('/api/arcade/play', {game: g ? g.project : '', window, resume: !window});
+    if (!window) startPlayer(g, r);
+    msg(g ? (r.started === false ? `${g.title} didn't reach its title (session ${r.session.pid})`
+                                 : `${g.title} is running (session ${r.session.pid}${r.via === 'direct' ? ', on its own' : ', from the menu'})`)
+          : `menu open (session ${r.session.pid})`, g && r.started === false);
   } catch (ex) { msg(ex.message, true); }
   if (btn) btn.disabled = false;
 }
 
+function filter() {
+  const q = $('#q').value.trim().toLowerCase();
+  document.querySelectorAll('[data-search]').forEach(el => { el.style.display = !q || el.dataset.search.includes(q) ? '' : 'none'; });
+  if (q) $('#otherbox').open = true;
+}
 async function load() {
   try {
     const a = await api('/api/arcade');
+    all = a.games; others = a.others;
     const box = $('#games');
     box.innerHTML = '';
-    if (!a.games.length) box.innerHTML = '<div class="empty">No games: add projects/&lt;name&gt;/arcade.json.</div>';
-    a.games.forEach(g => box.appendChild(card(g)));
-    msg(a.built ? `${a.games.length} games on ${a.image}` : 'not built yet: Rebuild (or ./zx arcade)', !a.built);
+    if (!all.length) box.innerHTML = '<div class="empty">No games: add projects/&lt;name&gt;/arcade.json.</div>';
+    all.forEach(g => box.appendChild(card(g)));
+    $('#others').innerHTML = '';
+    others.forEach(g => $('#others').appendChild(otherRow(g)));
+    $('#gamesh').textContent = `Games (${all.length})`;
+    $('#othersh').textContent = `Other projects (${others.length})`;
+    const miss = a.missing_from_image || [];
+    msg(a.built ? `${all.length} games, ${all.length - miss.length} on the SD image` +
+                  (miss.length ? ` · not on it yet: ${miss.join(', ')} (Rebuild)` : '')
+                : `${all.length} games · the SD image isn't built: Rebuild (or ./zx arcade) for the menu; Play here works now`,
+        !a.built);
+    filter();
+    // /arcade#play=<project>: a link that starts a game here
+    const want = decodeURIComponent((location.hash.match(/^#play=(.+)$/) || [])[1] || '');
+    const g = want && all.concat(others).find(x => x.project === want);
+    if (g && !cur) play(g, false, null);
   } catch (ex) { msg(ex.message, true); }
 }
 
+$('#q').oninput = filter;
 $('#menu').onclick = e => play(null, true, e.target);
 $('#build').onclick = async e => {
   e.target.disabled = true;
@@ -116,6 +283,8 @@ $('#build').onclick = async e => {
   } catch (ex) { msg(ex.message, true); }
   e.target.disabled = false;
 };
+// a headless game this page started stops with the page (the DevBench link opens a new tab)
+window.addEventListener('pagehide', () => { if (cur) fetch(`/api/sessions/${cur.pid}`, {method: 'DELETE', keepalive: true}); });
 load();
 </script>
 </body>

@@ -22,7 +22,7 @@ we can script deterministically.
 ./zx new <name> [--next]    # from sdk/template
 ./zx selftest               # build + test everything (do this before saying "done")
 ./zx doctor                 # environment problems
-./zx devbench               # web UI + REST (/api) + MCP over HTTP (/mcp) on :3580
+./zx devbench               # web UI + REST (/api) + MCP over HTTP (/mcp) on :3580; /arcade = every game, Play here
 ./zx arcade [--no-build]    # every game + menu on an SD card (NextZXOS), window; projects/arcade
 ```
 
@@ -392,3 +392,13 @@ Details: docs/emulator-harness.md.
 - Exact 32-bit physics (Rolling Steel): an odometer that adds |move| + 1 for every change of the
   ball's position bounds how far it can have moved since a triangle's test, so a sphere, plane or
   edge test that failed with more slack than that is still failing: skip it, same result.
+
+## DevBench arcade page (/arcade)
+- `arcade.catalog()` feeds `GET /api/arcade`: every project dir; games (arcade.json) marked
+  on_image / built / note / problem, other projects with a reason. A game merged since the last
+  `./zx arcade` shows up at once and plays on its own (`via: "direct"`); Rebuild adds it to the image.
+  `arcade.manifest()` (the built image's games.json) is still what the session's `arcade_play` uses.
+- `POST /api/arcade/play {"game", "window": false, "resume": true}` = the page's "Play here".
+- Worktrees: `scripts/lib.sh` puts this checkout's `tools/zxdev/src` on PYTHONPATH, so a
+  symlinked `.venv` (an editable install of another checkout) still runs this checkout's code
+  through `./zx`. Calling `.venv/bin/zxdev` directly does not.
