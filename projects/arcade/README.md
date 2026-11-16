@@ -73,8 +73,9 @@ power on ─▶ TBBlue firmware ─▶ NextZXOS ─▶ c:/nextzxos/autoexec.bas
 Files on the card, under `/arcade/`: `menu.bin`, `games.dat` (count + one
 256-byte record per game: title, machine, controls, description wrapped to
 4 x 26 characters), `pic00.l2`... (160 x 120, one byte a pixel RRRGGGBB,
-column-major, never the transparent 0xE3), `stats.dat` (32 play counters,
-sort, last game) and the games (`<short>.nex` / `<short>.sna`).
+column-major, never the transparent 0xE3), `stats.dat` (64 play counters,
+sort, last game: 130 bytes; a 66-byte file from before the 64-game menu, with
+32 counters, still loads and is written back in the new layout) and the games (`<short>.nex` / `<short>.sna`).
 
 ## Adding a game
 
@@ -101,7 +102,8 @@ follow from it:
 | `ready` | a `zx_log` line the game prints at its title screen; the test waits for it |
 
 The machine and the file come from the project's Makefile (`TARGET := zx`
-→ `build/<NAME>.tap`, `zxn` → `build/<NAME>.nex`). Up to 32 games.
+→ `build/<NAME>.tap`, `zxn` → `build/<NAME>.nex`). Up to 64 games (`MAX_GAMES` in `src/main.c` and in
+`tools/zxdev/src/zxdev/arcade.py`; `games.dat` is then 16 KB of the menu's RAM).
 
 ## From Claude, DevBench and Python
 

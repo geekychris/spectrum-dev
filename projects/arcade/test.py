@@ -8,10 +8,12 @@ then every game is chosen from the menu and must reach its title (its
 "ready" log line), and a reset brings the menu back with that game selected
 and its play counted (stats.dat written with sd_save, read back with sd_load).
 The sort checks go by the menu's own log lines (arcade.set_sort), so they
-hold for any number of games. Then a card padded to 22+ entries
-(arcade.padded_image) checks scrolling: to the last entry and back, the bar
-on the right row, the picture, starting the last entry, and the menu opening
-scrolled to it after a reset.
+hold for any number of games. Then a card padded to 40+ entries
+(arcade.padded_image; more than the old limit of 32) checks scrolling: to the
+last entry and back, the bar on the right row, the picture, starting the last
+entry, and the menu opening scrolled to it after a reset. That card starts
+with a stats.dat in the old 32-game layout (66 bytes), which the menu must
+read, and must write back in the 64-game layout.
 
     .venv/bin/python projects/arcade/test.py [--gif] [--no-build] [--all]
 
@@ -194,14 +196,18 @@ with tempfile.TemporaryDirectory() as tmp:
 # more games than the menu shows at once: scrolling, the bar, pictures, starting one from below
 with tempfile.TemporaryDirectory() as tmp:
     sd = Path(tmp) / "many.mmc"
-    total = min(32, max(22, len(gs) + 6))
-    full = arcade.padded_image(Path(m["image"]), sd, total, gs)
+    total = min(arcade.MAX_GAMES, max(40, len(gs) + 6))
+    old_last = arcade.OLD_GAMES + 3          # an entry past the old limit
+    old_stats = bytes(arcade.OLD_GAMES * 2) + bytes([0, old_last])   # the 32-game layout
+    full = arcade.padded_image(Path(m["image"]), sd, total, gs, stats=old_stats)
     with Emulator(machine="next", sd=sd) as e:
         sel = arcade.menu_ready(e, 3000)
         r = arcade.menu_line(e, r"ready games=(\d+) .*rows=(\d+)", 0)
         rows = int(r.group(2)) if r else 0
-        check(f"a card with {total} entries: more than the {rows} rows shown",
-              r is not None and int(r.group(1)) == total and total > rows)
+        check(f"a card with {total} entries (more than 32): more than the {rows} rows shown",
+              r is not None and int(r.group(1)) == total and total > arcade.OLD_GAMES and total > rows)
+        check(f"an old 32-game stats.dat is read: the menu opens on entry {old_last}", sel == old_last,
+              f"sel={sel}")
         pos = top = 0
         for _ in range(total + 2):
             start = e.log_cursor()
@@ -240,6 +246,23 @@ with tempfile.TemporaryDirectory() as tmp:
               sel == g["index"] and r is not None and int(r.group(3)) == total - rows)
         if failures:
             print("\n".join(e.debug_log[-15:]))
+    try:
+        raw = arcade.fatimg.FatImage(sd.read_bytes()).read("arcade/stats.dat")
+        st = arcade.read_stats(raw)
+    except (FileNotFoundError, ValueError) as ex:
+        raw, st = b"", {"plays": [], "last": None, "error": str(ex)}
+    check("stats.dat written back in the 64-game layout, the play counted",
+          len(raw) == arcade.MAX_GAMES * 2 + 2 and st["last"] == g["index"] and st["plays"][g["index"]] == 1,
+          f"{len(raw)} bytes, last={st['last']}")
+
+# stats.dat layouts on the host: the current one round-trips, the old 32-game one still reads
+st = arcade.read_stats(arcade.stats_dat([5] * arcade.MAX_GAMES, 1, arcade.MAX_GAMES - 1))
+check("stats_dat/read_stats round-trip 64 counters",
+      st["plays"] == [5] * arcade.MAX_GAMES and st["sort"] == 1 and st["last"] == arcade.MAX_GAMES - 1)
+st = arcade.read_stats(bytes([7, 0] * arcade.OLD_GAMES) + bytes([1, 3]))
+check("read_stats reads the old 32-counter layout",
+      st["plays"] == [7] * arcade.OLD_GAMES + [0] * (arcade.MAX_GAMES - arcade.OLD_GAMES)
+      and st["sort"] == 1 and st["last"] == 3)
 
 print(f"{'FAIL' if failures else 'PASS'}: arcade")
 sys.exit(1 if failures else 0)
