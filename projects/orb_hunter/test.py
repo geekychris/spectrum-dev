@@ -115,8 +115,13 @@ with Emulator(machine="next") as e:
     check("a power-up: SPRING BOOTS in room 3,3, its screen", got[:1] == ["SPRING BOOTS"] and wait_for(e, lambda q: q["state"] == S_ITEM), str(got))
     e.run(10)
     e.screenshot(SHOTS / "item.png")
-    e.press("SPACE")
-    check("fire carries on", wait_for(e, lambda q: q["state"] == PLAYING))
+    # the box's 90-frame timer runs (the original's main.c never ran it): it goes by itself
+    waited = 10
+    while probe(e)["state"] == S_ITEM and waited < 200:
+        e.run(1)
+        waited += 1
+    check("the item box goes by itself after 90 frames", 80 <= waited <= 100 and probe(e)["state"] == PLAYING,
+          f"{waited} frames")
 
     # ---- the game, recorded from reset
     e.record_input("start", from_reset=True)
@@ -138,8 +143,13 @@ with Emulator(machine="next") as e:
     e.screenshot(SHOTS / "game_over.png")
     over = re.findall(r"gameover score=(\d+) rank=(-?\d+)", full)
     check("the score makes the table", over and int(over[-1][1]) >= 0, str(over))
-    e.press("SPACE")
-    check("FIRE: initials", e.run_until("hiscore rank=", 30) and wait_for(e, lambda q: q["state"] == S_NAME))
+    # the game over screen's 180-frame timer runs (the original never ran it): on to the initials
+    waited = 10
+    while probe(e)["state"] == S_OVER and waited < 300:
+        e.run(1)
+        waited += 1
+    check("game over goes on by itself after 180 frames: initials", 170 <= waited <= 190 and probe(e)["state"] == S_NAME,
+          f"{waited} frames")
     e.run(5)
     e.screenshot(SHOTS / "initials.png")
     e.type("BOT")

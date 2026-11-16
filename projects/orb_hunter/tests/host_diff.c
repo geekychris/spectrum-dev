@@ -19,7 +19,7 @@ int main(void)
 {
     static Snap a, b;
     long step, steps = 400000, rooms = 0, deaths = 0, kills = 0;
-    int l = 0, r = 0, u = 0, d = 0, f = 0, hold = 0, games = 0;
+    int l = 0, r = 0, u = 0, d = 0, f = 0, hold = 0, games = 0, citadel = 0;
     int32_t last_room = -1, last_score = 0;
     port_init();
     orig_init();
@@ -29,6 +29,12 @@ int main(void)
             l = m < 3; r = m >= 3 && m < 7; u = rnd(3) == 0; d = rnd(8) == 0; f = rnd(2);
             hold = 5 + rnd(40);
             if (rnd(400) == 0) { port_give_all(); orig_give_all(); }
+            if (rnd(60) == 0) {                 /* into any room: the citadel's creatures too */
+                int rx = rnd(8), ry = rnd(6);
+                port_goto(rx, ry);
+                orig_goto(rx, ry);
+                if (ry == 4 && rx >= 3 && rx <= 5) citadel++;
+            }
         }
         port_update(l, r, u, d, u, f);
         orig_update(l, r, u, d, u, f);
@@ -53,6 +59,7 @@ int main(void)
             games++;
         }
     }
-    printf("PASS: %ld steps, %d games, %ld rooms entered, %ld deaths, %ld scoring steps\n", steps, games, rooms, deaths, kills);
+    printf("PASS: %ld steps, %d games, %ld rooms entered (%d times into the citadel), %ld deaths, %ld scoring steps\n",
+           steps, games, rooms, citadel, deaths, kills);
     return 0;
 }

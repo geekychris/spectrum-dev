@@ -2,8 +2,8 @@
  * main.c - Orb Hunter on the Spectrum Next: the original's main.c (the
  * title, play, the item screen, game over) around its rules (game.c).
  *
- * The original runs game_update() once a 50 Hz frame and counts frames in
- * gs.frame twice (game_update and the loop); here the rules run a step for
+ * The original runs game_update() once a 50 Hz frame (it counted gs.frame
+ * in the loop too until amiga_games #50 fixed it); here the rules run a step for
  * every frame that passed (frame_wait), so the game keeps its speed when a
  * frame takes longer (a room being drawn), and the picture follows.
  *
@@ -176,7 +176,6 @@ int main(void)
                 WORD state = gs.state;
                 game_update(&gs, (in & I_LEFT) != 0, (in & I_RIGHT) != 0, (in & I_UP) != 0, (in & I_DOWN) != 0,
                             (in & I_UP) != 0, (in & I_FIRE) != 0);
-                gs.frame++;                     /* main.c counts the frame too */
                 perf_steps++;
                 report(score, health, rx, ry, state, items);
                 if (gs.state == STATE_ITEM_GET || gs.state == STATE_GAMEOVER) break;
@@ -204,9 +203,13 @@ int main(void)
             }
             break;
 
-        case S_ITEM:                            /* the original: fire (held or not) carries on */
-            gs.frame += ticks;
-            if (in & (I_FIRE | I_START)) {
+        case S_ITEM:
+            /* fix (as in the original now): game_update runs the box's 90-frame
+               timer, and only a new press of fire closes it early (a fire held
+               from the game skipped the box at once) */
+            for (; ticks && gs.state == STATE_ITEM_GET; ticks--)
+                game_update(&gs, 0, 0, 0, 0, 0, 0);
+            if (gs.state != STATE_ITEM_GET || (pressed & (I_FIRE | I_START))) {
                 gs.state = STATE_PLAYING;
                 shell = S_GAME;
                 draw_room_update();             /* the box goes */
@@ -214,10 +217,13 @@ int main(void)
             break;
 
         case S_OVER:                            /* "PRESS FIRE TO CONTINUE" flashing */
-            gs.frame += ticks;
+            /* fix (as in the original now): game_update runs the 180-frame
+               timer back to the title (here: on to the initials if the score
+               makes the table); a new press goes on at once */
+            for (; ticks && gs.state == STATE_GAMEOVER; ticks--)
+                game_update(&gs, 0, 0, 0, 0, 0, 0);
             draw_gameover(((gs.frame / 20) & 1) ? 1 : 0);
-            /* port: a new press (the original takes fire held from the game) */
-            if (pressed & (I_FIRE | I_START)) {
+            if (gs.state != STATE_GAMEOVER || (pressed & (I_FIRE | I_START))) {
                 if (rank >= 0) {
                     shell = S_NAME;
                     hs_edit_begin(&ed);

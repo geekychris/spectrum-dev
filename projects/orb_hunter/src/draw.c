@@ -26,7 +26,7 @@ enum { COL_BG, COL_WHITE, COL_HUNTER, COL_HUNTER2, COL_ROCK, COL_ROCK2, COL_META
        COL_LAVA2, COL_MISSILE, COL_ENEMY, COL_ENEMY2, COL_DOOR, COL_ITEM, COL_BEAM };
 
 static UBYTE drawn[ROOM_H][ROOM_W];            /* the tiles Layer 2 shows */
-static struct { int32_t health, max, missiles; int8_t has_missiles, rx, ry, flash; } hud_shown;   /* what the HUD shows */
+static struct { int32_t health, max, missiles, score; int8_t has_missiles, rx, ry, flash; } hud_shown;   /* what the HUD shows */
 static uint8_t drawn_lava = 0xFF, drawn_save = 0xFF;
 
 /* ------------------------------------------------------------ Layer 2 */
@@ -162,16 +162,16 @@ static void hud_text(uint16_t x, uint8_t y, const char *s, uint8_t pen)
     l2w_text5(x, y, s, pen, 1, 1, 0);
 }
 
-/* the original's draw_hud: energy, missiles, the area, the map of rooms.
-   port: its debug line (Y, F, R) is left out */
+/* the original's draw_hud: energy, missiles, the area, the score (fix, as
+   in the original: it showed a debug line there), the map of rooms */
 void draw_hud(void)
 {
-    char buf[8];
+    char buf[10];
     Hunter *h = &gs.hunter;
     int8_t flash = (gs.frame & 4) != 0;
     if (hud_shown.health == h->health && hud_shown.max == h->max_energy && hud_shown.missiles == h->missiles &&
         hud_shown.has_missiles == h->has_missiles && hud_shown.rx == gs.room_x && hud_shown.ry == gs.room_y &&
-        hud_shown.flash == flash)
+        hud_shown.flash == flash && hud_shown.score == gs.score)
         return;
     if (hud_shown.rx != gs.room_x || hud_shown.ry != gs.room_y || hud_shown.has_missiles != h->has_missiles ||
         hud_shown.max != h->max_energy || hud_shown.health != h->health || hud_shown.missiles != h->missiles) {
@@ -188,6 +188,14 @@ void draw_hud(void)
         }
         hud_text(160, 1, area_names[gs.room_y < 0 ? 0 : gs.room_y > 5 ? 5 : gs.room_y], COL_ITEM);
         l2w_fill(0, HUD_H - 1, SCREEN_W, 1, COL_METAL2);
+        hud_shown.score = -1;
+    }
+    if (hud_shown.score != gs.score) {
+        l2w_fill(160, 8, 60, 7, COL_BG);
+        buf[0] = 'S'; buf[1] = 'C'; buf[2] = ' ';
+        num(buf + 3, gs.score, 6);
+        hud_text(160, 8, buf, COL_WHITE);
+        hud_shown.score = gs.score;
     }
     /* the map of rooms: the current one flashing (its frame only when the room changes) */
     {
@@ -246,8 +254,8 @@ void draw_sprites(void)
         if ((gs.items_collected & (1L << i)) || it->room_x != gs.room_x || it->room_y != gs.room_y) continue;
         spl_add(it->tile_x * TILE_W, it->tile_y * TILE_H + HUD_H, ((f / 4) + i) & 2 ? P_ORB1 : P_ORB0, 0, 0);
     }
-    /* port: the invulnerable hunter flickers on the shown frames (the
-       original's test of its frame counter hid it, ORIGINAL_BUGS.md) */
+    /* the invulnerable hunter flickers (fix, as in the original: its frame
+       counter went up twice a loop and hid it); port: on the shown frames */
     if (h->alive && !(h->invuln_timer > 0 && (show_frame & 1))) {
         int16_t sx = FIX_INT(h->x) - 2, sy = SY(h->y);
         if (h->rolled) spl_add(sx, sy, P_ROLL0 + ((f / 2) & 3), 0, 0);
@@ -260,11 +268,13 @@ void draw_sprites(void)
         else spl_add(FIX_INT(b->x), SY(b->y), P_BEAM, 0, 0);
     }
     for (i = 0; i < MAX_BOMBS; i++) if (gs.bombs[i].active) draw_bomb(&gs.bombs[i]);
-    /* port: enemies are always shown (the original's flash test hid them, ORIGINAL_BUGS.md) */
     for (i = 0; i < MAX_ENEMIES; i++) {
         const Enemy *e = &gs.enemies[i];
         int16_t ex, ey;
         if (!e->active) continue;
+        /* flash when hit (fix, as in the original: its own hit timer; the
+           original tested the AI's timer and hid every enemy) */
+        if (e->hit_timer > 0 && (show_frame & 1)) continue;
         ex = FIX_INT(e->x);
         ey = SY(e->y);
         switch (e->type) {
@@ -391,6 +401,12 @@ void draw_gameover(uint8_t prompt)
         screen_clear_l2(L2_BANK, COL_BG);
         text_centre(80, "GAME OVER", COL_LAVA, 3);
         l2w_fill((SCREEN_W - font5_width("GAME OVER", 3)) / 2, 107, font5_width("GAME OVER", 3), 2, COL_LAVA2);
+        {                                       /* fix, as in the original: the final score */
+            char buf[14];
+            strcpy(buf, "SCORE ");
+            num(buf + 6, gs.score, 6);
+            text_centre(122, buf, COL_WHITE, 1);
+        }
         memset(drawn, 0xFF, sizeof(drawn));
         memset(&hud_shown, 0xFF, sizeof(hud_shown));
         shown = 0;

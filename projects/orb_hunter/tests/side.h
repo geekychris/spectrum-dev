@@ -15,10 +15,19 @@ static void fill_snap(Snap *s)
 #define OBJ(dst, src, A, B, C, D) dst.x = src.x; dst.y = src.y; dst.a = src.A; dst.b = src.B; dst.c = src.C; dst.d = src.D
     for (i = 0; i < 6; i++) { if (gs.bullets[i].active) { OBJ(s->bullets[i], gs.bullets[i], life, active, type, power); s->bullets[i].dx = gs.bullets[i].dx; } }
     for (i = 0; i < 3; i++) { if (gs.bombs[i].active) { OBJ(s->bombs[i], gs.bombs[i], timer, active, timer, active); } }
-    for (i = 0; i < 12; i++) { if (gs.enemies[i].active) { OBJ(s->enemies[i], gs.enemies[i], health, state, timer, facing); s->enemies[i].dx = gs.enemies[i].dx; s->enemies[i].dy = gs.enemies[i].dy; } }
+    for (i = 0; i < 12; i++) { if (gs.enemies[i].active) { OBJ(s->enemies[i], gs.enemies[i], health, state, timer, facing); s->enemies[i].dx = gs.enemies[i].dx; s->enemies[i].dy = gs.enemies[i].dy; s->enemies[i].e = gs.enemies[i].hit_timer; } }
     for (i = 0; i < 6; i++) { if (gs.enemy_bullets[i].active) { OBJ(s->ebullets[i], gs.enemy_bullets[i], life, active, life, active); } }
     for (i = 0; i < 24; i++) { if (gs.particles[i].active) { OBJ(s->particles[i], gs.particles[i], life, color, active, life); s->particles[i].dx = gs.particles[i].dx; s->particles[i].dy = gs.particles[i].dy; } }
     for (y = 0; y < 16; y++) for (x = 0; x < 20; x++) s->room[y][x] = ROOM_TILE(y, x);
+}
+
+static void go_room(int rx, int ry)
+{
+    gs.room_x = rx;
+    gs.room_y = ry;
+    gs.hunter.x = FIX(152);
+    gs.hunter.y = FIX(32);
+    game_load_room(&gs);
 }
 
 static void give_all(void)
