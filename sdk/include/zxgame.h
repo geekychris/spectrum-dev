@@ -93,7 +93,7 @@ extern char input_letter_pressed(void);
 /* ------------------------------------------------------------ sound */
 
 extern uint8_t snd_border;                 /* border colour kept by the beeper */
-/* square wave: `cycles` periods of `period` (~ 8*period + 60 T-states each). Blocking. */
+/* square wave: `cycles` periods of `period` (52*period + ~80 T-states each). Blocking. */
 extern void beep(uint16_t period, uint16_t cycles);
 extern void beep_noise(uint16_t length);  /* white noise burst, ~ 40*length T-states */
 extern void beep_sweep(uint16_t from, uint16_t to, uint8_t step, uint8_t cycles);

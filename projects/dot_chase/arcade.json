@@ -1,0 +1,7 @@
+{
+  "title": "Dot Chase",
+  "ready": "dot: ready",
+  "description": "A ladybug in a hedge maze: eat every seed while four spiders hunt you. Flowers turn the tables.",
+  "controls": "QAOP/cursors move, SPACE start, Kempston",
+  "picture": "screenshots/play.png"
+}

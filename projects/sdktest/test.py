@@ -33,6 +33,42 @@ def xorshift(s, n):
     return out
 
 
+def grid_moves():
+    """gridmove.h's grid_move in Python, for the moves sdktest makes"""
+    def tile(p):
+        return p >> 3 if p >= 0 else -((-p) >> 3)
+
+    def move(b, d, speed, wrap):
+        if d < 0:
+            return
+        k = 1 if d & 1 else 0
+        pos, sub = b[k], b[2 + k]
+        v = sub + (speed if d < 2 else -speed)
+        t, sub = pos + (v >> 8), v & 255
+        if t > pos and (pos | 7) + 1 < t:
+            t, sub = (pos | 7) + 1, 0
+        elif t < pos and ((pos - 1) & ~7) > t:
+            t, sub = (pos - 1) & ~7, 0
+        b[k], b[2 + k] = t, sub
+        b[4], b[5] = tile(b[0] + 4), tile(b[1] + 4)
+        if wrap and b[0] < -8:
+            b[0], b[2] = wrap, 0
+        elif wrap and b[0] >= wrap:
+            b[0], b[2] = -8, 0
+
+    out = {}
+    b = [8, 8, 0, 0, 1, 1]
+    for name, d, sp, n, w in (("right", 0, 320, 9, 0), ("left", 2, 288, 7, 0), ("down", 1, 640, 5, 0)):
+        for _ in range(n):
+            move(b, d, sp, w)
+        out[name] = ",".join(map(str, b))
+    b = [0, 16, 0, 0, 0, 2]
+    for _ in range(4):
+        move(b, 2, 640, 48)
+    out["wrap"] = out["none"] = ",".join(map(str, b))
+    return out
+
+
 def val(log, key):
     m = re.search(rf"{re.escape(key)}=([-\w,]+)", log)
     return m.group(1) if m else None
@@ -201,6 +237,16 @@ for machine in ("48k", "128k"):
               and val(log, "range") == str(exp[4] % 10), f"{val(log, 'rnd')} vs {exp}")
         check("high-score insert", "rank=1 top=ZXD,5000 second=BOT,4500 last=2000 low=-1" in log)
         check("gfx_point", val(log, "point") == "1,0")
+        exp = grid_moves()
+        got = {k: val(log, "grid " + k) for k in exp}
+        check("gridmove: steps stop on tile centres, tunnel wrap (matches Python)", got == exp, f"{got} vs {exp}")
+        check("gridmove: grid_choose (nearest, no reversing, tunnel) and grid_dist2",
+              "grid choose=0,1,3,2 dist=4594" in log)
+        check("shadow48: masked sprite on the screen, restored with its colours",
+              "spr8 drawn=1,1,0,0" in log and "spr8 restored=0,0 attr=56" in log)
+        check("shadow48: drawn into the shadow, shown by shadow_show_rect",
+              "spr8 shadow=0" in log and "spr8 shown=1" in log)
+        check("shadow48: spr8_frame erases, redraws and recolours", "spr8 frame=0,1,1 attr=56,57" in log)
         check("beeper tone length (~15 frames)", 14 <= int(val(log, "beep frames")) <= 16, val(log, "beep frames"))
         check("frame timer: 50 waits = 50 frames", val(log, "waited") == "50")
         ov = re.search(r"overruns=(\d+)\n.*overruns after a long beep=(\d+)", log, re.S)

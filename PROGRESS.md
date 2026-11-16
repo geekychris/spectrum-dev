@@ -191,6 +191,13 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   at 0x0000 and two pages at 0x6000. Logic 25 Hz, picture ~49.6 fps. Port:
   the camera doesn't lean with the paddle. SDK: l2wpoly, nextsprl,
   tm_glyphnx. Two zsdcc miscompiles found (CLAUDE.md).
+- **Dot Chase** (48K): the original's logic (one fix: steps stop on tile centres,
+  the original skipped some and walked into hedges), the 28x31 maze in 6-pixel
+  tiles, sprites over a shadow screen drawn ahead of the beam (no flicker or
+  tearing), attribute colours by cell, beeper/AY sound from the original's
+  notes; logic 50 Hz, 49.5 fps. SDK: `shadow48` (shadow screen, 8-px masked
+  sprites, `spr8_frame`), `gridmove` (maze-chase movement and pathing); tests in
+  sdktest.
 
 - **Miner Meteor** (48K): the original's rules (`game.cpp`) at 50 Hz on the
   half-size cavern (one 16-px tile per character cell), its six caverns
