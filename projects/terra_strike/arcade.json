@@ -1,0 +1,7 @@
+{
+  "title": "Terra Strike",
+  "description": "Fly over a fractal island and destroy the tanks, buildings and ships; land on the pad to refuel.",
+  "controls": "5-8 fly, A/Z throttle, SPACE fire",
+  "picture": "screenshots/play.png",
+  "ready": "ts: ready"
+}
