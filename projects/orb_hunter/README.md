@@ -23,8 +23,9 @@ areas, and don't let your energy run out.
 | SPACE (M, 0) | fire | shoot; rolled: a bomb |
 | ENTER | | start |
 
-Sinclair joysticks work too. On the item screen fire carries on; after game
-over a good score asks for initials (type them, or up / down and fire).
+Sinclair joysticks work too. The item screen goes after 1.8 s, or at a press
+of fire; game over goes on after 3.6 s or at a press, and a good score asks
+for initials (type them, or up / down and fire).
 
 ## What's kept, what changed
 
@@ -46,26 +47,24 @@ Kept from the original:
 - **The look**: its 16-colour palette; the hunter, the creatures, the
   bosses, shots, missiles, bombs and their flash, orbs and sparks drawn
   pixel for pixel by the original's routines (ported to `tools/gen_gfx.py`);
-  its HUD (energy bar, missiles, area name, the map of rooms), item screen,
-  title and game over.
+  its HUD (energy bar, missiles, area name, score, the map of rooms), item
+  screen, title and game over (with the score).
+- **The original's fixes** (amiga_games #50, [ORIGINAL_BUGS.md](ORIGINAL_BUGS.md)):
+  creatures drawn and flashing when hit, the invulnerable hunter flickering,
+  creatures on the citadel's floor, the item box's and game over's timers,
+  presses only, the score in the HUD and on game over.
 - **Sound**: the original's music (`rock_blaster.mod`, the two channels it
   plays) and its eight effects.
 
 Changed (marked `port:` in the code):
 
-- **Enemies are shown.** In the original a frame-counter test hides every
-  creature and boss, and hides the hunter while it is invulnerable
-  ([ORIGINAL_BUGS.md](ORIGINAL_BUGS.md)). Here creatures are always drawn
-  and the hunter flickers.
 - **The tiles** keep the original's designs (rock with its specks, bricks
   with their mortar, metal panels, ledges, lava whose surface and sparks
   move as the original's, barred doors, the save point) with more shades;
   the title is a picture (the original's title over a cavern) with the
   controls and the high scores on it.
-- **High scores** are new: a table of five with initials. Game over waits
-  for a new press of fire (the original takes a held one).
-- The HUD's debug line (hunter Y, room) is left out; the text uses the
-  SDK's 5x7 font, the original's but for nine glyphs.
+- **High scores** are new: a table of five with initials.
+- The text uses the SDK's 5x7 font, the original's but for nine glyphs.
 - Where the world is kept (the current room in RAM, the rest in a bank) and
   the particles in their own file (`particles.c`, the rules' bank is 16K):
   the code is the original's.
@@ -112,11 +111,11 @@ frames, doesn't slow the game); the test checks steps against frames.
 `./zx test orb_hunter` (`test.py`): boots to the title (28 MHz, the
 picture, the music); the Kempston starts a game and runs, O runs left; the
 hunter runs and jumps down into room 3,3 and picks up the spring boots (the
-item screen, fire carries on). Then, recorded from reset: `tools/bot.py`
+item screen, which goes by itself after 90 frames). Then, recorded from reset: `tools/bot.py`
 plays through the keys: out of the start room, down into the next cavern,
 shoots a creature (100 points), then walks into the creatures (moving on
-when nothing hurts it) until they wear its energy down; game over, initials
-typed into the table, back to the title. The recording is replayed twice
+when nothing hurts it) until they wear its energy down; game over (on to the
+initials by itself after 180 frames), initials typed into the table, back to the title. The recording is replayed twice
 and every frame's hash must match. `tools/make_gif.py` makes the GIF above.
 
 ## Known issues

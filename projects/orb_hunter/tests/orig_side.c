@@ -19,4 +19,5 @@ void orig_init(void) { game_init(&gs); }
 void orig_update(int l, int r, int u, int d, int j, int f) { game_update(&gs, l, r, u, d, j, f); }
 void orig_snap(Snap *s) { fill_snap(s); }
 void orig_give_all(void) { give_all(); }
+void orig_goto(int rx, int ry) { go_room(rx, ry); }
 void orig_resume(void) { gs.state = STATE_PLAYING; }

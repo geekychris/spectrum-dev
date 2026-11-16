@@ -35,6 +35,7 @@ void port_init(void)
 void port_update(int l, int r, int u, int d, int j, int f) { game_update(&gs, l, r, u, d, j, f); }
 void port_snap(Snap *s) { fill_snap(s); }
 void port_give_all(void) { give_all(); }
+void port_goto(int rx, int ry) { go_room(rx, ry); }
 
 /* the effects: counted by host_diff (both sides call the same ones) */
 int sfx_count;
