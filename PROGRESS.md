@@ -372,6 +372,13 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   (no drawing); tilemap HUD; TurboSound effects and tunes (the original's
   audio is a stub). 49.6 fps over a whole game. The test bot plans on a host
   build of the rules and each loop is checked against it.
+- **RJ's Birthday Bash** (Next): the original's rules in a bank at 0x0000; its
+  1920-pixel house drawn on the host as column RLE in banks and streamed into
+  a hardware-scrolled 320 x 256 Layer 2 ring (sdk `l2pic`, tested in
+  l2pictest), a still HUD above a copper split, guests and police as sprites
+  (one pattern set in eight colours by palette offset), name tags in the
+  scrolled tilemap, the original's MODs and effects on TurboSound. ~49 fps.
+  Two zsdcc problems found (xcc `__moduint`, inline `strncpy`; CLAUDE.md).
 
 - **Orbital Patrol** (Next): the original's game.c and main-loop states unchanged
   in 32-bit 8.8, on its own 320 x 256 (Layer 2): the playfield scrolled by the
