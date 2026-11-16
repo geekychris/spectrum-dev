@@ -190,6 +190,12 @@ Details: docs/emulator-harness.md.
 - `dma_copy_banks`/`dma_fill_banks` map MMU slots 0-1 and give the ROM back:
   don't call them from code banked at 0x0000, and remap your bank after.
 - `frame_count` counts frame_wait() calls (loop iterations), not frames.
+- A banked symbol's CPU address shows whatever page is mapped there when the frame ends (a
+  window may be borrowed): read banked data through its page, `e.read_mem(addr & 0x1FFF, n, page=P)`.
+- zsdcc `--bsssegPAGE_n` puts a file's uninitialised arrays into a page (a 6K level map
+  out of main memory); `--opt-code-size` made a 16.5K file fit a 16K bank.
+- `run_until("x")` doesn't match lines already read by an `e.log()` call: check those in
+  the log you have (or the probe), or it runs to its frame limit.
 - Banked code: a function at 0x0000/0x6000 must not call code in another bank, and an SDK
   call it makes must not map over the bank its arguments live in (nexttile uses slot 2 only).
   zsdcc won't initialise arrays of structs (`= {0}`): put big tables at a fixed address.

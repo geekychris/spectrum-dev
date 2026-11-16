@@ -78,7 +78,7 @@ the CPU is slow, so the work goes into drawing less:
   and variables take the whole RAM from 0x5D00, with tables made at start-up
   above the IM 2 table
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel, Orb Hunter, Harbour Crane, Orbital Patrol, Ace Pilot, RJ's Birthday Bash, Drone Courier): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel, Orb Hunter, Harbour Crane, Orbital Patrol, Ace Pilot, RJ's Birthday Bash, Drone Courier, Pea Shooter Blast): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours
@@ -121,6 +121,10 @@ the 48K:
   Even so it runs at ~6.5 frames a second (the original's 32-bit simulation,
   banked across three memory maps a frame, keeps its 25 steps). Vehicles are
   sprites streamed into pattern memory by DMA
+- Pea Shooter Blast scrolls with Layer 2's own X scroll: the 320 columns are
+  a ring and only the map columns coming into view are drawn (4 at most a
+  frame), where the original redraws its 22 x 16 tiles every frame. The
+  background gradient is the copper changing one palette entry every 4 lines
 - Block Breaker 3D keeps the original's 3D: its tunnel is a Layer 2 picture
   from the original's camera, its bricks are drawn into Layer 2 where they
   change, with a depth byte per pixel; sprites deeper than a brick face are

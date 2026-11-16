@@ -202,6 +202,9 @@ int main(void)
     spl_begin();
     spl_add(240, 140, 10, 1, 0);
     spl_add(-20, 140, 10, 1, 0);                    /* off the screen: skipped */
+    spl_scale = 1;                                  /* 2x: 32 x 32 */
+    spl_add(250, 180, 10, 1, 0);
+    spl_scale = 0;
     spl_end();
     zx_log("lib: spl count=%u\n", spl_count);
 
@@ -218,6 +221,7 @@ int main(void)
     tm_put(11, 5, 5, 3);
     tm_glyphnx(6, glyph_a, 3, 1, 0, 0);             /* "A" at 3x: tiles 6..14 */
     for (i = 0; i < 9; i++) tm_put(20 + i % 3, 6 + i / 3, 6 + i, 3);
+
 
     /* TurboSound streams: copy one to page 40 and play it on chip 1 */
     ZXN_WRITE_REG(0x52, 40);

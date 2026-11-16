@@ -1,0 +1,7 @@
+{
+  "title": "Pea Shooter Blast",
+  "ready": "psb: ready",
+  "description": "Side-scrolling tank: jump the spike pits, shoot the robots, beat each boss. Three levels.",
+  "controls": "O/P move, Q jump, SPACE shoot",
+  "picture": "screenshots/play.png"
+}
