@@ -1,0 +1,7 @@
+{
+  "title": "Ace Pilot",
+  "description": "Wireframe dogfight over a green grid: down biplanes and blimps, strafe ground targets. 1 or 2 players.",
+  "controls": "QAOP fly, SPACE fire, W/S throttle, 1/2",
+  "picture": "screenshots/play.png",
+  "ready": "ace: ready"
+}

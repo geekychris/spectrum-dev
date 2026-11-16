@@ -2,7 +2,7 @@
  * l2line.h - lines on the 256 x 192 Layer 2 back buffer (nextgfx.h's double
  * buffer), Bresenham in Z80N assembly (sdk/src/next/l2line.asm): about 30
  * T-states a pixel. Endpoints are int16 and clipped to the screen; both
- * ends are drawn.
+ * ends are drawn. Rows outside l2l_ytop..l2l_ybot are clipped too.
  *
  *   l2l_line(x0, y0, x1, y1, colour)
  *
@@ -16,5 +16,6 @@
 
 extern void l2l_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint8_t colour);
 extern uint8_t l2l_ybot;                /* the last row drawn (191; e.g. 95 for a view drawn half height) */
+extern uint8_t l2l_ytop;                /* the first row drawn (0; e.g. 96 for the lower of two split views) */
 
 #endif

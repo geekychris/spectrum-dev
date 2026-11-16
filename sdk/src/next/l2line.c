@@ -5,6 +5,7 @@
 
 extern uint8_t l2l_x0, l2l_y0, l2l_x1, l2l_y1, l2l_col;
 uint8_t l2l_ybot = 191;
+uint8_t l2l_ytop = 0;
 extern void l2l_core(void);
 
 #define C_LEFT 1
@@ -17,7 +18,7 @@ static uint8_t outcode(int16_t x, int16_t y)
     uint8_t c = 0;
     if (x < 0) c = C_LEFT;
     else if (x > 255) c = C_RIGHT;
-    if (y < 0) c |= C_TOP;
+    if (y < l2l_ytop) c |= C_TOP;
     else if (y > l2l_ybot) c |= C_BOTTOM;
     return c;
 }
@@ -30,7 +31,7 @@ void l2l_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint8_t colour)
         int16_t x, y;
         if (c0 & c1) return;
         c = c0 ? c0 : c1;
-        if (c & C_TOP) { x = x0 + muldiv16(x1 - x0, 0 - y0, y1 - y0); y = 0; }
+        if (c & C_TOP) { x = x0 + muldiv16(x1 - x0, l2l_ytop - y0, y1 - y0); y = l2l_ytop; }
         else if (c & C_BOTTOM) { x = x0 + muldiv16(x1 - x0, l2l_ybot - y0, y1 - y0); y = l2l_ybot; }
         else if (c & C_LEFT) { y = y0 + muldiv16(y1 - y0, 0 - x0, x1 - x0); x = 0; }
         else { y = y0 + muldiv16(y1 - y0, 255 - x0, x1 - x0); x = 255; }
