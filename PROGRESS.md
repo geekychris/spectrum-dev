@@ -302,6 +302,17 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   picture 14-20 fps. zsdcc miscompiled four of the original's expressions
   (a multiply with a call as an operand returned its low 16 bits, the debris
   test's chain of 32-bit compares): rewritten, found tick by tick.
+- **Harbour Crane** (Next): the original's amiga3d rules (hc_core.c) unchanged
+  on fix16: its 51 tests pass on the host and its 15,000-tick autopilot game
+  hashes as in its tests/vectors.h on the Next. The original's scene code in
+  camera space with a fixed camera: a DMA'd backdrop (sky, shore, quay, the
+  sea's bands moved by palette), a level backdrop for the quay's queue and
+  the crane's far side, and each frame's ship, load, trolley and cable as
+  depth-bucketed l2fill polygons (box corners by vector adds, a Z80N MUL
+  projector); the crane's near side as 4-bit sprites; tilemap HUD and gauge;
+  the original's effects and a port tune on TurboSound; high scores. Rules
+  25 ticks/s, picture ~23 fps over the test's game (15-25). SDK: input2
+  latching (in2_sample, in2_scan_latched).
 
 - **Marble Tilt** (Next): the original's amiga3d rules unchanged on 16.16
   (`fix16.h`, the engine's fixed point bit for bit: the original's whole
