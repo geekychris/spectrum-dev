@@ -10,6 +10,16 @@ items at the end are changed there (marked `port:`).
 **The levels are now repaired** in every version (section 1, "Repaired").
 The analysis below is of the levels as released (`src/levels_original.txt`).
 
+**Fixed in the original since** (geekychris/amiga_games #47, 2026-11-15),
+both already right in this port:
+
+- **Stolen gold in a normal game.** The original filled its `gold_home`
+  mask (where a guard may drop stolen gold) only for the editor's test
+  play, so in a normal game guards never dropped it. It now fills it at
+  every level start. This port's `spawn_from_markers()` (`src/level.c`)
+  always did, for `level_load()` and the editor alike.
+- **A buried player** (section 2) now ends the life in the original too.
+
 ## 1. The levels can't be won
 
 A level is won when all its gold is collected and the player is on row 0
@@ -183,7 +193,8 @@ of the grid. But `main.c` only ends a life when a guard touches the player
 (`enemy_check_collision`). A dead player doesn't move (`player_update`
 returns at once), so the game stands there until a guard arrives, and on a
 level whose guards can't reach him it never ends. The Spectrum port ends the
-life on `PS_DEAD` (`src/play.c`, `port:`).
+life on `PS_DEAD` (`src/play.c`, `port:`). **Fixed in the original** too
+(amiga_games #47: its `main.c` ends the life on `PS_DEAD`).
 
 ## 3. The sound effects are never played
 
