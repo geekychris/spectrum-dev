@@ -1,8 +1,22 @@
 # Lunar Rider: bugs in the original
 
-The port keeps the original's rules (`amiga_mcp/examples/lunar_rider`,
-unchanged there). Where a bug made a game unwinnable from its first second,
-the port fixes it and marks the change `port:` in `src/game.c`.
+The port keeps the original's rules (`amiga_mcp/examples/lunar_rider`).
+Where a bug made a game unwinnable from its first second, the port fixed it
+and marked the change `port:` in `src/game.c`.
+
+**Fixed in the original** (geekychris/amiga_games #52, 2026-11-15) **and in
+this port:**
+
+| bug | the original now | this port |
+|---|---|---|
+| a game can start over a crater (below) | start area clear to `BUGGY_X + BUGGY_W + 30` | already fixed the same way |
+| the title and GAME OVER took a held fire/jump as a press (one held from play skipped GAME OVER) | presses only | GAME OVER already took a new press; the title now does too (`main.c`) |
+| a forward bullet's world x was a WORD: past 32768 px it tested the terrain 256 px away from the drawn rock | a LONG | a LONG (`game.c` `update_bullets`). A host build of `update_bullets` shoots a rock at world x 32815, 40115 and 200115 now; before, only below 32768 |
+| the mountains' parallax wrapped at 640, not at its 512 period: they jumped (below) | wraps at 512 | the port scrolls them continuously (no jump) |
+| mines 1 px wide, drawn on every other pair of columns only: often invisible | 2 px on every column | the port draws them 4 px wide |
+| HI showed the current score | a session high score | the port shows its high-score table's best (or the score, if higher) |
+
+The notes below describe the original as it was.
 
 ## A game can start over a crater (fixed)
 
@@ -31,7 +45,7 @@ The port keeps 30 pixels beyond the buggy's front clear instead
 (`world_x > BUGGY_X + BUGGY_W + 30`), which is what the comment says the
 code does.
 
-## Kept as the original
+## Kept as the original (as it was)
 
 These change how the game plays but don't stop it being played, so they are
 the original's behaviour in the port too:

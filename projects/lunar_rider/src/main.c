@@ -168,7 +168,9 @@ int main(void)
             if (gs.state == STATE_TITLE) {
                 gs.frame++;
                 if ((gs.frame % 20) == 0) view_title_blink((gs.frame / 20) & 1);
-                if (use.fire || use.jump) {
+                /* fix (as in the original now): a new press of fire or jump;
+                   one held from the initials or the game over started a game */
+                if (!startup_delay && (input_pressed() & (IN_FIRE | IN_UP | IN_DOWN))) {
                     game_init(&gs);
                     gs.state = STATE_PLAYING;
                     view_play();
