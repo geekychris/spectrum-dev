@@ -621,7 +621,12 @@ uint8_t joust(void)
     else {
         /* Equal height - bounce off */
         p->dx = (px < ex) ? -MOVE_SPEED : MOVE_SPEED;
-        e->dx = (ex < px) ? -ENEMY_SLOW : ENEMY_SLOW;
+        /* fix (as in the original now): face the way it now flies (facing
+           was left as it was, so it flew backwards until the next re-aim,
+           up to 64 frames later). port: dx from facing, the same values
+           in less code (the 48K is full) */
+        e->facing = ex < px;
+        e->dx = e->facing ? -ENEMY_SLOW : ENEMY_SLOW;
         p->dy = FLAP_IMPULSE / 3;
         e->dy = FLAP_IMPULSE / 3;
     }
