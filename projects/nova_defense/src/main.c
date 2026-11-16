@@ -470,6 +470,7 @@ static const ay_note melody[] = {
 
 static void sound_events(void)
 {
+    if (gs.ev_player_hit) zx_log("nova: boom\n");     /* test.py: once a life */
     if (ay_present) {
         if (gs.ev_shoot) ay_sfx(0, 120, 14, 2, 12);
         if (gs.ev_alien_hit) ay_sfx(1, 0, 14, 2, 0);

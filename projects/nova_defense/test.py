@@ -78,6 +78,12 @@ with Emulator() as e:
     check("the bot scores points", scores and max(scores) >= 100, str(scores[-5:]))
     check("a life is lost", lives and min(lives) < 3, str(lives))
     check("game over", "state=gameover" in log)
+    # the gun's explosion plays once a life (the original replayed it every
+    # frame while the gun was dying: its sound events weren't cleared then)
+    deaths = log.count("state=dying")
+    booms = log.count("nova: boom")
+    check("the gun's explosion sounds once a life", deaths and booms == deaths,
+          f"deaths={deaths} booms={booms}")
     m = re.search(r"gameover score=(\d+) overruns=(\d+)", log)
     final = int(m.group(1)) if m else 0
     e.run(5)
