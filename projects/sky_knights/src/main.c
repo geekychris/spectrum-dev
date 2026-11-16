@@ -15,6 +15,7 @@
  * Sinclair 2, player 2 Kempston or Sinclair 1 (6/7, 9 or 0 flaps).
  */
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <arch/zx.h>
 #include <intrinsic.h>
@@ -668,22 +669,20 @@ static void log_tick(uint8_t ev)
 
 /* ------------------------------------------------------------ main loop (the original's) */
 
-/* draw.asm and phys.asm read the structs at fixed offsets */
-#define OFS(t, f) ((uint16_t)&((t *)0)->f)
-static void layout_check(void)
-{
-    /* mem.h's tables must not overlap */
-    if (MEM_PRE_EGG + 8 * 2 * EGG_H > MEM_SX_TAB || MEM_SX_TAB + 2 * (SCREEN_W - WX_MIN + 1) > MEM_SY_TAB ||
-        MEM_SY_TAB + SCREEN_H + 1 > MEM_CELLS_BG || MEM_CELLS_BG + 768 > MEM_RING ||
-        MEM_RING + 3 * RING > MEM_END)
-        zx_log("sky: layout mismatch (mem.h)\n");
-    if (sizeof(Slot) != 14 || OFS(Slot, img) != 7 || OFS(Slot, t) != 9 ||
-        sizeof(Egg) != 14 || OFS(Egg, timer) != 8 ||
-        sizeof(Enemy) != 22 || OFS(Enemy, type) != 8 || OFS(Enemy, anim_frame) != 14 ||
-        sizeof(Player) != 26 || OFS(Player, alive) != 10 || OFS(Player, facing) != 14 ||
-        OFS(Player, flapping) != 24 || sizeof(Platform) != 6)
-        zx_log("sky: layout mismatch\n");
-}
+/* draw.asm and phys.asm read the structs at fixed offsets, and mem.h's
+   tables must not overlap: checked when compiling (an array of size -1 is an
+   error), which costs no code (the run-time checks' log lines took bytes the
+   48K needs) */
+#define OFS(t, f) offsetof(t, f)
+typedef char layout_mem_h_ok[(MEM_PRE_EGG + 8 * 2 * EGG_H > MEM_SX_TAB ||
+    MEM_SX_TAB + 2 * (SCREEN_W - WX_MIN + 1) > MEM_SY_TAB ||
+    MEM_SY_TAB + SCREEN_H + 1 > MEM_CELLS_BG || MEM_CELLS_BG + 768 > MEM_RING ||
+    MEM_RING + 3 * RING > MEM_END) ? -1 : 1];
+typedef char layout_structs_ok[(sizeof(Slot) != 14 || OFS(Slot, img) != 7 || OFS(Slot, t) != 9 ||
+    sizeof(Egg) != 14 || OFS(Egg, timer) != 8 ||
+    sizeof(Enemy) != 22 || OFS(Enemy, type) != 8 || OFS(Enemy, anim_frame) != 14 ||
+    sizeof(Player) != 26 || OFS(Player, alive) != 10 || OFS(Player, facing) != 14 ||
+    OFS(Player, flapping) != 24 || sizeof(Platform) != 6) ? -1 : 1];
 
 static LONG final_score[2];
 static uint8_t final_players, menu_drawn;
@@ -712,7 +711,6 @@ int main(void)
     dr_enemies = gs.enemies;
     dr_eggs = gs.eggs;
     slots_reset();
-    layout_check();
     draw_title();
     frame_init();
     frame_hook = isr_work;

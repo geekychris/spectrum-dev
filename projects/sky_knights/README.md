@@ -43,10 +43,16 @@ original's; only the drawing is scaled (x 4/5, y 3/4). Changes, marked
 - the random numbers are the SDK's xorshift (the original's LCG needs a
   32-bit multiply, and swoopers draw a number every frame)
 - the lance and the mount's head point the way the knight flies (the
-  original draws them on the left for facing 0, which is right)
+  original drew them on the left for facing 0, which is right; fixed there
+  too, amiga_games #51)
 - the score line is at the bottom (the original's sits over the top of the
   playfield); high scores, the initials editor and the title's FIRE / 1 / 2
-  are new; the title selection moves with UP/DOWN (the original used flap)
+  are new; the title selection moves with UP/DOWN, once a press (the
+  original used flap, and toggled it every frame it was held until
+  amiga_games #51)
+- fixed as in the original (amiga_games #51): after an equal-height bounce
+  the enemy faces the way it now flies (it flew backwards until its next
+  re-aim)
 - Paula played the flap sample every frame the button was held; the beeper
   gives a short wing beat every 6 frames
 

@@ -57,7 +57,8 @@ def read_gs(e):
     players = [dict(x=w(i * PLAYER) >> 6, y=w(i * PLAYER + 2) >> 6, dy=w(i * PLAYER + 6),
                     alive=w(i * PLAYER + 10), lives=w(i * PLAYER + 12)) for i in range(2)]
     enemies = [dict(x=w(OFS_ENEMIES + i * ENEMY) >> 6, y=w(OFS_ENEMIES + i * ENEMY + 2) >> 6,
-                    type=w(OFS_ENEMIES + i * ENEMY + 8))
+                    type=w(OFS_ENEMIES + i * ENEMY + 8), dx=w(OFS_ENEMIES + i * ENEMY + 4),
+                    facing=w(OFS_ENEMIES + i * ENEMY + 12))
                for i in range(8) if w(OFS_ENEMIES + i * ENEMY + 10)]
     eggs = [dict(x=w(OFS_EGGS + i * EGG) >> 6, y=w(OFS_EGGS + i * EGG + 2) >> 6)
             for i in range(8) if w(OFS_EGGS + i * EGG + 6)]
@@ -93,12 +94,18 @@ def play_tape(e, tape):
     e.write_mem("tick_tape", struct.pack("<H", TAPE))
 
 
+backwards = 0
+
+
 def bot_game(e, careful_frames=6000):
     """Joust until careful_frames, then drift under the enemies until the game is over."""
+    global backwards
     log, t, held, shots = "", 0, (), set()
     while "sky: gameover" not in log and t < 30000:
         g = read_gs(e)
         p, keys = g["p"], []
+        if g["state"] == 1:                             # an enemy flying the other way to its facing
+            backwards += sum(1 for o in g["enemies"] if o["dx"] and (o["dx"] < 0) != (o["facing"] == 1))
         if g["state"] == 1 and p["alive"]:
             careless = t > careful_frames
             if g["eggs"] and not careless:                 # pods first: they hatch into worse
@@ -163,7 +170,7 @@ with Emulator() as e:
     e.load(TAP)
     check("boots to the title", e.run_until("sky: ready", 3000))
     e.run(60)
-    check("structs as draw.asm/logic.asm expect", "layout mismatch" not in e.log(0))
+    # (the structs' layout that draw.asm/logic.asm expect is checked when main.c compiles)
     e.screenshot(SHOTS / "title.png")
     e.record_input("start", from_reset=True)
     e.run_until("sky: ready", 3000)
@@ -181,6 +188,7 @@ with Emulator() as e:
     check("points scored", scores and max(scores) >= 2000, str(scores[-5:]))
     check("lives lost", lives and min(lives) == 0, str(lives))
     check("game over", "sky: gameover" in log)
+    check("enemies face the way they fly", backwards == 0, f"{backwards} enemy frames backwards")
     check("the screen keeps up (fps logged >= 15)", fps and min(fps[1:] or fps) >= 15, str(fps))
     print(f"  fps in play: {fps}")
     m = re.search(r"gameover s1=(\d+)", log)
