@@ -135,8 +135,8 @@ void hud_reset(void)
     memset(cache, 0xFF, sizeof(cache));
     tm_clear();
     tm_fill(0, PANEL_ROW, TM_COLS, TM_ROWS - PANEL_ROW, T_PANEL, HP_GREY);
-    tm_print(13, PANEL_ROW + 1, "FUEL", FONT_PANEL, HP_GREY);
-    tm_print(13, PANEL_ROW + 2, "SHLD", FONT_PANEL, HP_GREY);
+    tm_print(14, PANEL_ROW + 1, "FUEL", FONT_PANEL, HP_GREY);
+    tm_print(14, PANEL_ROW + 2, "SHLD", FONT_PANEL, HP_GREY);
     shown_fuel = shown_shield = -1;
     msg_row = 0;
     shown_state = 255;
@@ -223,8 +223,8 @@ void hud_title(uint8_t frame)
 {
     message(8, "T E R R A   S T R I K E", HP_YELLOW);
     message(10, "A SPECTRUM NEXT PORT", HP_GREY);
-    message(21, "5-8 FLY      A / Z THROTTLE", HP_WHITE);
-    message(22, "SPACE FIRE   P PAUSE", HP_WHITE);
+    message(21, "5-8 FLY   A/Z THROTTLE", HP_WHITE);
+    message(22, "SPACE FIRE  P PAUSE  S MUSIC", HP_WHITE);
     message(24, "PRESS FIRE TO START", (frame & 32) ? HP_YELLOW : HP_WHITE);
 }
 
@@ -253,13 +253,13 @@ void hud_draw(const World *w, uint8_t paused)
     q = num_r(q, alt < 0 ? 0 : alt, 4);
     q = strput(q, " SPD");
     num_r(q, p->speed >> FBITS, 3);
-    line(3, 13, PANEL_ROW + 3, 16, t, HP_GREY);
+    line(3, 14, PANEL_ROW + 3, 16, t, HP_GREY);
     if (p->fuel != shown_fuel) {
-        bar(18, PANEL_ROW + 1, p->fuel, 1000, p->fuel < 200 ? HP_BAR_LOW : HP_BAR_FUEL);
+        bar(19, PANEL_ROW + 1, p->fuel, 1000, p->fuel < 200 ? HP_BAR_LOW : HP_BAR_FUEL);
         shown_fuel = p->fuel;
     }
     if (p->shield != shown_shield) {
-        bar(18, PANEL_ROW + 2, p->shield, 100, HP_BAR_SHLD);
+        bar(19, PANEL_ROW + 2, p->shield, 100, HP_BAR_SHLD);
         shown_shield = p->shield;
     }
     if ((++frame & 1) == 0) radar(w);  /* port: every 2nd screen */

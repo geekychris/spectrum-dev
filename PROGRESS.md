@@ -277,6 +277,19 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   exact mode (X on the title) is the original's 50 Hz rules, ~63% of real
   time at ~7.5 fps. Separate high-score tables per mode.
 
+- **Terra Strike** (Next): the original's simulation (world.c, split over
+  bank 22 and page 46) under zsdcc, checked tick for tick in test.py against
+  the same C built for the host (tools/hoststep.c: the Z80's World and input at
+  every world_update, 900 ticks), and its 67 unit tests on the host; the
+  island and models made by its own code on the host. Perspective 3D of the
+  11 x 11 tiles around the view and the models, painter's algorithm by depth
+  buckets as the original, camera space by sums with Z80N MUL (tgrid.asm),
+  l2poly fills at half height shown doubled by the copper; shots and particles
+  as sprites; tilemap HUD and sprite radar; the original's MOD on TurboSound
+  chips 1-2. ~4 fps (3-6) against the original's 25. Finishing the stranded
+  WIP found main.c resetting render.c's counters with the simulation's bank
+  mapped (zeros written into aim_target's code: no shot could hit).
+
 - **Orbit Docking** (Next): the original's amiga3d rules on fix16.h, bit for
   bit (the Next flies the original's long autopilot game to its
   tests/vectors.h hash; host check over every station); the cockpit view

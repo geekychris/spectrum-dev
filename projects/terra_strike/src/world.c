@@ -78,8 +78,16 @@ int world_pop_event(World *w, Event *e)
 {
     int i;
     if (w->nev == 0) return 0;
-    *e = w->ev[0];
-    for (i = 1; i < w->nev; i++) w->ev[i - 1] = w->ev[i];
+    /* port: field by field (zsdcc miscompiles small struct copies, CLAUDE.md) */
+    e->type = w->ev[0].type;
+    e->a = w->ev[0].a;
+    e->b = w->ev[0].b;
+    for (i = 1; i < w->nev; i++) {
+        Event *d = &w->ev[i - 1];
+        d->type = d[1].type;
+        d->a = d[1].a;
+        d->b = d[1].b;
+    }
     w->nev--;
     return 1;
 }

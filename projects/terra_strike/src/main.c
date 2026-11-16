@@ -9,7 +9,7 @@
  *
  * Keys, as the original: cursor keys 5 6 7 8 (or Kempston) turn, climb and
  * dive; A / Z throttle up / down; SPACE (or fire) fires; P pauses; ENTER
- * starts; BREAK goes back to the title.
+ * starts; BREAK goes back to the title; S turns the music off / on.
  *
  * Memory: the code runs in three phases, each with its own pages over the
  * ROM (whose font is copied first) at 0x0000-0x5FFF:
@@ -72,6 +72,7 @@ static void map_hud(void)
 }
 
 World world;                            /* test.py reads it by symbol */
+extern uint16_t clip_n, clip_kept;      /* render.c's (bank 24): its clip counts */
 RenderStats render_stats;
 
 /* phase timings in raster lines (312 a frame), summed over a perf period */
@@ -176,6 +177,14 @@ static uint16_t read_input(void)
     if (key_down(IN_KEY_SCANCODE_SPACE) || key_down(IN_KEY_SCANCODE_0)) in |= TSI_FIRE;
     if (key_down(IN_KEY_SCANCODE_ENTER)) in |= TSI_START;
     if (key_down(IN_KEY_SCANCODE_p)) in |= TSI_PAUSE;
+    {   /* port: a tap shorter than a slow frame (5 fps) is latched by the
+           interrupt (input_sample); the keys above are only seen if held */
+        uint8_t l;
+        input_read();
+        l = input_pressed();
+        if (l & IN_START) in |= TSI_START;
+        if (l & IN_FIRE) in |= TSI_FIRE;
+    }
     if (key_down(IN_KEY_SCANCODE_CAPS) && key_down(IN_KEY_SCANCODE_SPACE)) in = (in & ~TSI_FIRE) | TSI_ESC;
     return in;
 }
@@ -216,6 +225,7 @@ static void isr_work(void)
 int main(void)
 {
     uint8_t acc = 0, paused = 0, last_state = 255;
+    uint8_t music_key = 0, music_toggle = 0;
     uint16_t prev_in = 0, perf_frames = 0, perf_draws = 0, perf_steps = 0;
 
     next_init();
@@ -230,6 +240,7 @@ int main(void)
     palettes();
     map_hud();
     snd_init();
+    snd_music(1);                       /* the original's MOD, all the time */
     map_logic();
     input_init();
     frame_init();
@@ -264,6 +275,11 @@ int main(void)
             zx_log("ts: back to title\n");
         }
         prev_in = in;
+        {   /* S: the music off / on (port: the original has no key for it) */
+            uint8_t m = key_down(IN_KEY_SCANCODE_s);
+            if (m && !music_key) music_toggle = 1;
+            music_key = m;
+        }
         acc += ticks;
         steps = acc >> 1;
         acc &= 1;
@@ -290,6 +306,11 @@ int main(void)
         map_hud();
         {
             uint8_t q;
+            if (music_toggle) {
+                snd_music(!snd_music_on());
+                zx_log("ts: music %u\n", snd_music_on());
+                music_toggle = 0;
+            }
             for (q = 0; q < snd_qn; q++) snd_event(snd_q[q]);
             snd_qn = 0;
             snd_tick(ticks);
@@ -303,10 +324,16 @@ int main(void)
             zx_log("ts: perf fps10=%u steps=%u polys=%u tiles=%u models=%u dropped=%u\n",
                    (uint16_t)(perf_draws * 500 / perf_frames), perf_steps, render_stats.polys,
                    render_stats.tiles, render_stats.models, render_stats.dropped);
-            { extern uint16_t clip_n, clip_kept;
-            zx_log("ts: isr line %u\n", isr_line);
-            zx_log("ts: mdl setup=%u xf=%u faces=%u clip=%u kept=%u\n", (uint16_t)(prof_t[8] / perf_draws), (uint16_t)(prof_t[9] / perf_draws), (uint16_t)(prof_t[4] / perf_draws), clip_n / perf_draws, clip_kept / perf_draws);
-            clip_n = clip_kept = 0; }
+            {   /* clip_n, clip_kept are render.c's (bank 24): map it to read
+                   and reset them (with the logic's bank mapped this wrote
+                   into world.c's code: aim_target) */
+                uint16_t cn, ck;
+                map_render();
+                cn = clip_n; ck = clip_kept;
+                clip_n = clip_kept = 0;
+                map_logic();
+                zx_log("ts: mdl setup=%u xf=%u faces=%u clip=%u kept=%u\n", (uint16_t)(prof_t[8] / perf_draws), (uint16_t)(prof_t[9] / perf_draws), (uint16_t)(prof_t[4] / perf_draws), cn / perf_draws, ck / perf_draws);
+            }
             zx_log("ts: build verts=%u tiles=%u models=%u points=%u\n",
                    (uint16_t)(prof_t[5] / perf_draws), (uint16_t)(prof_t[6] / perf_draws),
                    (uint16_t)(prof_t[7] / perf_draws), (uint16_t)(prof_t[2] / perf_draws));

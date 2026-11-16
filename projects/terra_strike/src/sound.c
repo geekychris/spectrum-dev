@@ -1,18 +1,28 @@
 /*
  * Terra Strike - sound: the original's effects on TurboSound chip 0 (the
  * original synthesises gunfire, explosions, hits and the crash on Paula).
- * The MOD comes later (tools/make_music).
+ * The original's MOD ("patrol drive", art/terra_strike.mod) plays all the
+ * time, as there, on chips 1 and 2 through the SDK's modplay
+ * (tools/make_music.py -> music_song.c, in this bank with the rest of
+ * sound.c: the player reads it while the HUD's bank is mapped). S turns it
+ * off and on.
  */
 #include <stdint.h>
 #include "zxgame.h"
 #include "nextgfx.h"
 #include "ts.h"
 #include "sound.h"
+#include "modplay.h"
+
+extern const mod_song ts_song;
+static uint8_t music_on;
+uint16_t snd_music_ticks;               /* test.py: the player's ticks */
 
 void snd_init(void)
 {
     ay_init();
     ay_chip(0);
+    music_on = 0;
 }
 
 void snd_event(int16_t ev)
@@ -33,11 +43,23 @@ void snd_event(int16_t ev)
 
 void snd_music(uint8_t on)
 {
-    (void)on;
+    if (on == music_on) return;
+    music_on = on;
+    if (on) modplay_start(&ts_song);
+    else modplay_stop();
+    ay_chip(0);
 }
+
+uint8_t snd_music_on(void) { return music_on; }
 
 void snd_tick(uint8_t frames)
 {
     ay_chip(0);
-    while (frames--) sound_tick();
+    while (frames--) {
+        if (music_on) {
+            modplay_tick();             /* leaves chip 0 selected */
+            snd_music_ticks++;
+        }
+        sound_tick();
+    }
 }
