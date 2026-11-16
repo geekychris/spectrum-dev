@@ -151,8 +151,9 @@ uint8_t vox_draw(void)
                 taken |= (uint8_t)(1 << j);
             }
         /* world * 256 -> cells * 256: >> hshift */
-        vox_s.x = (uint16_t)(((camx << 8) + (((int32_t)d * fx) >> 6) + ((xr0 * rx) >> 14)) >> hshift);
-        vox_s.z = (uint16_t)(((camz << 8) + (((int32_t)d * fz) >> 6) + ((xr0 * rz) >> 14)) >> hshift);
+        /* (the heading to Q12 here: xr0 * Q14 overflows 32 bits far out) */
+        vox_s.x = (uint16_t)(((camx << 8) + (((int32_t)d * fx) >> 6) + ((xr0 * (rx >> 2)) >> 12)) >> hshift);
+        vox_s.z = (uint16_t)(((camz << 8) + (((int32_t)d * fz) >> 6) + ((xr0 * (rz >> 2)) >> 12)) >> hshift);
         vox_s.sx = (uint16_t)((step * rx) >> (14 + hshift));
         vox_s.sz = (uint16_t)((step * rz) >> (14 + hshift));
         vox_s.a = horizon + (int16_t)((camy * kk) >> 8);
