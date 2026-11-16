@@ -1,4 +1,5 @@
-; Miner Meteor caverns: the original's levels.cpp rows, unchanged (the three
+; Miner Meteor caverns: the original's levels.cpp rows (Hazard Bay's right wall fixed
+; there too, amiga_games #53; the three
 ; rows the original marks "bug in the original: unwinnable" are its fixed rows).
 ; Packed by sdk/tools/levelpack.py: tools/make_data.sh writes src/levels_data.c.
 size 20 15
@@ -27,7 +28,7 @@ room HAZARD BAY
 #....K.......K.....#
 #....##......##....#
 #..................#
-#..###..........###.
+#..###..........####
 #..................#
 #.^^^^....K....^^^.#
 #..................#
