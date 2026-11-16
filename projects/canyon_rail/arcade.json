@@ -1,0 +1,7 @@
+{
+  "title": "Canyon Rail",
+  "ready": "canyon: ready",
+  "description": "Ride down a winding canyon shooting turrets, drones and their bolts, then each stage's guardian.",
+  "controls": "QAOP/cursor sight, SPACE fire, P pause, B auto",
+  "picture": "screenshots/ride.png"
+}
