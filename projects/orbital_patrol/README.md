@@ -107,6 +107,14 @@ sprites and scanner the rest.
 | banks 16-20, 21 | Layer 2; the sprite patterns (`tools/gen_gfx.py`) |
 | page 47 | the test's input tape (below) |
 
+## Build and run
+
+```sh
+./zx build orbital_patrol   # -> projects/orbital_patrol/build/orbital_patrol.nex
+./zx run orbital_patrol     # a window to play it
+./zx arcade                 # with the other games, from the arcade menu
+```
+
 ## Test
 
 `./zx test orbital_patrol` (about 5 minutes):
