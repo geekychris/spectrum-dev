@@ -77,7 +77,7 @@ extern void vox_maps(const int8_t *heights, const uint8_t *colours, uint8_t csh)
 extern void vox_ribbon(const int16_t *mid, const uint8_t *stripe, const VoxBand *bands, uint8_t n);
 extern void vox_camera(int32_t x, int32_t y, int32_t z, uint16_t yaw);
 extern void vox_lens(int16_t fovx, int16_t fovy, int16_t horizon, uint8_t rows);
-extern void vox_depth(int16_t near, int16_t far, uint8_t grow);
+extern void vox_depth(int16_t d_near, int16_t d_far, uint8_t grow);
 extern void vox_snap_at(uint8_t k, int16_t depth);
 extern uint8_t vox_draw(void);           /* returns the slices drawn */
 extern void vox_sky(uint8_t pen);

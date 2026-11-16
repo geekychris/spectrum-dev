@@ -209,7 +209,7 @@ y_pos:
     ld d,(ix+VS_MID+1)
     ld a,d
     or e
-    jr z,pen_map
+    jp z,pen_map
     ld a,(vpz + 1)
     and 127
     ld (zrow),a

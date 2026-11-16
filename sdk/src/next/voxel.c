@@ -67,11 +67,11 @@ void vox_lens(int16_t fx_, int16_t fy_, int16_t hz, uint8_t r)
     rows = r;
 }
 
-void vox_depth(int16_t near, int16_t far, uint8_t grow)
+void vox_depth(int16_t d_near, int16_t d_far, uint8_t grow)
 {
-    int16_t d = near;
+    int16_t d = d_near;
     nslices = 0;
-    while (d <= far && nslices < VOX_SLICES) {
+    while (d <= d_far && nslices < VOX_SLICES) {
         slice_d[nslices++] = d;
         d += 1 + d / grow;
     }
