@@ -373,6 +373,18 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   audio is a stub). 49.6 fps over a whole game. The test bot plans on a host
   build of the rules and each loop is checked against it.
 
+- **Orbital Patrol** (Next): the original's game.c and main-loop states unchanged
+  in 32-bit 8.8, on its own 320 x 256 (Layer 2): the playfield scrolled by the
+  copper (NextReg 0x16/0x71 per row band), only scrolled-in terrain columns drawn,
+  stars on the tilemap behind, sprites for everything that moves, the MOD on two
+  TurboSound chips. The game records each step's input; the same game.c built on
+  the host plays it and must match at every checkpoint (it found zsdcc's 16-bit
+  int breaking the terrain). Collision scans, terrain columns and sprite
+  positions in asm; 47-50 fps in waves 1-4, 28-46 with 16 enemies.
+  TODO: move its game-local scrolling (view.c, terrain.asm) onto sdk l2scroll.h
+  once that has world-width wrap (l2s_band_wrap), l2s_col and zero-scroll rows
+  outside the bands (zx-uranus-lander's follow-up).
+
 ### Cleanup (2026-11-06)
 
 SDK modules pulled out of the games, each with a test (sdktest,
