@@ -321,6 +321,16 @@ and is checked by `tools/zxdev/tests/test_features.py` (82 checks) or
   25 ticks/s, picture ~23 fps over the test's game (15-25). SDK: input2
   latching (in2_sample, in2_scan_latched).
 
+- **Drone Courier** (Next): the original's amiga3d rules (dc_core.c)
+  unchanged on fix16: its 30 tests and its autopilot game's hash pass on the
+  Next (T at start-up). The chase-camera city drawn on Layer 2 with l2poly,
+  96 rows shown twice by the copper (sdk `l2double`), the transform and
+  projection in Z80N asm, a fast fill for polygons wholly on the screen; the
+  drone as pre-rendered hardware sprites; tilemap HUD and arrow; effects and
+  a tune on TurboSound; high scores. Rules 25 ticks/s, picture ~12 fps with
+  the autopilot flying (10.5-16). sound.c went into the rules' bank when
+  main's larger SDK pushed the resident part past 0xF000.
+
 - **Marble Tilt** (Next): the original's amiga3d rules unchanged on 16.16
   (`fix16.h`, the engine's fixed point bit for bit: the original's whole
   autopilot game hashes as in its tests/vectors.h, on the Next and the host);
