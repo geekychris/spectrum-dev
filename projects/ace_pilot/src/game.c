@@ -9,21 +9,7 @@
 #include "ace_input.h"   /* port: was input.h (z88dk has an <input.h>) */
 #include "zxgame.h"      /* fix_atan2 (port: angle_to) */
 
-/* Default tunables */
-Tunables g_tune = {
-    60,     /* enemy_speed (base * 10) */
-    50,     /* enemy_accuracy (1-100) */
-    60,     /* enemy_fire_rate (frames between shots) */
-    100,    /* spawn_rate (frames between spawns) */
-    1,      /* difficulty */
-    3,      /* start_lives */
-    10000,  /* extra_life_score */
-    80,     /* player_speed (base * 10) */
-    1,      /* display_mode: color by default */
-    0,      /* god_mode */
-    0,      /* invert_pitch */
-    1       /* num_players */
-};
+/* port: g_tune (the tunables) is in colour.c: main memory, the renderer reads it */
 
 /* RNG */
 static ULONG rng_state = 98765;

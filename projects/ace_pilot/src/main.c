@@ -6,8 +6,9 @@
  * loop, the double buffer, title and game over.
  *
  * Memory:
- *   0x0000-0x3FFF  bank 16 (pages 32, 33): render.c, mapped while drawing
- *                  (the ROM otherwise)
+ *   0x0000-0x3FFF  bank 16 (pages 32, 33): render.c, mapped while drawing;
+ *                  bank 17 (pages 34, 35): game.c, while the logic runs;
+ *                  the ROM otherwise
  *   0x6000-0x7FFF  Layer 2's pages while drawing (l2line, l2poly)
  *   0x8000-0xEFFF  this, the rules, the SDK, the shared tables
  *   0xF000-        the IM 2 table, the stack
@@ -31,6 +32,7 @@ void sfx_hit(void) {}
 void sfx_die(void) {}
 
 #define DRAW() do { ZXN_WRITE_MMU0(32); ZXN_WRITE_MMU1(33); } while (0)
+#define LOGIC() do { ZXN_WRITE_MMU0(34); ZXN_WRITE_MMU1(35); } while (0)
 #define ROM()  do { ZXN_WRITE_MMU0(0xFF); ZXN_WRITE_MMU1(0xFF); } while (0)
 
 static GameWorld world;
@@ -79,13 +81,17 @@ int main(void)
         in = read_input();
         if (game_state == STATE_TITLE) {
             if (pad1.pressed & IN_FIRE) {
+                LOGIC();
                 game_init(&world);
+                ROM();
                 game_state = STATE_PLAYING;
                 zx_log("ace: start\n");
             }
             continue;
         }
+        LOGIC();
         for (t = 0; t < ticks; t++) game_update(&world, in, 0);
+        ROM();
         l2_clear(0);                     /* maps slots 0-1 itself: before DRAW() */
         DRAW();
         render_scene(&world, 0);

@@ -29,12 +29,14 @@ static int32_t cam_x, cam_y, cam_z;
 static uint8_t cam_yaw, cam_pitch;
 static int16_t hcx, hcy;            /* the view's centre */
 
+static int16_t v_left, v_top, v_right, v_bottom;
+
 void render_view(int16_t left, int16_t top, int16_t right, int16_t bottom)
 {
-    l2l_left = left;
-    l2l_top = top;
-    l2l_right = right;
-    l2l_bottom = bottom;
+    v_left = left;
+    v_top = top;
+    v_right = right;
+    v_bottom = bottom;
     hcx = (left + right + 1) / 2;
     hcy = (top + bottom + 1) / 2;
 }
@@ -133,8 +135,8 @@ static void render_ground(void)
         int32_t hy;
         if (hcz < 1) hcz = 1;
         hy = hcy - hcy_ * FOV / hcz;
-        if (hy >= l2l_top && hy <= l2l_bottom)
-            line(l2l_left, (int16_t)hy, l2l_right, (int16_t)hy,
+        if (hy >= v_top && hy <= v_bottom)
+            line(v_left, (int16_t)hy, v_right, (int16_t)hy,
                  pen[g_tune.display_mode == DISPLAY_CLASSIC ? 2 : 13]);
     }
     {
@@ -226,6 +228,8 @@ void render_scene(const GameWorld *w, uint8_t player)
     cam_z = c->pos.z;
     cam_yaw = (uint8_t)c->yaw;
     cam_pitch = (uint8_t)c->pitch;
+    l2l_ytop = (uint8_t)v_top;
+    l2l_ybot = (uint8_t)v_bottom;
 
     render_ground();
     for (i = 0; i < MAX_GROUND; i++) {
