@@ -8,6 +8,8 @@ the air left. Three lives.
 
 ![title](screenshots/title.png) ![play](screenshots/play.png) ![cavern 6](screenshots/cavern6.png)
 
+![cavern 2](screenshots/cavern2.png) ![cavern 5](screenshots/cavern5.png)
+
 ![Miner Meteor's demo](../../docs/images/miner_meteor.gif)
 
 ## Controls
@@ -33,11 +35,20 @@ the effects.
 three rows the original fixed to make caverns 2 and 6 winnable, and its
 `JUMP_IMPULSE` of -12. Its later fixes (amiga_games #53) are in too: Hazard
 Bay's right wall closed on row 5 and Guardian Alley's first guardian on its
-ledge (y 32, not 48 inside it); the route search still clears all six caverns
-without losing a life (cavern 4 now takes 5.2 s). Its third fix, all 8 walk
-frames shown, doesn't apply: the port draws its own 4. The guardians, scoring, air, collapse timers, conveyors,
-jump edge-trigger and collision snaps are unchanged; the player's collision is
-the original's code moved into the SDK (`plat.h`) without changes. The logic
+ledge (y 32, not 48 inside it). Its third fix, all 8 walk frames shown,
+doesn't apply: the port draws its own 4. Its landing fix is in too: a landing from
+a y that isn't a multiple of 16 used to put the miner a tile above the floor,
+where he dropped and snapped back up every few ticks (a bob that also let him
+jump from 16 px higher). He now lands on the floor. Without that extra height
+Hazard Bay's row-5 ledge and Collapsing Attic's upper ledges were out of
+reach, so the original moved them (rows marked "bug in the original:
+unwinnable" in `src/levels.txt`): Hazard Bay's low left ledge is a row higher
+(row 9, was row 10), Collapsing Attic's row-8 ledge and its key are 6 columns
+further left and its row-3 ledge 2. The route search clears all six caverns
+without losing a life. The guardians, scoring, air, collapse timers, conveyors,
+jump edge-trigger and the side and ceiling snaps are unchanged; the player's
+collision is the original's code moved into the SDK (`plat.h`), landing fix
+included. The logic
 runs at a fixed 50 ticks a second, as on the Amiga.
 
 Changes are marked `port:`:
@@ -58,8 +69,10 @@ Changes are marked `port:`:
 - **BREAK** gives up a game (the Amiga's ESC quit the program).
 - **demo** (port addition): `src/demo.h` is the fastest route through each cavern,
   found by `tools/solve.sh`: a breadth-first search over `game_tick()` built for
-  the host (2.9, 4.7, 17.1, 5.2, 4.9 and 6.4 s; the original's README lists
-  3.0, 6.1, 17.1, 4.2, 5.3 and 6.0 s from its own search).
+  the host (5.4, 5.0, 16.8, 5.1, 4.2 and 6.1 s; caverns 1-4 match an exhaustive
+  search over the original's code, 271, 252, 842 and 256 ticks). Each route is
+  replayed before it is written: it must clear the cavern, lose no life and
+  never leave the miner standing on nothing (the old bob).
 - **sound** (port addition): the Amiga's sound functions are stubs.
 - types: `int16_t`/`uint8_t` for the original's `LONG`s, a counter for
   `tick % 6`, and a list of crumbling floors instead of a pass over all 300
@@ -73,8 +86,8 @@ Changes are marked `port:`:
   redrawn, so the sprites never flicker. Colour is per cell: a sprite gives
   the cells it covers its ink and keeps the paper. That's the classic clash,
   and it only shows where the miner passes a key or the exit.
-- **Speed.** It draws 46.5 frames a second on average over the demo. By
-  cavern: 2: 49.6, 3: 49.8, 4: 36.4, 5: 50.0, 6: 33.5 fps; cavern 1 is ~50.
+- **Speed.** It draws 46.6 frames a second on average over the demo. By
+  cavern: 1: 49.6, 2: 49.2, 3: 49.9, 4: 38.3, 5: 48.9, 6: 33.0 fps.
   Caverns 4 and 6 move three guardians and the miner every frame (about ten
   cells composed). When a frame is late the logic runs twice, so the game
   always plays at the original's speed. The biggest single cost left is the
@@ -93,8 +106,10 @@ Changes are marked `port:`:
 - **Beeper effects** play a short chunk a frame (~4,500 T-states), so a jump or
   a key never costs the game a frame; the long jingles play while the game is
   paused anyway.
-- **Memory.** The program ends at 0xEC9A (the SDK's interrupt table is at
-  0xF000). The pre-shifted sprites are 1.8K, and the packed levels 624 bytes.
+- **Memory.** The program ends at 0xEEA4, 348 bytes below the SDK's interrupt
+  table at 0xF000. The pre-shifted sprites are 1.8K, the packed levels 621
+  bytes, and the demo routes (`src/demo.h`) 624 bytes (286 before the
+  landing fix: the new routes have more, shorter runs).
 
 ## Files
 
@@ -105,7 +120,7 @@ Changes are marked `port:`:
 | `src/levels.c` | the guardians and palette variants (the original's tables) |
 | `src/main.c` | the Spectrum front end: art, cavern view, HUD, sound, title, demo, high scores |
 | `src/demo.h` | the demo routes (made by `tools/solve.sh`) |
-| `tools/solve.c`, `tools/solve.sh` | the route search; writes `tools/routes.json` (the test bot's) and `src/demo.h` |
+| `tools/solve.c`, `tools/solve.sh` | the route search, with a replay check of each route; writes `tools/routes.json` (the test bot's) and `src/demo.h` |
 | `tools/profile.py`, `tools/timefn.py` | where a frame's time goes |
 
 ## Test

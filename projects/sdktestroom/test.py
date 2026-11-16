@@ -150,8 +150,8 @@ with Emulator() as e:
     for want in expected:
         check(want, want in zx, str(zx))
     falls = {m.group(1): m.groups()[1:] for m in (re.match(r"plat: (\w+) x=(-?\d+) y=(-?\d+) vy=(-?\d+) ground=(\d)", l) for l in zx) if m}
-    check("plat: a fall from y = 61 snaps to the tile its top was in (y = 48, the original's snap)",
-          falls.get("fall") == ("20", "48", "0", "1"), str(falls.get("fall")))
+    check("plat: a fall from y = 61 lands on the floor (y = 64, not a tile higher)",
+          falls.get("fall") == ("20", "64", "0", "1"), str(falls.get("fall")))
     check("plat: walking right stops at the wall block (column 6: x = 96 - 16)", falls.get("wall", ("",))[0] == "80", str(falls.get("wall")))
     check("plat: walking left stops at the outer wall (x = 16)", falls.get("left", ("",))[0] == "16", str(falls.get("left")))
     check("plat: a jump into a ceiling snaps and turns vy to 1", falls.get("ceiling", ("", "", ""))[1:3] == ("48", "1"), str(falls.get("ceiling")))

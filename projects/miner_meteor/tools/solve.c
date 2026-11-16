@@ -4,16 +4,20 @@
  * same way whatever the player does, so states in a layer differ only by
  * the player, the keys and the floors; duplicates are dropped by a hash of
  * those. When a layer would pass MAX_STATES, the states with the most keys
- * collected are expanded first and the rest dropped (a beam), which only
- * cavern 6 needs. Prints, per cavern, the fastest route as runs of input flags.
+ * collected, then nearest the next key or the open exit, are expanded first
+ * and the rest dropped (a beam), which caverns 5 and 6 need. Prints, per cavern, the fastest route as runs of input flags,
+ * after replaying it from the cavern's start (it must clear the cavern, never
+ * lose a life and never stand on nothing).
  *
  *   tools/solve.sh            (builds this and writes tools/routes.json + src/demo.h)
+ *   build/solve r.json d.h N  (cavern N only, for trying a level change)
  */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "game.h"
+#include "plat.h"
 
 #define MAX_LAYERS 3000
 #define MAX_STATES 200000
@@ -57,22 +61,77 @@ static int seen(uint64_t k)
 static uint32_t *order;
 static GameState *tmp;
 static Link *ltmp;
-static const GameState *sort_base;
-static int by_keys(const void *a, const void *b)
+static uint32_t *score;
+/* keys left first, then the distance to the nearest key (or the open exit),
+   with height counted double */
+static uint32_t goal_dist(const GameState *s)
 {
-    const GameState *x = &sort_base[*(const uint32_t *)a], *y = &sort_base[*(const uint32_t *)b];
-    if (x->keys_remaining != y->keys_remaining) return x->keys_remaining - y->keys_remaining;
+    uint32_t best = 0xFFFFu, i;
+    for (i = 0; i < GRID_W * GRID_H; i++) {
+        uint8_t k = s->kind[i];
+        if (k == T_KEY || (k == T_EXIT && s->keys_remaining == 0)) {
+            int16_t dx = (int16_t)((i % GRID_W) * TILE_W) - s->player.b.x;
+            int16_t dy = (int16_t)((i / GRID_W) * TILE_H) - s->player.b.y;
+            uint32_t d = (uint32_t)(dx < 0 ? -dx : dx) + 2u * (uint32_t)(dy < 0 ? -dy : dy);
+            if (d < best) best = d;
+        }
+    }
+    return best;
+}
+static int by_score(const void *a, const void *b)
+{
+    uint32_t x = score[*(const uint32_t *)a], y = score[*(const uint32_t *)b];
+    if (x != y) return x < y ? -1 : 1;
     return (int)(*(const uint32_t *)a) - (int)(*(const uint32_t *)b);
 }
 static void sort_layer(uint32_t layer, uint32_t n)
 {
     uint32_t i;
-    for (i = 0; i < n; i++) order[i] = i;
-    sort_base = cur;
-    qsort(order, n, sizeof(uint32_t), by_keys);
+    for (i = 0; i < n; i++) {
+        order[i] = i;
+        score[i] = (uint32_t)cur[i].keys_remaining * 100000u + goal_dist(&cur[i]);
+    }
+    qsort(order, n, sizeof(uint32_t), by_score);
     for (i = 0; i < n; i++) { tmp[i] = cur[order[i]]; ltmp[i] = links[layer][order[i]]; }
     memcpy(cur, tmp, sizeof(GameState) * n);
     memcpy(links[layer], ltmp, sizeof(Link) * n);
+}
+
+/* replays a route from the cavern's start: it must clear the cavern on its
+   last tick without losing a life, and the miner must never stand with no
+   floor under the feet (the original's landing bob, fixed). A crumbling floor
+   that went this tick still counts as floor. */
+static uint8_t floor_at(const uint8_t *before, int16_t px, int16_t py)
+{
+    uint16_t cell;
+    if (plat_solid_at(px, py)) return 1;
+    if (px < 0 || py < 0 || px >= PLAY_W || py >= PLAY_H) return 0;
+    cell = (uint16_t)(py / TILE_H) * GRID_W + (uint16_t)(px / TILE_W);
+    return before[cell] == T_COLLAPSE;
+}
+
+static int replay(uint8_t level, const uint8_t *path, int n)
+{
+    static uint8_t before[GRID_W * GRID_H];
+    int t;
+    game_init();
+    game_load_level(level);
+    gs.mode = GM_PLAYING;
+    gs.level_index = level;
+    for (t = 0; t < n; t++) {
+        memcpy(before, gs.kind, sizeof(before));
+        game_tick(path[t]);
+        if (gs.events & EV_DIED) return 0;
+        if (gs.events & EV_LEVEL) return t == n - 1;
+        if (gs.player.b.on_ground &&
+            !floor_at(before, gs.player.b.x + 1, gs.player.b.y + 16) &&
+            !floor_at(before, gs.player.b.x + 14, gs.player.b.y + 16)) {
+            fprintf(stderr, "cavern %u: standing on nothing at tick %d (x %d y %d)\n",
+                    level + 1, t + 1, gs.player.b.x, gs.player.b.y);
+            return 0;
+        }
+    }
+    return 0;
 }
 
 static const uint8_t inputs[6] = { 0, INPUT_LEFT, INPUT_RIGHT, INPUT_JUMP,
@@ -124,6 +183,7 @@ static int solve(uint8_t level, FILE *json, FILE *demo, int last)
         }
     }
     for (i = 1; i < (uint32_t)found + 1; i++) free(links[i]);
+    if (!replay(level, path, found)) { fprintf(stderr, "cavern %u: the route fails on replay\n", level + 1); return 0; }
     fprintf(stderr, "cavern %u %-17s %d ticks (%.1f s)\n", level + 1, "", found, found / 50.0);
     /* json: [[input, count], ...] */
     fprintf(json, "  [");
@@ -155,6 +215,7 @@ int main(int argc, char **argv)
     table = malloc(sizeof(uint64_t) * TABLE);
     stamp = calloc(TABLE, sizeof(uint16_t));
     order = malloc(sizeof(uint32_t) * MAX_STATES);
+    score = malloc(sizeof(uint32_t) * MAX_STATES);
     tmp = malloc(sizeof(GameState) * MAX_STATES);
     ltmp = malloc(sizeof(Link) * MAX_STATES);
     json = fopen(argv[1], "w");
@@ -163,7 +224,8 @@ int main(int argc, char **argv)
     fprintf(demo, "/* made by tools/solve.sh: the fastest route through each cavern, found by a\n"
                   "   search over game_tick() on the host. {input flags, ticks}; 0xFF ends a cavern. */\n"
                   "static const uint8_t demo_route[][2] = {\n");
-    for (l = 0; l < num_levels; l++) ok &= solve(l, json, demo, l == num_levels - 1);
+    for (l = 0; l < num_levels; l++)
+        if (argc < 4 || atoi(argv[3]) == l + 1) ok &= solve(l, json, demo, l == num_levels - 1);
     fprintf(json, "]\n");
     fprintf(demo, "};\n");
     fclose(json);
