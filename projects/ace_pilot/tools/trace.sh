@@ -6,7 +6,7 @@ O=${ACE_ORIG:-../../../amiga_mcp/examples/ace_pilot}
 SDK=../../sdk
 B=build/trace; mkdir -p $B
 cc -O1 -w -DORIG -I tools/orig_shim -I $O -I src -o $B/orig tools/trace.c -lm $O/game.c $O/engine3d.c $O/models.c || exit 1
-cc -O1 -w -DACE_ORIGINAL_ENEMY_SPEED -I src -I $SDK/include -o $B/port tools/trace.c -lm src/game.c src/trig.c src/models.c $SDK/src/fix88.c $SDK/src/fix88_tab.c || exit 1
+cc -O1 -w -DACE_ORIGINAL_ENEMY_SPEED -I src -I $SDK/include -o $B/port tools/trace.c -lm src/game.c src/colour.c src/trig.c src/models.c $SDK/src/fix88.c $SDK/src/fix88_tab.c || exit 1
 fail=0
 for bot in 0 1; do for p in 1 2; do for s in 1 2 3; do
   $B/orig $s 30000 $p $bot > $B/o.txt; $B/port $s 30000 $p $bot > $B/p.txt
@@ -16,7 +16,7 @@ for bot in 0 1; do for p in 1 2; do for s in 1 2 3; do
   else echo "$what: differ"; diff $B/o.txt $B/p.txt | head -4; fail=1; fi
 done; done; done
 # the port as shipped (enemy speed fixed, ORIGINAL_BUGS.md) with the autopilot
-cc -O1 -w -I src -I $SDK/include -o $B/fixed tools/trace.c src/game.c src/trig.c src/models.c $SDK/src/fix88.c $SDK/src/fix88_tab.c -lm || exit 1
+cc -O1 -w -I src -I $SDK/include -o $B/fixed tools/trace.c src/game.c src/colour.c src/trig.c src/models.c $SDK/src/fix88.c $SDK/src/fix88_tab.c -lm || exit 1
 for sp in orig fixed; do
   [ $sp = orig ] && bin=$B/orig || bin=$B/fixed
   $bin 1 30000 1 1 > $B/x.txt

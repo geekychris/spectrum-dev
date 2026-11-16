@@ -91,6 +91,7 @@ WORD angle_to_scan(LONG dx, LONG dz)
 
 #ifdef __SDCC
 extern uint8_t ap_angle(int16_t dx, int16_t dz, uint8_t lo); /* dot.asm: the fast path below */
+extern uint8_t ap_scan(int16_t dx, int16_t dz);              /* dot.asm: angle_to_scan, short vectors */
 #endif
 
 /* port: the same result with ~1/5 of the dot products. The coarse pass of the
@@ -107,6 +108,9 @@ WORD angle_to(LONG dx, LONG dz)
     LONG best_dot, dot;
     LONG adx = dx < 0 ? -dx : dx, adz = dz < 0 ? -dz : dz;
 
+#ifdef __SDCC
+    if (adx < 256 && adz < 256) return ap_scan((int16_t)dx, (int16_t)dz);
+#endif
     if ((adx < 256 && adz < 256) || adx > 16383 || adz > 16383) return angle_to_scan(dx, dz);
     lo = ((WORD)fix_atan2((int16_t)dx, (int16_t)dz) & ~3) - 12;   /* 0 = +z, 64 = +x */
 #ifdef __SDCC

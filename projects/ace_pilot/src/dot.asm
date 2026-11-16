@@ -6,7 +6,7 @@
 
 SECTION code_user
 
-PUBLIC _ap_angle
+PUBLIC _ap_angle, _ap_scan
 EXTERN _sin_tab, _cos_tab, l_z80n_mulu_32_16x16
 
 ; uint8_t ap_angle(int16_t dx, int16_t dz, uint8_t lo)
@@ -87,6 +87,55 @@ ang_k_ok:
     ld a,(ang_b)
     add a,3
     call ang_try
+    ld a,(ang_res)
+    ld l,a
+    ret
+
+; uint8_t ap_scan(int16_t dx, int16_t dz)
+;   the original's angle_to scan (game.c angle_to_scan) for short vectors
+;   (|dx|, |dz| < 256: the dot products tie over wide ranges, so no shortcut):
+;   every 4th angle from 0 in order, the first with the largest dot product,
+;   then the refine loop as the C has it: from best - 3 until best + 4, best
+;   being updated as it goes. port: in C the 71 dot products took ~1/5 of a
+;   busy tick.
+_ap_scan:
+    ld hl,2
+    add hl,sp
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    inc hl
+    ld (dot_dx),de
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    ld (dot_dz),de
+    xor a
+    ld (ang_have),a
+    ld (ang_k),a                ; a = 0
+sc_coarse:
+    ld a,(ang_k)
+    call ang_try
+    ld a,(ang_k)
+    add a,4
+    ld (ang_k),a
+    jr nz,sc_coarse             ; 252 + 4 wraps to 0: 64 tried
+    ld a,(ang_res)
+    sub 3
+    ld (ang_k),a
+sc_refine:
+    ld a,(ang_res)
+    add a,4
+    ld b,a
+    ld a,(ang_k)
+    cp b
+    jr z,sc_done                ; a == best + 4
+    call ang_try
+    ld a,(ang_k)
+    inc a
+    ld (ang_k),a
+    jr sc_refine
+sc_done:
     ld a,(ang_res)
     ld l,a
     ret

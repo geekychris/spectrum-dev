@@ -5,6 +5,7 @@ Next shows the same list (see the Arcade section of the README).
 
 | | Game | Machine | Controls |
 |---|---|---|---|
+| ![](images/arcade/acepilot.png) | **[Ace Pilot](../projects/ace_pilot/README.md)**<br>Wireframe dogfight over a green grid: down biplanes and blimps, strafe ground targets. 1 or 2 players. | Spectrum Next | QAOP fly, SPACE fire, W/S throttle, 1/2 |
 | ![](images/arcade/blockbre.png) | **[Block Breaker 3D](../projects/block_breaker_3d/README.md)**<br>Breakout down a tunnel: steer the ball into bricks 3 deep. 8 levels, capsules, tough and steel. | Spectrum Next | QAOP/joystick move, SPACE serve, H help |
 | ![](images/arcade/boingpin.png) | **[Boing Pinball](../projects/boing_pinball/README.md)**<br>The Comet Tour table with the Boing ball: bumpers, drop targets, ramp, orbit, missions, multiball. | Spectrum Next | Z/M flippers, SPACE plunger, Q nudge |
 | ![](images/arcade/boingtwi.png) | **[Boing Twist](../projects/boing_twist/README.md)**<br>Twist bands and flip halves of the Boing ball until its picture is whole: 17 pictures, 10 rooms, 4 levels. | Spectrum Next | QA band, OP twist, ZX half, SPACE flip |

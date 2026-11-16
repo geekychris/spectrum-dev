@@ -74,6 +74,8 @@ static uint8_t project(int32_t cx, int32_t cy, int32_t cz, int16_t *sx, int16_t 
 
 /* ---- models */
 
+#define MODEL_R 72                  /* > every model vertex's distance (|coordinate| <= 40) */
+
 static int16_t vx_s[24], vy_s[24];
 static uint8_t vis[24];
 
@@ -88,6 +90,14 @@ static void render_model(const Model *m, int32_t wx, int32_t wy, int32_t wz, uin
     int32_t depth;
 
     xform(wx, wy, wz, &ox, &oy, &oz);
+    /* port: models wholly behind the near plane (vertex 0, which the
+       original culls on, is within MODEL_R of the centre) or wholly outside
+       the view's 45-degree cone (wider than the view: |x| <= 0.8 z, |y| <= 0.6 z)
+       are skipped before their vertices are touched: nothing of them would
+       be drawn */
+    if (oz < NEAR_CLIP - MODEL_R || oz > FAR_CLIP + MODEL_R) return;
+    if (ox - MODEL_R > oz + MODEL_R || -ox - MODEL_R > oz + MODEL_R) return;
+    if (oy - MODEL_R > oz + MODEL_R || -oy - MODEL_R > oz + MODEL_R) return;
     /* the original culls on vertex 0's depth (close enough: the centre's, +-20) */
     m00 = c;   m02 = s;
     m10 = (int16_t)(-(int32_t)sp * s >> 9);  m11 = cp;  m12 = (int16_t)((int32_t)sp * c >> 9);
