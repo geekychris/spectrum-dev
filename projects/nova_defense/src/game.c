@@ -227,13 +227,6 @@ static void update_playing(GameState *gs, InputState *input)
     int i, r, c;
     WORD bullet_prev_y;
 
-    /* Clear events */
-    gs->ev_shoot = FALSE;
-    gs->ev_alien_hit = FALSE;
-    gs->ev_player_hit = FALSE;
-    gs->ev_ufo_hit = FALSE;
-    gs->ev_march = FALSE;
-
     /* Player movement */
     if (input->left) gs->player_x -= PLAYER_SPEED;
     if (input->right) gs->player_x += PLAYER_SPEED;
@@ -498,6 +491,16 @@ bullet_done:
 
 void game_update(GameState *gs, InputState *input)
 {
+    /* fix (as in the original now): the sound events last one tick in every
+       state. They were cleared only in update_playing(), so while the gun was
+       dying (and while a cleared wave paused) sound_events() replayed the last
+       explosion every frame. */
+    gs->ev_shoot = FALSE;
+    gs->ev_alien_hit = FALSE;
+    gs->ev_player_hit = FALSE;
+    gs->ev_ufo_hit = FALSE;
+    gs->ev_march = FALSE;
+
     switch (gs->state) {
     case STATE_TITLE:
         gs->title_blink++;
