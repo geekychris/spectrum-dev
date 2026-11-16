@@ -74,6 +74,14 @@ What it uses beyond a 48K/128K Spectrum, and why:
 | **TurboSound** (3 AY chips) | the MOD's lead, bass and drums on chip 0, its echo channel on chip 1, the effects on chip 2 | music and effects at once |
 | **zxnDMA** | sprite patterns and attributes, Layer 2 clears | ~2 T-states a byte |
 
+## Build and run
+
+```sh
+./zx build pea_shooter_blast   # -> projects/pea_shooter_blast/build/pea_shooter_blast.nex
+./zx run pea_shooter_blast     # a window to play it
+./zx arcade                    # with the other games, from the arcade menu
+```
+
 ## How it's built
 
 - **Pictures** (`tools/gen_gfx.py`): the original's tile shapes (draw.c's
