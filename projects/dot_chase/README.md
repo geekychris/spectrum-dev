@@ -91,6 +91,14 @@ on a 128K; on a 48K they are short beeper slices.
   most important sound each frame (a pip is ~4,000 T-states). On a 128K the
   AY plays everything, as the original's four channels do on three.
 
+## Build and run
+
+```sh
+./zx build dot_chase     # -> projects/dot_chase/build/dot_chase.tap (48K)
+./zx run dot_chase       # a window to play it
+./zx arcade              # with the other games, from the arcade menu
+```
+
 ## Test
 
 `./zx test dot_chase`: a bot reads the game state from memory (at 0x7B00;
