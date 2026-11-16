@@ -2,8 +2,27 @@
 
 The original is `amiga_mcp/examples/orb_hunter` (classic Amiga and AmigaOS 4;
 the 3DO port has the same code). The port keeps its rules exactly
-(`tests/host_diff.c` checks every step against them) and changes only the
-drawing below, marked `port:` in `src/draw.c`.
+(`tests/host_diff.c` checks every step against them).
+
+**Fixed in the original** (geekychris/amiga_games #50, 2026-11-15) **and in
+this port** (the same behaviour, marked `fix` in the code):
+
+| bug | the original now | this port |
+|---|---|---|
+| enemies never drawn, the invulnerable hunter hidden (below) | `gs.frame` goes up once a loop; enemies flash on their own 8-frame `hit_timer` | the same rules (`game.c`); drawing flashes on the shown frames (`draw.c`). Before, the port drew enemies always and never flashed them |
+| the title, item box and game over took a held fire as a new press | presses only | the item box and game over: presses only (the title and game over already were) |
+| the item box (90 frames) and game over (180 frames) waited for fire: `game_update`'s timers never ran there | they run | they run (`main.c`); game over goes on to the initials if the score makes the table, else to the title |
+| the title said "START - MISSILE MODE" | "UP+FIRE - MISSILE" | the port's title already said "Q+SPACE - MISSILE" |
+| the score was never shown (a debug line in the HUD) | `SC 000000` in the HUD, the score on GAME OVER | the same |
+| the joystick's decode was wrong (right alone read 3) | the standard JOY1DAT decode | not applicable: the SDK reads the keys, Kempston and Sinclair |
+| citadel creatures at row 13, inside the floor (below) | row 12 | row 12 |
+
+`tests/host_diff.c` compares the port's rules with the fixed original's, the
+hit timer included, and now also jumps both into random rooms so the citadel's
+creatures are compared. `test.py` checks that the item box and game over go on
+by themselves after 90 and 180 frames.
+
+The notes below describe the original as it was.
 
 ## Enemies are never drawn (and the hunter vanishes while invulnerable)
 
@@ -38,13 +57,15 @@ the loop increments `gs.frame` without calling `game_update`) lasts an odd
 number of frames, after which enemies are always shown and the hunter
 flickers properly, until the next item screen.
 
-**Port:** enemies are always drawn (their timer has no "hit" meaning to
-flash on), and the invulnerable hunter flickers on the frames shown
-(`src/draw.c`, `draw_sprites`). The rules are untouched.
+**Port, before the fix:** enemies were always drawn (their timer has no "hit"
+meaning to flash on), and the invulnerable hunter flickered on the frames
+shown. **Now** (as in the fixed original): enemies flash while their own hit
+timer runs, 8 frames after a beam or a bomb hits them.
 
-## Not a bug that matters: creatures inside the citadel's floor
+## Creatures inside the citadel's floor (fixed)
 
 The citadel rooms (row 4) have a floor three tiles thick (`levels.c`
 `gen_citadel`: `add_shell(..., 3, 2)`), but their creatures are placed at
 tile row 13 (`game.c` `room_enemies`), which is inside it. They stay there
-and can't reach the hunter, nor be reached. The port keeps this as it is.
+and can't reach the hunter, nor be reached. Both the original and the port
+now place them at row 12, on the floor.
