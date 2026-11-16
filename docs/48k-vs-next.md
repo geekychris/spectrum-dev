@@ -78,7 +78,7 @@ the CPU is slow, so the work goes into drawing less:
   and variables take the whole RAM from 0x5D00, with tables made at start-up
   above the IM 2 table
 
-**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel, Orb Hunter, Harbour Crane, Orbital Patrol, Ace Pilot): the hardware does what the CPU did on
+**Next** (StakAttack, Boing Pinball, Spectral Keep, Rotoball, ScAIry Fun, Block Breaker 3D, Marble Tilt, Planet Chomp, Stack Tower, Warden Keep, Lunar Rider, Emberkeep, Tank Duel, Orb Hunter, Harbour Crane, Orbital Patrol, Ace Pilot, RJ's Birthday Bash): the hardware does what the CPU did on
 the 48K:
 
 - Layer 2 gives 8-bit colour anywhere, so the original art and colours

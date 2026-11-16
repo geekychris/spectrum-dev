@@ -8,7 +8,9 @@ initials ACE go in the table.
 Game 2: one jewel, then nothing: the clock runs out (time up, game over);
 the initials BOB, back to the title.
 Game 3: R picks the relaxed game (the original's, no clock): 64 seconds
-pass with no time up; BREAK goes back to the title.
+pass with no time up, then game 1's route wins the room (300, no time
+bonus, not in the table). Game 4: another relaxed room; BREAK goes back
+to the title.
 Also: the music on two TurboSound chips, the frame rate, the replay of the
 whole session twice (every frame hash must match). Screenshots go to
 screenshots/.
@@ -137,6 +139,20 @@ with Emulator(machine="next") as e:
     e.run(3200)                          # past the timed game's 60 s
     e.screenshot(SHOTS / "relaxed.png")
     check("no clock: still playing after 64 s", "wk: state" not in e.log(0)[mark:], e.log(0)[mark:][-200:])
+    e.hold("P")                          # game 1's route from 2,6: the jewel at 6,6, then up to 6,3
+    e.run(27)
+    e.release()
+    e.run(4)
+    steps(e, ["Q", "Q", "Q"])
+    check("the relaxed room won: 300, no time bonus", until(e, "wk: state WIN score=300", 20), e.log(0)[-200:])
+    e.run(210)
+    mark = len(e.log(0))
+    e.press("SPACE")
+    check("relaxed: not in the table, straight back to the title",
+          until(e, "wk: state TITLE", 30) and "wk: hiscore" not in e.log(0)[mark:], e.log(0)[mark:])
+    e.run(20)
+    e.press("SPACE")
+    check("another relaxed room", until(e, "wk: state PLAYING score=0 jewels=3 time=60 relaxed=1", 30))
     e.press("CAPS+SPACE")
     check("BREAK: back to the title", until(e, "wk: state TITLE", 20))
     rec = e.record_input("save", REC)

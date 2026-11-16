@@ -180,6 +180,13 @@ Details: docs/emulator-harness.md.
   Copy structs field by field; if a value is wrong, read the disassembly
   (`emu_disasm`) and a write watchpoint before suspecting the logic.
   block_breaker_3d runs the original's tests in the game to catch these.
+- zsdcc compiled `return (uint16_t)x % 320;` as a call to `__moduint`, and the linker
+  took z88dk's xcc one (`l/xcc/__moduint.asm`: arguments in HL and DE, the result in DE), so
+  the function returned x / 320. project.mk fails a link that pulls in an xcc `__mod*`/`__div*`;
+  write that expression another way (l2pic.c's `ring()` subtracts).
+- zsdcc's inline `strncpy` with a constant length saved `push de / push bc` and restored
+  `pop de / pop bc`, swapping a loop counter and a pointer (rj_birthday's name loop ran once):
+  use a small copy function there.
 - `dma_copy_banks`/`dma_fill_banks` map MMU slots 0-1 and give the ROM back:
   don't call them from code banked at 0x0000, and remap your bank after.
 - `frame_count` counts frame_wait() calls (loop iterations), not frames.

@@ -235,5 +235,20 @@ with tempfile.TemporaryDirectory() as tmp:
     check("build cache: ZX_BUILD_CACHE=off", buildcache.cache_dir() is None and not buildcache.restore(proj, k1))
     del os.environ["ZX_BUILD_CACHE"]
 
+# l2pic: column RLE round trips, no column split across pages, the index points at each
+import l2pic  # noqa: E402
+rnd = np.random.default_rng(7)
+cols = [np.repeat(rnd.integers(0, 256, 40), rnd.integers(1, 12, 40))[:256] for _ in range(600)]
+cols = [np.pad(c, (0, 256 - len(c)), constant_values=3) for c in cols] + [np.full(256, 9), np.arange(256) % 256]
+pages, idx = l2pic.pack(cols, 16, 40)
+ok = True
+for x, c in enumerate(cols):
+    pg, addr = idx[x * 3], idx[x * 3 + 1] | idx[x * 3 + 2] << 8
+    d = pages[pg - 40][addr - 0x4000:]
+    ok = ok and l2pic.unpack_column(d, 16) == [int(v) for v in c[16:]]
+check("l2pic: every column unpacks from its index entry", ok)
+check("l2pic: runs of at most 255, pages at most 8K", all(len(p) <= 8192 for p in pages)
+      and len(l2pic.rle_column(np.full(256, 1), 0)) == 4 and len(pages) > 1, f"{[len(p) for p in pages]}")
+
 print(f"{'FAIL' if failures else 'PASS'}: sdk tools")
 sys.exit(1 if failures else 0)
