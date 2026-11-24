@@ -169,7 +169,8 @@ Details: docs/emulator-harness.md.
   `ZX_BUILD_CACHE=<dir>` elsewhere; default `<repo's parent>/.spectrum_dev-buildcache`.
   The arcade test also caches 48K snapshots and only restarts games whose launch
   key (menu + card + program bytes) isn't verified yet, plus the first and last;
-  `--all` / `ZX_ARCADE_ALL=1` restarts every game.
+  `--all` / `ZX_ARCADE_ALL=1` restarts every game; `./zx release` always runs it with `--all`.
+  The key includes the emulator binary and sdk/src + sdk/include.
 - Stop only our own emulators: the harness kills its own Popen (and checks the ZRCP
   port answers with its pid before using it); never pkill/killall by name, other
   agents and the user run ZEsarUX on the same machine (`./zx selftest` checks).

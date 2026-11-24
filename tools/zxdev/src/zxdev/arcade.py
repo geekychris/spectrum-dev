@@ -236,15 +236,37 @@ def cached_snapshot(tap: Path, out: Path, log=print):
         tmp.replace(entry)                      # atomic
 
 
+_common_key: dict = {}
+
+
+def _launch_common(menu_bin: Path) -> str:
+    """the part of the launch key every game shares: the menu, NextZXOS's card,
+    this file (the launch line's form), the emulator binary, and the SDK's
+    sources (sdk/src, sdk/include: input, file, Layer 2 code the menu and
+    the games use), once per run"""
+    import hashlib
+    k = str(menu_bin)
+    if k not in _common_key:
+        h = hashlib.sha256(b"arcade-launch 2\0")
+        emu = ROOT / "third_party" / "zesarux" / "src" / "zesarux"
+        for p in (menu_bin, base_image(), Path(__file__), emu):
+            h.update(buildcache.hash_file(p).encode())
+        for top in (ROOT / "sdk" / "src", ROOT / "sdk" / "include"):
+            for f in sorted(top.rglob("*")):
+                if f.is_file():
+                    h.update(str(f.relative_to(ROOT)).encode() + buildcache.hash_file(f).encode())
+        _common_key[k] = h.hexdigest()
+    return _common_key[k]
+
+
 def launch_key(g: dict, menu_bin: Path) -> str:
     """What decides whether a game starts from the menu: the menu, the card,
-    the launch line's form, the game's machine and its program's bytes (not
-    its place in the list). Same key: the same result (the emulator is
-    deterministic), so a launch that worked needn't be repeated."""
+    the launch line's form, the emulator, the SDK, the game's machine and its
+    program's bytes (not its place in the list). Same key: the same result
+    (the emulator is deterministic), so a launch that worked needn't be
+    repeated; any change to those starts the game again."""
     import hashlib
-    h = hashlib.sha256(b"arcade-launch 1\0")
-    for p in (menu_bin, base_image(), Path(__file__)):
-        h.update(buildcache.hash_file(p).encode())
+    h = hashlib.sha256(_launch_common(menu_bin).encode())
     h.update(g["machine"].encode())
     h.update(buildcache.hash_file(Path(g["program"])).encode())
     return h.hexdigest()[:32]
