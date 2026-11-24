@@ -23,6 +23,7 @@ import argparse
 import datetime
 import json
 import shutil
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -137,12 +138,20 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "dist" / "release"))
     ap.add_argument("--tag", default="games-" + datetime.date.today().isoformat())
     ap.add_argument("--no-build", action="store_true", help="use the programs already in projects/*/build/")
+    ap.add_argument("--no-launch-check", action="store_true",
+                    help="skip the arcade test --all (every game started from the menu); for emergencies")
     opt = ap.parse_args()
     out = Path(opt.out)
     gs = arcade.games()
     if not opt.no_build:
         print(f"building {len(gs)} games and the arcade menu")
         arcade.build_projects([g["project"] for g in gs] + ["arcade"])
+    if not opt.no_launch_check:
+        # every game must start from the arcade menu: the full check, not the cached one
+        print("arcade test --all: every game started from the menu")
+        r = subprocess.run([sys.executable, str(ROOT / "projects" / "arcade" / "test.py"), "--all", "--no-build"])
+        if r.returncode:
+            sys.exit("release stopped: the arcade test (--all) failed")
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
