@@ -8,11 +8,17 @@
 #include <stddef.h>
 #include <string.h>
 #include "jq.h"
+
+/* the 48K's hot loops are asm (enemies.asm, checks.asm, tile_px.asm; game.asm
+   puts the state above the program); the host and the Next (28 MHz) use the C */
+#if defined(__SDCC) && !defined(__ZXNEXT)
+#define JQ_ASM
+#endif
 #include "tmap.h"
 #include "zxrle.h"
 #include "levels_data.h"
 
-#ifndef __SDCC
+#ifndef JQ_ASM
 Game game;
 #endif
 
@@ -40,7 +46,7 @@ static int16_t div16(int16_t v)
    with the original's rounding towards zero: tile_px.asm (these lookups were
    most of a tick's time); the C below is the host's */
 uint8_t tile_px(int16_t px, int16_t py);
-#ifndef __SDCC
+#ifndef JQ_ASM
 uint8_t tile_px(int16_t px, int16_t py)
 {
     return level_get_tile(div16(px), div16(py));
@@ -366,7 +372,7 @@ static void enemies_spawn(const EntitySpawn *spawns)
 
 /* port: the Spectrum's is enemies.asm (zsdcc's code for this was a third of
    a frame every tick); this C is the host's, and the reference */
-#ifdef __SDCC
+#ifdef JQ_ASM
 extern void enemies_update(void);
 extern void enemies_rows(void);
 /* enemies.asm finds the enemies at this offset */
@@ -464,7 +470,7 @@ static void enemies_update(void)
 
 /* port: the Spectrum's box tests and particle update are checks.asm
    (one unsigned compare an axis); these C versions are the host's */
-#ifdef __SDCC
+#ifdef JQ_ASM
 typedef char game_end_check[GAME_ADDR + sizeof(Game) <= 0xFCC0 ? 1 : -1];
 typedef char items_offset_check[offsetof(Game, items) == 56 + 16 * 13 ? 1 : -1];
 typedef char particles_offset_check[offsetof(Game, particles) == 56 + 16 * 13 + 24 * 9 ? 1 : -1];
@@ -541,7 +547,7 @@ static void items_spawn(const EntitySpawn *spawns)
 /* port: items_update() (the bobbing: frame and float_off) is gone: the items
    are drawn as tiles, and nothing else reads them */
 
-#ifndef __SDCC
+#ifndef JQ_ASM
 /* port: locals first, as for the enemies (zsdcc) */
 int8_t items_check_collect(int16_t px, int16_t py, int16_t pw, int16_t ph)
 {
@@ -583,7 +589,7 @@ static void particles_spawn(int16_t x, int16_t y, uint8_t count, int8_t color)
     game.events |= EV_PARTICLES;
 }
 
-#ifndef __SDCC
+#ifndef JQ_ASM
 void particles_update(void)
 {
     uint8_t i;
@@ -612,7 +618,7 @@ static void start_level(int8_t level_num)
     ld = level_current();
 
     enemies_spawn(ld->entities);
-#ifdef __SDCC
+#ifdef JQ_ASM
     enemies_rows();                        /* port: enemies.asm keeps the walkers' rows */
 #endif
     items_spawn(ld->entities);
